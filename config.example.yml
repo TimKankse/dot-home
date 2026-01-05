@@ -1,0 +1,75 @@
+# Editorial OS Configuration Example
+# Copy this file to config.yml and customize for your setup
+# API keys added through the UI will be stored here (encrypted)
+
+widgets: []
+
+scrollDirection: vertical
+
+pages:
+  - id: default-page
+
+integrations: []
+
+settings:
+  behavior:
+    confirmEdit: false
+    autoSave: true
+    refreshInterval: 10
+    autoDetectLocation: true
+  display:
+    is24Hour: true
+    temperatureUnit: C
+    dateFormat: DD/MM
+    language: en
+    timezone: auto
+    location: ""
+  shortcuts:
+    toggleEdit: Alt+E
+    openSettings: Alt+,
+    addItem: Alt+N
+    saveChanges: Alt+S
+    prevPage: Alt+ArrowLeft
+    nextPage: Alt+ArrowRight
+
+# Example widget configurations (uncomment and customize):
+#
+# - id: my-clock
+#   type: clock
+#   grid:
+#     x: 0
+#     y: 0
+#     w: 2
+#     h: 2
+#   pageId: default-page
+#   config:
+#     variant: digital
+#     hour12: false
+#     includeDate: true
+#
+# - id: my-weather
+#   type: weather
+#   grid:
+#     x: 2
+#     y: 0
+#     w: 2
+#     h: 2
+#   pageId: default-page
+#   config:
+#     location: "Stockholm, Sweden"
+#     unit: metric
+#     view: current
+#     # apiKey: "" # Optional: OpenWeatherMap API key for extended features
+#
+# - id: my-shortcut
+#   type: shortcut
+#   name: "My Service"
+#   url: "https://example.com"
+#   internalUrl: "http://192.168.1.x:8080"
+#   isSelfHosted: true
+#   grid:
+#     x: 0
+#     y: 2
+#     w: 1
+#     h: 1
+#   pageId: default-page

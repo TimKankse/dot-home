@@ -1,0 +1,321 @@
+/* AddItemDialog Styles */
+.modal {
+  width: 90%;
+  max-width: 900px;
+  height: 80vh;
+  max-height: 720px;
+  display: flex;
+  flex-direction: row; /* Force row for Sidebar + Content layout */
+  padding: 0; /* Remove padding if any */
+  background-color: var(--bg-card); /* Ensure background is set */
+}
+
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background-color: var(--bg-app);
+  border-right: 1px solid var(--border-dim);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 20px;
+  position: relative;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--border-highlight) 20%,
+    var(--border-highlight) 80%,
+    transparent
+  );
+  opacity: 0.5;
+}
+
+.sidebarHeader {
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebarTitle {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--text-main);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+}
+
+.navItem:hover {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+}
+
+.navItem.active {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border-color: var(--border-dim);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Content Area */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  overflow: hidden;
+}
+
+.header {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-card);
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.closeButton {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.closeButton:hover {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+  border-color: var(--border-dim);
+}
+
+.contentWrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Form Styles */
+.formContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.formContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.input, .select {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--bg-app);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.input:focus, .select:focus {
+  border-color: var(--border-highlight);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 24px 32px;
+  border-top: 1px solid var(--border-dim);
+  background-color: var(--bg-surface); /* Ensure opaque bg if scrolling underneath (though layout suggests otherwise) */
+  margin-top: 0;
+}
+
+.button {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.buttonSecondary {
+  background-color: transparent;
+  color: var(--text-muted);
+}
+
+.buttonSecondary:hover {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+}
+
+.buttonPrimary {
+  background-color: var(--text-main);
+  color: var(--bg-app);
+}
+
+.buttonPrimary:hover {
+  opacity: 0.9;
+}
+
+.buttonDanger {
+  background-color: rgba(255, 50, 50, 0.1);
+  color: #ff4444;
+  margin-right: auto;
+}
+
+.buttonDanger:hover {
+  background-color: rgba(255, 50, 50, 0.2);
+}
+
+/* Scrollbar styling */
+.formContent::-webkit-scrollbar {
+  width: 8px;
+}
+
+.formContent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.formContent::-webkit-scrollbar-thumb {
+  background-color: var(--border-dim);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--bg-surface);
+}
+
+.formContent::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border-highlight);
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+/* Dynamic List Styles */
+.inputRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.removeButton {
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.removeButton:hover {
+  background: rgba(255, 59, 48, 0.2);
+}
+
+.addButton {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+.addButton:hover {
+  background: rgba(255, 255, 255, 0.15);
+}

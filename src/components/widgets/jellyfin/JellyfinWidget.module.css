@@ -1,0 +1,339 @@
+/* JellyfinWidget.module.css */
+
+/* --- Container & Loading States (Unchanged) --- */
+.loadingContainer {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyStateContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.emptyStateIcon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyStateIcon svg {
+  color: var(--bg-card);
+  margin: 0 !important;
+}
+
+
+.widgetContainer {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  
+}
+
+/* --- Main Layout Areas --- */
+.contentArea {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  overflow: hidden; /* Prevents scrollbar flickering */
+}
+
+
+.indicatorSidebar {
+  width: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--border-dim);
+  margin-right: 12px;
+  padding-right: 4px;
+}
+
+.indicatorText {
+  font-size: 0.7rem;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.indicatorCurrent {
+  color: var(--text-main);
+}
+
+.indicatorSeparator {
+  margin: 4px 0;
+  opacity: 0.5;
+}
+
+.carouselContainer {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+/* --- Session Item Styling (UPDATED) --- */
+
+.sessionContainer {
+  height: 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: row; /* CHANGED: Aligns poster next to text */
+  align-items: center; /* Vertically centers content */
+  gap: 16px; /* Space between poster and text */
+  padding-right: 4px; /* Tiny buffer for scrollbar */
+}
+
+/* --- Poster Styling (NEW) --- */
+.posterContainer {
+  width: 70px; /* Fixed width for consistency */
+  height: 105px; /* Aspect ratio approx 1:1.5 */
+  flex-shrink: 0; /* Prevents image from squishing */
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #18181b; /* Dark placeholder bg */
+  position: relative;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+}
+
+.posterImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fallback icon when no image exists */
+.posterPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #52525b; /* Muted text color */
+}
+
+/* To hide the ugly broken image icon if loading fails */
+.posterImage[style*="display: none"] + .posterPlaceholder {
+    display: flex;
+}
+
+/* --- Content Styling --- */
+
+.sessionContent {
+  flex: 1;
+  min-width: 0; /* CRITICAL: Allows text truncation to work in flexbox */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.headerGroup {
+  margin-bottom: 4px;
+}
+
+.sessionTitle {
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.episodeTitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessionMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* Optional: Make user/device look like badges */
+.userBadge, .deviceBadge {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* --- Progress Bar --- */
+.progressBarContainer {
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--text-main); /* Ensure this var exists, or use #fff */
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+
+.timeInfo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* Library View Styles */
+.libraryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.libraryItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.libraryItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.libraryIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  color: var(--accent-blue);
+}
+
+.libraryInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.libraryName {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.libraryStats {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+
+/* --- Tech Info Toggle --- */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+
+.infoButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.2); /* Slight background for contrast */
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 100px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.infoButton:hover, .infoButton.active {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.techInfoContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 100%;
+  padding-right: 4px;
+}
+
+.techInfoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  gap: 8px;
+}
+
+.techInfoRow:last-child {
+  border-bottom: none;
+}
+
+.techLabel {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.techValue {
+  color: var(--text-main);
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}

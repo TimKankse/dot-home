@@ -1,0 +1,124 @@
+.wrapper {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+}
+
+.indicators {
+  display: flex;
+  gap: 6px;
+  padding: 12px;
+  background: var(--bg-card);
+  backdrop-filter: blur(8px);
+  border-radius: 24px;
+  border: 1px solid var(--border-dim);
+  align-items: center;
+}
+
+.vertical {
+  flex-direction: column;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.vertical .indicators {
+  flex-direction: column;
+}
+
+.horizontal {
+  flex-direction: row;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-highlight);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.indicator:hover {
+  background: var(--text-muted);
+  transform: scale(1.2);
+}
+
+.active {
+  background: var(--text-main);
+  transform: scale(1.2);
+  box-shadow: 0 0 10px var(--text-main);
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.vertical .controls {
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.horizontal .controls {
+  flex-direction: row;
+  margin-left: 12px;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  backdrop-filter: blur(8px);
+}
+
+.actionButton:hover {
+  background: var(--bg-highlight);
+  color: var(--text-main);
+  transform: scale(1.1);
+}
+
+.actionButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.removeButton {
+  background: var(--bg-card);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+}
+
+.removeButton:hover {
+  background: var(--accent-red);
+  color: var(--bg-card);
+}
+
+
+
+.defaultButton:hover {
+  background: var(--accent-orange);
+  color: var(--bg-card);
+}
+
+.isDefault {
+  color: var(--accent-orange);
+  box-shadow: 0 0 10px var(--accent-orange);
+}

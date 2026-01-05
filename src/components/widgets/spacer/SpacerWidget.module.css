@@ -1,0 +1,22 @@
+.spacer {
+  width: 100%;
+  height: 100%;
+  min-height: 50px; /* Ensure it has some height even if empty */
+}
+
+.editing {
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}

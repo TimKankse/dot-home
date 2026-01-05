@@ -1,0 +1,414 @@
+.widgetContainer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  color: var(--text-main);
+  background: transparent;
+}
+
+.header {
+  margin-bottom: 12px;
+}
+
+.widgetTitle {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fff;
+}
+
+/* CPU Specific */
+.cpuContent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.circularProgress {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.circularLabel {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.circularValue {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.graphContainer {
+    flex: 1;
+    opacity: 0.8;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.cpuTemp {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 4px;
+}
+
+.cpuFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    width: 100%;
+}
+
+/* RAM Specific */
+.ramContent {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.ramGraphContainer {
+    height: 70px !important; /* Reduced height for RAM */
+    opacity: 0.8;
+}
+
+.ramDetails {
+    font-size: 0.8rem;
+    margin-top: 4px;
+}
+
+/* Storage Specific */
+.storageList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px; /* Space for scrollbar */
+}
+
+.storageItem {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.storageHeader {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.mountPoint {
+    color: #fff;
+}
+
+.storageValue {
+    color: var(--text-muted);
+}
+
+/* Processes Specific */
+.processList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.processHeader {
+    display: grid;
+    grid-template-columns: 1fr 40px 40px;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.processItem {
+    display: grid;
+    grid-template-columns: 1fr 40px 40px;
+    gap: 8px;
+    align-items: center;
+}
+
+.processName {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-main);
+}
+
+.processValue {
+    text-align: right;
+    color: var(--text-muted);
+}
+
+/* Network Specific */
+.networkSingle {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+}
+
+.networkGraphContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-height: 0;
+}
+
+.netGraphRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-height: 0; /* Allow shrinking */
+}
+
+.netGraphLabel {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    width: 12px;
+}
+
+.netGraph {
+    flex: 1;
+    height: 100%;
+    opacity: 0.8;
+}
+
+.networkStats {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: auto;
+    flex-shrink: 0;
+}
+
+.networkStat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+}
+
+.statLabel {
+    color: var(--text-muted);
+    font-weight: bold;
+}
+
+.statValue {
+    color: var(--text-main);
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Common */
+.progressBarContainer {
+    width: 100%;
+}
+
+.progressBar {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.offlineState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.editContent {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+/* Scrollbar for lists */
+.storageList::-webkit-scrollbar {
+    width: 4px;
+}
+
+.storageList::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.storageList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* Storage Circular View */
+.storageCircularList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    align-items: start;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.storageCircularItem {
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+    align-items: center;
+}
+
+.storageCircularLabel {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.storageCircularDetails {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: -4px;
+}
+
+/* System Info Specific */
+.systemInfoList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+}
+
+.systemInfoItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 4px;
+}
+
+.systemInfoItem:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.systemInfoLabel {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.systemInfoValue {
+    color: var(--text-main);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70%;
+}
+
+/* CPU Cores Specific */
+.coresGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.coreItem {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 4px;
+    height: fit-content;
+}
+
+.coreGraph {
+    height: 40px;
+    position: relative;
+    opacity: 0.8;
+}
+
+.coreOverlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.85);
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+.coreFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.coreLabel {
+    font-weight: 500;
+}
+
+.coreTemp {
+    font-family: var(--font-mono);
+}

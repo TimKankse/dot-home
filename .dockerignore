@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build output
+.next
+out
+build
+
+# Development
+*.log
+.DS_Store
+.env*
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Config (will be mounted as volume)  
+config.yml
+
+# Documentation
+*.md
+docs/
+info/
+
+# Test files
+scripts/
+
+# Misc
+*.swp
+*.swo
+.eslintcache
