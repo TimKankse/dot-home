@@ -36,6 +36,10 @@ yarn-error.log*
 # User configuration (contains API keys)
 config.yml
 
+# SQLite database (contains user data)
+prisma/*.db
+prisma/*.db-journal
+
 # vercel
 .vercel
 
