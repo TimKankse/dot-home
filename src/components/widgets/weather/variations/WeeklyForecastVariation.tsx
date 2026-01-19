@@ -1,6 +1,6 @@
 import React from 'react';
 import { WeatherData, WeatherWidgetConfig } from '../types';
-import { getWeatherIcon } from '../utils';
+import { getWeatherIcon, getWeatherDescription } from '../utils';
 
 interface WeeklyForecastVariationProps {
   weather: WeatherData;
@@ -23,7 +23,10 @@ export const WeeklyForecastVariation: React.FC<WeeklyForecastVariationProps> = (
                 {React.createElement(IconComponent, { size: 24 })}
                 <span className="font-display text-lg">{Math.round(weather.current.temperature_2m)}{unitSymbol}</span>
             </div>
-            <span className="font-mono text-xs text-muted">{config?.location || 'Stockholm'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                <span className="font-mono text-xs text-muted">{config?.cityData?.name || config?.location || 'Stockholm'}</span>
+                <span className="font-mono text-[10px] text-muted">{getWeatherDescription(weather.current.weather_code)}</span>
+            </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1, alignItems: 'flex-end' }}>
             {nextDays.map((time, i) => {
@@ -34,9 +37,11 @@ export const WeeklyForecastVariation: React.FC<WeeklyForecastVariationProps> = (
                     <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                         <span className="font-mono text-xs text-muted">{dayName}</span>
                         <DailyIcon size={16} />
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0px' }}>
-                            <span className="font-mono text-xs">{Math.round(weather.daily!.temperature_2m_max[i])}°</span>
-                            <span className="font-mono text-[10px] text-muted">{Math.round(weather.daily!.temperature_2m_min[i])}°</span>
+                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0px' }}>
+                                <span className="font-mono text-xs" style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(weather.daily!.temperature_2m_max[i])}°</span>
+                                <span className="font-mono text-[10px] text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(weather.daily!.temperature_2m_min[i])}°</span>
+                            </div>
                         </div>
                     </div>
                 );

@@ -4,12 +4,11 @@ import React, { useState, FormEvent } from 'react';
 import { Search } from 'lucide-react';
 import styles from './SearchWidget.module.css';
 import { DragHandles } from '../../ui/DragHandles';
-
-import { WidgetConfig } from '@/types/widget';
+import type { SearchWidgetConfig } from '@/types';
 
 interface SearchWidgetProps {
   isEditing?: boolean;
-  config?: WidgetConfig;
+  config?: SearchWidgetConfig;
 }
 
 const DEFAULT_SEARCH = 'https://www.google.com/search?q=';

@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function GET(request: Request) {
-  const JELLYFIN_URL = request.headers.get('x-jellyfin-url');
-  const JELLYFIN_API_KEY = request.headers.get('x-jellyfin-apikey');
+  const integrationId = request.headers.get('x-integration-id');
+  let JELLYFIN_URL = request.headers.get('x-jellyfin-url');
+  let JELLYFIN_API_KEY = request.headers.get('x-jellyfin-apikey');
+
+  if (integrationId) {
+      const integration = await prisma.integration.findUnique({
+          where: { id: integrationId }
+      });
+      
+      if (integration) {
+          const config = decryptSensitiveFields(JSON.parse(integration.config));
+          JELLYFIN_URL = (config.externalUrl || config.url) as string;
+          JELLYFIN_API_KEY = config.apiKey as string;
+      }
+  }
 
   if (!JELLYFIN_URL || !JELLYFIN_API_KEY) {
     return NextResponse.json(

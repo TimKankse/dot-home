@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get('mode');
@@ -8,8 +11,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Mode is required' }, { status: 400 });
   }
 
-  const sabnzbdUrl = request.headers.get('x-sabnzbd-url');
-  const sabnzbdApiKey = request.headers.get('x-sabnzbd-apikey');
+  // Try to get Integration ID first
+  const integrationId = request.headers.get('x-integration-id');
+
+  let sabnzbdUrl = request.headers.get('x-sabnzbd-url');
+  let sabnzbdApiKey = request.headers.get('x-sabnzbd-apikey');
+
+  if (integrationId) {
+    const integration = await prisma.integration.findUnique({
+        where: { id: integrationId }
+    });
+    
+    if (integration) {
+        const config = decryptSensitiveFields(JSON.parse(integration.config));
+        sabnzbdUrl = (config.externalUrl || config.url) as string;
+        sabnzbdApiKey = config.apiKey as string;
+    }
+  }
 
   if (!sabnzbdUrl || !sabnzbdApiKey) {
     return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });

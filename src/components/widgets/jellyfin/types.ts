@@ -1,3 +1,26 @@
+import type { JellyfinWidgetConfig } from '@/types';
+
+export interface MediaStream {
+  Type: 'Video' | 'Audio' | 'Subtitle';
+  Codec?: string;
+  CodecTag?: string;
+  Language?: string;
+  Title?: string;
+  DisplayTitle?: string;
+  // Video specific
+  Width?: number;
+  Height?: number;
+  AspectRatio?: string;
+  BitRate?: number;
+  BitDepth?: number;
+  VideoRange?: string;
+  VideoRangeType?: string;
+  // Audio specific
+  Channels?: number;
+  ChannelLayout?: string;
+  SampleRate?: number;
+}
+
 export interface JellyfinSession {
   Id: string;
   UserName: string;
@@ -14,6 +37,7 @@ export interface JellyfinSession {
     ImageTags?: {
         Primary?: string;
     };
+    MediaStreams?: MediaStream[];
   };
   PlayState?: {
     PositionTicks?: number;
@@ -25,6 +49,13 @@ export interface JellyfinSession {
     VideoCodec?: string;
     IsVideoDirect?: boolean;
     IsAudioDirect?: boolean;
+    Bitrate?: number;
+    Container?: string;
+    Framerate?: number;
+    Width?: number;
+    Height?: number;
+    AudioChannels?: number;
+    TranscodeReasons?: string[];
   };
 }
 
@@ -40,9 +71,5 @@ export interface LibraryStats {
   TotalSize: number;
 }
 
-export interface JellyfinWidgetConfig {
-  url?: string;
-  apiKey?: string;
-  userId?: string;
-  viewMode?: string;
-}
+// Re-export from centralized types for convenience
+export type { JellyfinWidgetConfig };

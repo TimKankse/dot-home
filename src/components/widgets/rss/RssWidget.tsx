@@ -1,35 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Rss, AlertCircle } from 'lucide-react';
 import styles from './RssWidget.module.css';
-
-interface RssItem {
-  title: string;
-  link: string;
-  pubDate: string;
-  contentSnippet?: string;
-  isoDate?: string;
-  thumbnail?: string;
-  publisher?: string;
-}
-
-interface RssData {
-  title: string;
-  description: string;
-  items: RssItem[];
-}
+import type { RssWidgetConfig } from '@/types';
+import { List } from '@/components/primitives/list/List';
+import { fetchRssFeed, formatTimeAgo, RssData } from '@/services/rss';
 
 interface RssWidgetProps {
-  config?: {
-    feedUrl?: string; // Legacy support
-    feedUrls?: string[];
-    title?: string;
-    maxItems?: number;
-    showThumbnail?: boolean;
-    showSummary?: boolean;
-    refreshInterval?: number;
-  };
+  config?: RssWidgetConfig;
 }
 
 export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
@@ -38,7 +17,6 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
 
-  // Backward compatibility: use feedUrl if feedUrls is not present
   const feedUrls = config?.feedUrls || (config?.feedUrl ? [config.feedUrl] : []);
   const customTitle = config?.title;
   const maxItems = config?.maxItems || 5;
@@ -46,7 +24,9 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
   const showSummary = config?.showSummary ?? true;
   const refreshInterval = config?.refreshInterval || 15;
 
-  const fetchData = async () => {
+  const feedUrlsKey = JSON.stringify(feedUrls);
+
+  const loadData = useCallback(async () => {
     if (feedUrls.length === 0) {
       setLoading(false);
       return;
@@ -54,14 +34,7 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
 
     setLoading(true);
     try {
-      // Build query string with one or more 'url' params
-      const params = new URLSearchParams();
-      feedUrls.forEach(url => params.append('url', url));
-      
-      const response = await fetch(`/api/rss?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch RSS feed');
-      
-      const json = await response.json();
+      const json = await fetchRssFeed(feedUrls);
       setData(json);
       setError(null);
     } catch (err) {
@@ -70,20 +43,17 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedUrlsKey]);
 
   useEffect(() => {
-    fetchData();
-    // Refresh based on config
-    const interval = setInterval(fetchData, refreshInterval * 60 * 1000);
+    loadData();
+    const interval = setInterval(loadData, refreshInterval * 60 * 1000);
     return () => clearInterval(interval);
-  }, [JSON.stringify(feedUrls), refreshInterval]);
+  }, [loadData, refreshInterval]);
 
-  // Update "time ago" every minute
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 60000);
+    const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -133,7 +103,7 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
         <div className={styles.headerControls}>
           <button 
             className={styles.refreshButton} 
-            onClick={fetchData} 
+            onClick={loadData} 
             title="Refresh Feed"
             disabled={loading}
           >
@@ -142,7 +112,7 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
         </div>
       </div>
 
-      <div className={styles.feedList}>
+      <List className={styles.feedList}>
         {displayItems.map((item, index) => (
           <div key={index} className={styles.feedItem}>
             <div className={styles.itemHeader}>
@@ -173,48 +143,12 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
                 <span className={styles.publisher}>{item.publisher}</span>
               )}
               <span className={styles.date}>
-                {(() => {
-                  const dateStr = item.isoDate || item.pubDate;
-                  const date = new Date(dateStr);
-                  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-                  
-                  let timeString = '';
-                  if (diffInSeconds < 60) {
-                    timeString = 'just now';
-                  } else {
-                    const diffInMinutes = Math.floor(diffInSeconds / 60);
-                    if (diffInMinutes < 60) {
-                      timeString = `${diffInMinutes}m ago`;
-                    } else {
-                      const diffInHours = Math.floor(diffInMinutes / 60);
-                      if (diffInHours < 24) {
-                        timeString = `${diffInHours}h ago`;
-                      } else {
-                        const diffInDays = Math.floor(diffInHours / 24);
-                        if (diffInDays === 1) {
-                          timeString = 'yesterday';
-                        } else if (diffInDays < 7) {
-                          timeString = `${diffInDays}d ago`;
-                        } else {
-                          const diffInWeeks = Math.floor(diffInDays / 7);
-                          if (diffInWeeks === 1) {
-                            timeString = 'last week';
-                          } else if (diffInWeeks < 4) {
-                            timeString = `${diffInWeeks}w ago`;
-                          } else {
-                            timeString = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                          }
-                        }
-                      }
-                    }
-                  }
-                  return timeString;
-                })()}
+                {formatTimeAgo(item.isoDate || item.pubDate, now)}
               </span>
             </div>
           </div>
         ))}
-      </div>
+      </List>
     </div>
   );
 };

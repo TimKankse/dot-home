@@ -3,15 +3,10 @@
 import React from 'react';
 import { DigitalClock } from './DigitalClock';
 import { AnalogClock } from './AnalogClock';
+import type { ClockWidgetConfig } from '@/types';
 
 export interface ClockWidgetProps {
-  config?: {
-    justification?: 'left' | 'center' | 'right';
-    hour12?: boolean;
-    includeDate?: boolean;
-    dateFormat?: 'short' | 'long';
-    variant?: 'digital' | 'analog';
-  };
+  config?: ClockWidgetConfig;
 }
 
 export const ClockWidget: React.FC<ClockWidgetProps> = ({ config }) => {

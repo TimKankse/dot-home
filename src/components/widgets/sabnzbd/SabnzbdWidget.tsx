@@ -1,63 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import styles from './SabnzbdWidget.module.css';
 import { Download, Clock, CheckCircle, Pause, Play } from 'lucide-react';
+import { List } from '@/components/primitives/list/List';
+import { 
+  fetchSabnzbdQueue, 
+  toggleSabnzbdPause, 
+  formatSize,
+  formatSpeed,
+  QueueData 
+} from '@/services/sabnzbd';
 
-interface QueueSlot {
-  filename: string;
-  percentage: string;
-  mbleft: string;
-  mb: string;
-  status: string;
-  timeleft: string;
-  index: number;
+interface SabnzbdWidgetProps {
+  config?: { url?: string; apiKey?: string };
+  integrationId?: string;
 }
 
-interface QueueData {
-  status: string;
-  speed: string;
-  timeleft: string;
-  slots: QueueSlot[];
-  paused: boolean;
-}
-
-interface SabnzbdResponse {
-  queue: QueueData;
-}
-
-const formatSize = (mbString: string) => {
-  const mb = parseFloat(mbString);
-  if (isNaN(mb)) return mbString;
-  
-  if (mb >= 1024) {
-    return `${(mb / 1024).toFixed(2)} GB`;
-  }
-  return `${mb.toFixed(1)} MB`;
-};
-
-export function SabnzbdWidget({ config }: { config?: { url?: string; apiKey?: string } }) {
+export function SabnzbdWidget({ config, integrationId }: SabnzbdWidgetProps) {
   const [data, setData] = useState<QueueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    if (!config?.url || !config?.apiKey) {
+  const loadData = useCallback(async () => {
+    if ((!config?.url || !config?.apiKey) && !integrationId) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch('/api/sabnzbd?mode=queue', {
-        headers: {
-          'x-sabnzbd-url': config.url,
-          'x-sabnzbd-apikey': config.apiKey,
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch data');
-      
-      const json: SabnzbdResponse = await res.json();
-      setData(json.queue);
+      const queue = await fetchSabnzbdQueue({ config, integrationId });
+      setData(queue);
       setError(null);
     } catch (err) {
       console.error(err);
@@ -65,29 +38,23 @@ export function SabnzbdWidget({ config }: { config?: { url?: string; apiKey?: st
     } finally {
       setLoading(false);
     }
-  };
+  }, [config, integrationId]);
 
-  const togglePause = async () => {
+  const handleTogglePause = async () => {
     if (!data) return;
-    const newMode = data.paused ? 'resume' : 'pause';
     try {
-      await fetch(`/api/sabnzbd?mode=${newMode}`, {
-        headers: {
-          'x-sabnzbd-url': config?.url || '',
-          'x-sabnzbd-apikey': config?.apiKey || '',
-        }
-      });
-      fetchData(); // Refresh data immediately
+      await toggleSabnzbdPause(data.paused, { config, integrationId });
+      loadData();
     } catch (err) {
       console.error('Failed to toggle pause', err);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
+    loadData();
+    const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData]);
 
   if (loading && !data) {
     return <div className={styles.emptyState}>Loading...</div>;
@@ -107,7 +74,7 @@ export function SabnzbdWidget({ config }: { config?: { url?: string; apiKey?: st
         <div className={styles.statusInfo}>
           <div className={styles.speed}>
             <Download size={14} />
-            <span>{data.speed}</span>
+            <span>{formatSpeed(data.speed)}</span>
           </div>
           <div className={styles.timeleft}>
             <Clock size={14} />
@@ -116,7 +83,7 @@ export function SabnzbdWidget({ config }: { config?: { url?: string; apiKey?: st
         </div>
       </div>
 
-      <div className={styles.queueList}>
+      <List className={styles.queueList}>
         {!hasItems ? (
           <div className={styles.emptyState}>
             <CheckCircle size={24} />
@@ -141,18 +108,21 @@ export function SabnzbdWidget({ config }: { config?: { url?: string; apiKey?: st
 
               <div className={styles.itemFooter}>
                 <span className={styles.itemSize}>
-                  {formatSize(slot.mbleft)} / {formatSize(slot.mb)}
+                  {formatSize(String(parseFloat(slot.mb) - parseFloat(slot.mbleft)))} / {formatSize(slot.mb)}
+                </span>
+                <span className={styles.itemStatus}>
+                  {slot.status}
                 </span>
               </div>
             </div>
           ))
         )}
-      </div>
+      </List>
 
       <div className={styles.footer}>
         <button 
           className={styles.pauseButton} 
-          onClick={togglePause}
+          onClick={handleTogglePause}
           title={data.paused ? "Resume Queue" : "Pause Queue"}
         >
           {data.paused ? <Play size={16} /> : <Pause size={16} />}

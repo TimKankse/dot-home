@@ -2,20 +2,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import type { ClockWidgetConfig, CityData } from '@/types';
+import { getCityById } from '@/constants/cities';
 
 interface AnalogClockProps {
-  config?: {
-    // Shared props
-  };
+  config?: ClockWidgetConfig;
 }
 
-export const AnalogClock: React.FC<AnalogClockProps> = () => {
+export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
     const { settings } = useSettingsStore();
     const [time, setTime] = useState<Date | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState<{width: number, height: number} | null>(null);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial sync for timer
         setTime(new Date());
         const timer = setInterval(() => {
             setTime(new Date());
@@ -54,7 +55,48 @@ export const AnalogClock: React.FC<AnalogClockProps> = () => {
         return () => observer.disconnect();
     }, []);
 
-    const timeZone = settings?.display?.timezone || undefined;
+    // Get effective city data: prefer widget's cityData, then widget's city ID, then app settings
+    const getEffectiveCityData = (): { abbreviation: string; timezone: string } | undefined => {
+        // Custom cityData from widget config (searched via CitySearch)
+        if (config?.cityData) {
+            const name = config.cityData.name || '';
+            return {
+                abbreviation: config.cityData.abbreviation || name.substring(0, 3).toUpperCase() || 'UTC',
+                timezone: config.cityData.timezone,
+            };
+        }
+        
+        // Preset city ID from widget config
+        if (config?.city) {
+            const presetCity = getCityById(config.city);
+            if (presetCity) {
+                return {
+                    abbreviation: presetCity.abbreviation,
+                    timezone: presetCity.timezone,
+                };
+            }
+        }
+        
+        // App settings city - check if it's a valid CityData object
+        if (settings?.display?.city) {
+            const appCity = settings.display.city;
+            // Handle both CityData object and legacy string format
+            if (typeof appCity === 'object' && appCity.timezone) {
+                const name = appCity.name || '';
+                return {
+                    abbreviation: appCity.abbreviation || name.substring(0, 3).toUpperCase() || 'UTC',
+                    timezone: appCity.timezone,
+                };
+            }
+        }
+        
+        return undefined;
+    };
+
+    const cityData = getEffectiveCityData();
+    
+    // Determine timezone to use
+    const timeZone = cityData?.timezone || settings?.display?.timezone || undefined;
 
     const getParts = (date: Date) => {
         const options: Intl.DateTimeFormatOptions = {
@@ -83,8 +125,8 @@ export const AnalogClock: React.FC<AnalogClockProps> = () => {
         // algo: tan(newAngle) = (w/h) * tan(oldAngle)
         // We need to handle quadrants carefully.
         
-        const aspectRatio = w / h;
-        const rad = (angleDeg - 90) * (Math.PI / 180); // 0 is -90 deg (Up)
+        // Note: Original calculation used (angleDeg - 90) * (Math.PI / 180) for radians
+        // but the actual geometry uses sin/cos directly with angleDeg below
         
         // Standard math angle (0 is Right, + is CW in screen coords? No, + is CW in screen coords usually mean inverted Y)
         // Let's stick to: 0 is Up. 90 is Right.
@@ -174,40 +216,126 @@ export const AnalogClock: React.FC<AnalogClockProps> = () => {
     const { h, m, s } = getParts(time);
     const { width, height } = dimensions;
 
-    // Ticks
+    const analogStyle = config?.analogStyle || 'squircle';
+    const classicDigits = config?.classicDigits || 'cardinal';
+    const showHands = config?.showHands || 'all';
+
+    // Ticks and numbers
     const ticks = [];
-    const radius = 32; // Standard border radius
+    const numbers = [];
+    // Use border radius from appearance settings, fallback to 32
+    const borderRadius = settings?.display?.borderRadius ?? 32;
+
     
-    // Define tick inset from the outer edge (in logical units)
-    // We calculate an inner squircle that is `tickInset` smaller on each side
-    const tickInset = 22;
-    const innerWidth = width - tickInset * 2;
-    const innerHeight = height - tickInset * 2;
-    const innerRadius = Math.max(0, radius - tickInset);
-    
-    for (let i = 0; i < 60; i++) {
-        const isHour = i % 5 === 0;
-        const angle = i * 6;
+    if (analogStyle === 'classic') {
+        // Classic circular clock face
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const minDim = Math.min(width, height);
+        const clockRadius = minDim / 2 - 5; // Further increased radius (was -10)
         
-        // Outer point on the widget edge
-        const pOuter = getSquirclePoint(angle, width, height, radius);
+        // Calculate which hour positions the hands are pointing at for dynamic mode
+
+        // For dynamic mode, only show hour hand position
+        const currentHour = Math.round((h % 12) + m / 60) || 12;
         
-        // Inner point on a scaled-down inner squircle
-        // This ensures all inner ends align to a consistent inner boundary
-        const pInner = getSquirclePoint(angle, innerWidth, innerHeight, innerRadius);
+        for (let i = 0; i < 60; i++) {
+            const isHour = i % 5 === 0;
+            const angle = (i * 6 - 90) * Math.PI / 180; // -90 to start at 12 o'clock
+            
+            if (isHour) {
+                // Hour markers
+                const hourNum = i / 5 === 0 ? 12 : i / 5;
+                const isCardinal = i % 15 === 0;
+                
+                // Determine if this position should show a number
+                let showNumber = false;
+                if (classicDigits === 'all') {
+                    showNumber = true;
+                } else if (classicDigits === 'cardinal') {
+                    showNumber = isCardinal;
+                } else if (classicDigits === 'dynamic') {
+                    // Show number only for hour hand position
+                    showNumber = (hourNum === currentHour);
+                }
+                
+                if (showNumber) {
+                    // Show number, no tick
+                    const numX = centerX + Math.cos(angle) * (clockRadius - 8);
+                    const numY = centerY + Math.sin(angle) * (clockRadius - 8);
+                    // Use larger font size for cardinal or dynamic digits
+                    const fontSize = (isCardinal || classicDigits === 'dynamic') 
+                        ? minDim * 0.11 
+                        : minDim * 0.08;
+                    // Use heavier weight for cardinal numbers
+                    const fontWeight = isCardinal ? '800' : '500';
+                    
+                    numbers.push(
+                        <text
+                            key={`num-${i}`}
+                            x={numX}
+                            y={numY}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontSize={fontSize}
+                            fontFamily="var(--font-display)"
+                            fill="var(--text-primary)"
+                            fontWeight={fontWeight}
+                        >
+                            {hourNum}
+                        </text>
+                    );
+                } else {
+                    // Show tick (no number)
+                    const x = centerX + Math.cos(angle) * (clockRadius - 8);
+                    const y = centerY + Math.sin(angle) * (clockRadius - 8);
+                    const tickRadius = (i % 15 === 0) ? 5 : 3; // Quarterly ticks larger
+                    
+                    ticks.push(
+                        <circle
+                            key={`tick-${i}`}
+                            cx={x}
+                            cy={y}
+                            r={tickRadius}
+                            fill="var(--text-primary)"
+                        />
+                    );
+                }
+            }
+        }
+    } else {
+        // Original squircle style
+        // Define tick inset from the outer edge (in logical units)
+        // We calculate an inner squircle that is `tickInset` smaller on each side
+        const tickInset = 22;
+        const innerWidth = width - tickInset * 2;
+        const innerHeight = height - tickInset * 2;
+        const innerRadius = Math.max(0, borderRadius - tickInset);
         
-        ticks.push(
-            <line
-                key={i}
-                x1={width / 2 + pOuter.x}
-                y1={height / 2 + pOuter.y}
-                x2={width / 2 + pInner.x}
-                y2={height / 2 + pInner.y}
-                stroke={isHour ? "var(--text-primary)" : "var(--text-muted)"}
-                strokeWidth={isHour ? 3 : 1}
-                strokeOpacity={isHour ? 1 : 0.5}
-            />
-        );
+        for (let i = 0; i < 60; i++) {
+            const isHour = i % 5 === 0;
+            const angle = i * 6;
+            
+            // Outer point on the widget edge
+            const pOuter = getSquirclePoint(angle, width, height, borderRadius);
+            
+            // Inner point on a scaled-down inner squircle
+            // This ensures all inner ends align to a consistent inner boundary
+            const pInner = getSquirclePoint(angle, innerWidth, innerHeight, innerRadius);
+            
+            ticks.push(
+                <line
+                    key={i}
+                    x1={width / 2 + pOuter.x}
+                    y1={height / 2 + pOuter.y}
+                    x2={width / 2 + pInner.x}
+                    y2={height / 2 + pInner.y}
+                    stroke={isHour ? "var(--text-primary)" : "var(--text-muted)"}
+                    strokeWidth={isHour ? 3 : 1}
+                    strokeOpacity={isHour ? 1 : 0.5}
+                />
+            );
+        }
     }
     
     // Hands
@@ -239,58 +367,105 @@ export const AnalogClock: React.FC<AnalogClockProps> = () => {
                 */}
                 <g>
                     {ticks}
+                    {numbers}
+                    
+                    {/* City name display (abbreviated) */}
+                    {config?.showCityName && cityData?.abbreviation && (
+                        <text
+                            x={width / 2}
+                            y={height / 2 - minDim * 0.15}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontSize={minDim * 0.08}
+                            fontFamily="var(--font-data)"
+                            fill="var(--text-muted)"
+                            fontWeight="500"
+                        >
+                            {cityData.abbreviation}
+                        </text>
+                    )}
+                    
+                    {/* Date display (short format, centered in lower half) */}
+                    {config?.showDate && (
+                        <text
+                            x={width / 2}
+                            y={height / 2 + minDim * 0.22}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fontSize={minDim * 0.07}
+                            fontFamily="var(--font-data)"
+                            fill="var(--text-muted)"
+                            fontWeight="500"
+                        >
+                            {time.toLocaleDateString('en-US', {
+                                timeZone: timeZone === 'UTC' ? 'UTC' : timeZone,
+                                month: 'short',
+                                day: 'numeric'
+                            })}
+                        </text>
+                    )}
                 </g>
 
                 {/* Center Group for Hands */}
                 <g transform={`translate(${width/2}, ${height/2})`}>
-                     {/* Hour Hand */}
-                     <line
-                        x1="0" y1="0"
-                        x2="0" y2={-minDim * 0.25}
-                        stroke="var(--text-primary)"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                        transform={`rotate(${hourAngle})`}
-                    />
-                     {/* Counter balance for Hour */}
-                     <line
-                        x1="0" y1="0"
-                        x2="0" y2={minDim * 0.05}
-                        stroke="var(--text-primary)"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                        transform={`rotate(${hourAngle})`}
-                    />
+                     {/* Hour Hand - visible in all modes except when only minute is explicitly selected without all */}
+                     {(showHands === 'all' || showHands === 'hour' || showHands === 'minute') && (
+                       <>
+                         <line
+                            x1="0" y1="0"
+                            x2="0" y2={-minDim * 0.25}
+                            stroke="var(--text-primary)"
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                            transform={`rotate(${hourAngle})`}
+                        />
+                         {/* Counter balance for Hour */}
+                         <line
+                            x1="0" y1="0"
+                            x2="0" y2={minDim * 0.05}
+                            stroke="var(--text-primary)"
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                            transform={`rotate(${hourAngle})`}
+                        />
+                       </>
+                     )}
 
                     {/* Minute Hand */}
-                    <line
-                        x1="0" y1="0"
-                        x2="0" y2={-minDim * 0.38}
-                        stroke="var(--text-primary)"
-                        strokeWidth="6"
-                        strokeLinecap="round"
-                        transform={`rotate(${minuteAngle})`}
-                    />
-                     {/* Counter balance for Minute */}
-                     <line
-                        x1="0" y1="0"
-                        x2="0" y2={minDim * 0.05}
-                        stroke="var(--text-primary)"
-                        strokeWidth="6"
-                        strokeLinecap="round"
-                        transform={`rotate(${minuteAngle})`}
-                    />
+                    {(showHands === 'all' || showHands === 'minute') && (
+                      <>
+                        <line
+                            x1="0" y1="0"
+                            x2="0" y2={-minDim * 0.38}
+                            stroke="var(--text-primary)"
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                            transform={`rotate(${minuteAngle})`}
+                        />
+                         {/* Counter balance for Minute */}
+                         <line
+                            x1="0" y1="0"
+                            x2="0" y2={minDim * 0.05}
+                            stroke="var(--text-primary)"
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                            transform={`rotate(${minuteAngle})`}
+                        />
+                      </>
+                    )}
 
-                    {/* Second Hand */}
-                     <line
+                    {/* Second Hand - always visible */}
+                    {showHands === 'all' && (
+                      <line
                         x1="0" y1="0"
                         x2="0" y2={-minDim * 0.42}
                         stroke="var(--accent-red)"
                         strokeWidth="2"
                         strokeLinecap="round"
                         transform={`rotate(${secondAngle})`}
-                    />
-                    <circle cx="0" cy="0" r="4" fill="var(--accent-red)" />
+                      />
+                    )}
+                    <circle cx="0" cy="0" r="4" fill="var(--accent-red)" style={{ display: showHands === 'all' ? 'block' : 'none' }} />
                 </g>
             </svg>
         </div>

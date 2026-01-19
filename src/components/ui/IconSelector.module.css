@@ -1,6 +1,6 @@
 .iconSelectorContainer {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   width: 100%;
 }
@@ -51,6 +51,38 @@
   color: var(--text-dim);
 }
 
+.inputContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputContainer .input {
+  padding-right: 32px; /* Make room for clear button */
+}
+
+.clearButton {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.clearButton:hover {
+  color: var(--text-main);
+  background: var(--bg-highlight);
+}
+
 .autocompleteDropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -59,7 +91,7 @@
   background-color: var(--bg-card);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 20px var(--shadow-sm);
   z-index: 100;
   max-height: 200px;
   overflow-y: auto;

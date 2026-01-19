@@ -11,6 +11,37 @@ interface CalendarEvent {
   allDay?: boolean;
 }
 
+interface IcalEvent {
+  uid: string;
+  summary: string;
+  startDate: { toJSDate: () => Date; isDate: boolean };
+  endDate?: { toJSDate: () => Date };
+}
+
+interface IcalOccurrence {
+  item: { uid: string; summary: string };
+  startDate: { toJSDate: () => Date; isDate: boolean };
+  endDate?: { toJSDate: () => Date };
+}
+
+interface RadarrMovie {
+  id: number;
+  title: string;
+  inCinemas?: string;
+  physicalRelease?: string;
+  digitalRelease?: string;
+  overview?: string;
+}
+
+interface SonarrEpisode {
+  id: number;
+  series?: { title: string };
+  seasonNumber: number;
+  episodeNumber: number;
+  airDateUtc: string;
+  title: string;
+}
+
 import IcalExpander from 'ical-expander';
 
 async function fetchICalEvents(url: string): Promise<CalendarEvent[]> {
@@ -27,7 +58,7 @@ async function fetchICalEvents(url: string): Promise<CalendarEvent[]> {
     const { events, occurrences } = icalExpander.between(now, end);
     
     const mappedEvents: CalendarEvent[] = [
-      ...events.map((e: any) => ({
+      ...events.map((e: IcalEvent) => ({
         id: `ical-${e.uid}`,
         title: e.summary,
         date: e.startDate.toJSDate().toISOString(),
@@ -36,7 +67,7 @@ async function fetchICalEvents(url: string): Promise<CalendarEvent[]> {
         type: 'event' as const,
         allDay: e.startDate.isDate, // isDate is true for all-day events in ical.js
       })),
-      ...occurrences.map((o: any) => ({
+      ...occurrences.map((o: IcalOccurrence) => ({
         id: `ical-${o.item.uid}-${o.startDate.toJSDate().toISOString()}`,
         title: o.item.summary,
         date: o.startDate.toJSDate().toISOString(),
@@ -70,7 +101,7 @@ async function fetchRadarrEvents(url: string, apiKey: string): Promise<CalendarE
     if (!response.ok) throw new Error(`Radarr API error: ${response.status}`);
     const data = await response.json();
     
-    return data.map((movie: any) => ({
+    return data.map((movie: RadarrMovie) => ({
       id: `radarr-${movie.id}`,
       title: movie.title,
       date: movie.inCinemas || movie.physicalRelease || movie.digitalRelease || start, // Fallback
@@ -98,7 +129,7 @@ async function fetchSonarrEvents(url: string, apiKey: string): Promise<CalendarE
     if (!response.ok) throw new Error(`Sonarr API error: ${response.status}`);
     const data = await response.json();
     
-    return data.map((episode: any) => ({
+    return data.map((episode: SonarrEpisode) => ({
       id: `sonarr-${episode.id}`,
       title: `${episode.series?.title || 'Unknown Series'} - S${episode.seasonNumber}E${episode.episodeNumber}`,
       date: episode.airDateUtc,
@@ -113,13 +144,42 @@ async function fetchSonarrEvents(url: string, apiKey: string): Promise<CalendarE
   }
 }
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const icalUrls = searchParams.getAll('icalUrl');
-  const radarrUrl = searchParams.get('radarrUrl') || '';
-  const radarrApiKey = searchParams.get('radarrApiKey') || '';
-  const sonarrUrl = searchParams.get('sonarrUrl') || '';
-  const sonarrApiKey = searchParams.get('sonarrApiKey') || '';
+  
+  // Headers for security
+  let radarrUrl = request.headers.get('x-radarr-url');
+  let radarrApiKey = request.headers.get('x-radarr-apikey');
+  let sonarrUrl = request.headers.get('x-sonarr-url');
+  let sonarrApiKey = request.headers.get('x-sonarr-apikey');
+
+  // Query params as fallback (legacy) - but we prefer headers
+  if (!radarrUrl) radarrUrl = searchParams.get('radarrUrl');
+  if (!radarrApiKey) radarrApiKey = searchParams.get('radarrApiKey');
+  if (!sonarrUrl) sonarrUrl = searchParams.get('sonarrUrl');
+  if (!sonarrApiKey) sonarrApiKey = searchParams.get('sonarrApiKey');
+
+  // Integration ID support
+  const integrationId = request.headers.get('x-integration-id');
+  if (integrationId) {
+      const integration = await prisma.integration.findUnique({
+          where: { id: integrationId }
+      });
+      if (integration) {
+          const config = decryptSensitiveFields(JSON.parse(integration.config));
+          if (integration.type === 'radarr') {
+              radarrUrl = (config.externalUrl || config.url) as string;
+              radarrApiKey = config.apiKey as string;
+          } else if (integration.type === 'sonarr') {
+              sonarrUrl = (config.externalUrl || config.url) as string;
+              sonarrApiKey = config.apiKey as string;
+          }
+      }
+  }
 
   const promises: Promise<CalendarEvent[]>[] = [];
 

@@ -1,0 +1,15 @@
+.label {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    user-select: none;
+}
+
+.required::after {
+    content: "*";
+    color: var(--accent-red);
+    margin-left: 4px;
+}

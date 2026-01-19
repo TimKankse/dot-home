@@ -14,18 +14,14 @@ interface SettingsState {
 
 const defaultSettings: GeneralSettings = {
   behavior: {
-    confirmEdit: false,
-    autoSave: true,
     refreshInterval: 10,
     autoDetectLocation: false
   },
   display: {
     is24Hour: true,
     temperatureUnit: 'C',
-    dateFormat: 'DD/MM',
-    language: 'en',
     timezone: 'UTC',
-    location: ''
+    city: undefined
   },
   shortcuts: {
     toggleEdit: 'Mod+E',

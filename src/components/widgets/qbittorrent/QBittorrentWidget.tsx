@@ -1,64 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import styles from './QBittorrentWidget.module.css';
 import { Download, Clock, CheckCircle, Pause, Play } from 'lucide-react';
+import { List } from '@/components/primitives/list/List';
+import { 
+  fetchQBittorrentQueue, 
+  toggleQBittorrentPause, 
+  formatSize,
+  QueueData 
+} from '@/services/qbittorrent';
 
-interface QueueSlot {
-  filename: string;
-  percentage: string;
-  mbleft: string;
-  mb: string;
-  status: string;
-  timeleft: string;
-  index: number;
+interface QBittorrentWidgetProps {
+  config?: { url?: string; username?: string; password?: string };
+  integrationId?: string;
 }
 
-interface QueueData {
-  status: string;
-  speed: string;
-  timeleft: string;
-  slots: QueueSlot[];
-  paused: boolean;
-}
-
-interface QBittorrentResponse {
-  queue: QueueData;
-}
-
-const formatSize = (mbString: string) => {
-  const mb = parseFloat(mbString);
-  if (isNaN(mb)) return mbString;
-  
-  if (mb >= 1024) {
-    return `${(mb / 1024).toFixed(2)} GB`;
-  }
-  return `${mb.toFixed(1)} MB`;
-};
-
-export function QBittorrentWidget({ config }: { config?: { url?: string; username?: string; password?: string } }) {
+export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetProps) {
   const [data, setData] = useState<QueueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    if (!config?.url) {
+  const loadData = useCallback(async () => {
+    if (!config?.url && !integrationId) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch('/api/qbittorrent?mode=queue', {
-        headers: {
-          'x-qbittorrent-url': config.url,
-          'x-qbittorrent-username': config.username || '',
-          'x-qbittorrent-password': config.password || '',
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch data');
-      
-      const json: QBittorrentResponse = await res.json();
-      setData(json.queue);
+      const queue = await fetchQBittorrentQueue({ config, integrationId });
+      setData(queue);
       setError(null);
     } catch (err) {
       console.error(err);
@@ -66,36 +37,23 @@ export function QBittorrentWidget({ config }: { config?: { url?: string; usernam
     } finally {
       setLoading(false);
     }
-  };
+  }, [config, integrationId]);
 
-  const togglePause = async () => {
+  const handleTogglePause = async () => {
     if (!data) return;
-    const newMode = data.paused ? 'resume' : 'pause';
     try {
-      await fetch(`/api/qbittorrent?mode=${newMode}`, {
-        method: 'POST', // Although GET with mode param works if API handles it, my API expects POST for pause/resume? 
-        // Wait, my API route checks `mode` from searchParams, but for pause/resume it does a POST to qBittorrent.
-        // But the widget calls the Next.js API.
-        // My API route implementation for pause/resume:
-        // } else if (mode === 'pause' || mode === 'resume') { ... }
-        // It doesn't check method, just mode.
-        headers: {
-          'x-qbittorrent-url': config?.url || '',
-          'x-qbittorrent-username': config?.username || '',
-          'x-qbittorrent-password': config?.password || '',
-        }
-      });
-      fetchData(); // Refresh data immediately
+      await toggleQBittorrentPause(data.paused, { config, integrationId });
+      loadData();
     } catch (err) {
       console.error('Failed to toggle pause', err);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
+    loadData();
+    const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData]);
 
   if (loading && !data) {
     return <div className={styles.emptyState}>Loading...</div>;
@@ -124,7 +82,7 @@ export function QBittorrentWidget({ config }: { config?: { url?: string; usernam
         </div>
       </div>
 
-      <div className={styles.queueList}>
+      <List className={styles.queueList}>
         {!hasItems ? (
           <div className={styles.emptyState}>
             <CheckCircle size={24} />
@@ -149,21 +107,21 @@ export function QBittorrentWidget({ config }: { config?: { url?: string; usernam
 
               <div className={styles.itemFooter}>
                 <span className={styles.itemSize}>
-                  {formatSize(slot.mbleft)} / {formatSize(slot.mb)}
+                  {formatSize(String(parseFloat(slot.mb) - parseFloat(slot.mbleft)))} / {formatSize(slot.mb)}
                 </span>
                 <span className={styles.itemStatus}>
-                    {slot.status}
+                  {slot.status}
                 </span>
               </div>
             </div>
           ))
         )}
-      </div>
+      </List>
 
       <div className={styles.footer}>
         <button 
           className={styles.pauseButton} 
-          onClick={togglePause}
+          onClick={handleTogglePause}
           title={data.paused ? "Resume Queue" : "Pause Queue"}
         >
           {data.paused ? <Play size={16} /> : <Pause size={16} />}

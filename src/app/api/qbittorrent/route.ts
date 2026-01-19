@@ -1,12 +1,66 @@
 import { NextResponse } from 'next/server';
 
+// Format speed with responsive units
+const formatSpeed = (bytesPerSecond: number): string => {
+  if (!bytesPerSecond || bytesPerSecond === 0) return 'Idle';
+  
+  if (bytesPerSecond >= 1024 * 1024 * 1024) {
+    return `${(bytesPerSecond / (1024 * 1024 * 1024)).toFixed(2)} GB/s`;
+  } else if (bytesPerSecond >= 1024 * 1024) {
+    return `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`;
+  } else if (bytesPerSecond >= 1024) {
+    return `${(bytesPerSecond / 1024).toFixed(2)} KB/s`;
+  }
+  return `${bytesPerSecond.toFixed(0)} B/s`;
+};
+
+interface Torrent {
+    name: string;
+    state: string;
+    size: number;
+    completed: number;
+    progress: number;
+    eta: number;
+    dlspeed: number;
+}
+
+interface Slot {
+    filename: string;
+    percentage: string;
+    mbleft: string;
+    mb: string;
+    status: string;
+    timeleft: string;
+    index: number;
+    speed: number;
+}
+
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get('mode');
 
-  const qbUrl = request.headers.get('x-qbittorrent-url');
-  const qbUsername = request.headers.get('x-qbittorrent-username');
-  const qbPassword = request.headers.get('x-qbittorrent-password');
+  // Try to get Integration ID first
+  const integrationId = request.headers.get('x-integration-id');
+  
+  let qbUrl = request.headers.get('x-qbittorrent-url');
+  let qbUsername = request.headers.get('x-qbittorrent-username');
+  let qbPassword = request.headers.get('x-qbittorrent-password');
+
+  if (integrationId) {
+    const integration = await prisma.integration.findUnique({
+        where: { id: integrationId }
+    });
+    
+    if (integration) {
+        const config = decryptSensitiveFields(JSON.parse(integration.config));
+        qbUrl = (config.externalUrl || config.url) as string;
+        qbUsername = config.username as string;
+        qbPassword = config.password as string;
+    }
+  }
 
   if (!qbUrl) {
     return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
@@ -52,18 +106,20 @@ export async function GET(request: Request) {
 
     if (mode === 'queue') {
         // Fetch Main Data (Sync)
+        // Fetch Main Data & Transfer Info in Parallel
         const syncUrl = new URL(`${qbUrl}/api/v2/sync/maindata`);
-        const syncRes = await fetch(syncUrl.toString(), { headers });
+        const transferUrl = new URL(`${qbUrl}/api/v2/transfer/info`);
+
+        const [syncRes, transferRes] = await Promise.all([
+          fetch(syncUrl.toString(), { headers }),
+          fetch(transferUrl.toString(), { headers })
+        ]);
         
         if (!syncRes.ok) {
              throw new Error(`Failed to fetch sync data: ${syncRes.statusText}`);
         }
         
         const syncData = await syncRes.json();
-        
-        // Fetch Transfer Info (for global speed)
-        const transferUrl = new URL(`${qbUrl}/api/v2/transfer/info`);
-        const transferRes = await fetch(transferUrl.toString(), { headers });
         const transferData = transferRes.ok ? await transferRes.json() : {};
 
         // Transform to match our widget needs (similar to SABnzbd structure)
@@ -75,7 +131,7 @@ export async function GET(request: Request) {
         
         // Filter and map slots
         const slots = Object.keys(torrents).map((hash, index) => {
-            const t = torrents[hash];
+            const t = torrents[hash] as Torrent;
             const isDownloading = t.state === 'downloading' || t.state === 'stalledDL' || t.state === 'metaDL' || t.state === 'forcedDL';
             
             if (isDownloading) {
@@ -95,7 +151,7 @@ export async function GET(request: Request) {
                 index: index,
                 speed: t.dlspeed,
             };
-        }).filter((t: any) => 
+        }).filter((t: Slot) => 
             ['downloading', 'stalledDL', 'metaDL', 'queuedDL', 'forcingDL', 'pausedDL'].includes(t.status)
         );
 
@@ -113,10 +169,10 @@ export async function GET(request: Request) {
         const responseData = {
             queue: {
                 status: syncData.server_state?.connection_status || 'unknown',
-                speed: transferData.dl_info_speed ? (transferData.dl_info_speed / 1024 / 1024).toFixed(2) + ' MB/s' : '0 MB/s',
+                speed: formatSpeed(transferData.dl_info_speed || 0),
                 timeleft: globalTimeleft,
                 slots: slots,
-                paused: !anyDownloading && slots.length > 0 && slots.some((s: any) => s.status === 'pausedDL'),
+                paused: !anyDownloading && slots.length > 0 && slots.some((s: Slot) => s.status === 'pausedDL'),
             }
         };
 

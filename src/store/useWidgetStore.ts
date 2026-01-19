@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { Widget, NewWidgetInput } from '../types';
+import { getGridDimensions } from '@/constants/grid';
 
 interface WidgetState {
   widgets: Widget[];
-  
   setWidgets: (widgets: Widget[]) => void;
   addWidget: (newItem: NewWidgetInput) => void;
   updateWidget: (id: string, updates: Partial<Widget>) => void;
@@ -14,13 +14,6 @@ interface WidgetState {
   getWidgetsByPage: (pageId: string) => Widget[];
   removeWidgetsByPage: (pageId: string) => void;
 }
-
-// Helper functions outside the store
-const getGridDimensions = (isMedium: boolean, isMobile: boolean) => {
-  if (isMobile) return { maxCols: 2, maxRows: 32 };
-  if (isMedium) return { maxCols: 4, maxRows: 16 };
-  return { maxCols: 8, maxRows: 8 };
-};
 
 const hasOverlap = (
   x1: number, y1: number, w1: number, h1: number,
@@ -43,7 +36,6 @@ const findAvailablePositionInGrid = (
   
   for (let y = 0; y <= maxY; y++) {
     for (let x = 0; x <= maxX; x++) {
-      // Check if this position overlaps with any existing widget
       const hasCollision = pageWidgets.some(widget =>
         hasOverlap(
           x, y, w, h,
@@ -108,7 +100,6 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
 
     const { maxRows } = getGridDimensions(isMedium, isMobile);
 
-    // Check if any item is out of bounds
     if (layout.some((l) => l.y + l.h > maxRows)) {
       return;
     }

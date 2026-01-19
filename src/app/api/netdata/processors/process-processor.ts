@@ -1,8 +1,7 @@
 import { NetdataChartResponse, ProcessData } from '../types';
 
 export const processProcesses = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    processList: any[],
+    processList: ProcessData[],
     appsCpuData: NetdataChartResponse | null,
     appsMemData: NetdataChartResponse | null,
     containerCpuCharts: string[],

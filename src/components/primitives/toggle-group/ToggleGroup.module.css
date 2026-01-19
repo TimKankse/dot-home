@@ -1,0 +1,35 @@
+.group {
+  display: flex;
+  background-color: var(--bg-app);
+  padding: 2px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dim);
+  width: fit-content;
+}
+
+.item {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.item:hover {
+  color: var(--text-main);
+}
+
+.active {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 1px 4px var(--shadow-sm);
+}
+
+.active:hover {
+  color: var(--text-main);
+}

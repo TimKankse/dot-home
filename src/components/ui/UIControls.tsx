@@ -1,35 +1,31 @@
 "use client";
 
 import React from 'react';
-import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout, ArrowRightLeft, ArrowUpDown } from 'lucide-react';
+import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout } from 'lucide-react';
 import styles from './UIControls.module.css';
 
 interface UIControlsProps {
   isEditing: boolean;
+  canEdit?: boolean;
   onToggleEdit: () => void;
   onAdd: () => void;
   onSave: () => void;
   onAddPage: () => void;
-  onToggleScrollDirection: () => void;
-  scrollDirection: 'vertical' | 'horizontal';
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   onOpenSettings: () => void;
 }
 
 export const UIControls: React.FC<UIControlsProps> = ({ 
   isEditing, 
+  canEdit = true,
   onToggleEdit, 
   onAdd, 
-  onSave, 
   onAddPage,
-  onToggleScrollDirection,
-  scrollDirection,
   saveStatus = 'idle',
   onOpenSettings
 }) => {
   return (
     <div className={styles.container}>
-      {/* Save Status Indicator - only shows when there's activity */}
       {saveStatus !== 'idle' && (
         <div 
           className={`${styles.indicator} ${styles.statusIndicator}`}
@@ -49,36 +45,27 @@ export const UIControls: React.FC<UIControlsProps> = ({
         </div>
       )}
 
-      {isEditing && (
-        <>
-          <button 
-            className={styles.button}
-            onClick={onAddPage}
-            aria-label="Add Page"
-            title="Add Page"
-          >
-            <Layout size={20} />
-            <Plus size={12} style={{ position: 'absolute', top: 8, right: 8 }} />
-          </button>
-
-          <button 
-            className={styles.button}
-            onClick={onToggleScrollDirection}
-            aria-label="Toggle Scroll Direction"
-            title={`Current: ${scrollDirection}`}
-          >
-            {scrollDirection === 'vertical' ? <ArrowUpDown size={20} /> : <ArrowRightLeft size={20} />}
-          </button>
-        </>
+      {isEditing && canEdit && (
+        <button 
+          className={styles.button}
+          onClick={onAddPage}
+          aria-label="Add Page"
+          title="Add Page"
+        >
+          <Layout size={20} />
+          <Plus size={12} style={{ position: 'absolute', top: 8, right: 8 }} />
+        </button>
       )}
 
-      <button 
-        className={styles.button}
-        onClick={onAdd}
-        aria-label="Add Widget"
-      >
-        <Plus size={20} />
-      </button>
+      {canEdit && (
+        <button 
+          className={styles.button}
+          onClick={onAdd}
+          aria-label="Add Widget"
+        >
+          <Plus size={20} />
+        </button>
+      )}
 
       <button 
         className={`${styles.button} ${isEditing ? styles.active : ''}`}

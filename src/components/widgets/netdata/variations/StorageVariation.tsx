@@ -1,23 +1,39 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
 import { StorageCircularProgress } from '../components/StorageCircularProgress';
 import { formatBytes } from '../utils';
+import type { NetdataWidgetConfig } from '@/types';
+import type { NetdataData } from '@/types/netdata';
 
 interface StorageVariationProps {
-    data: any;
-    config: any;
+    data: NetdataData;
+    config: NetdataWidgetConfig | undefined;
 }
 
 export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config }) => {
+    // Guard for optional fs - parent already checks but TypeScript needs this
+    if (!data.fs || data.fs.length === 0) {
+        return (
+            <div className={styles.widgetContainer}>
+                <div className={styles.header}>
+                    <span className={styles.widgetTitle}>STORAGE</span>
+                </div>
+                <div className={styles.offlineState}>
+                    <AlertCircle size={24} color="var(--accent-red)" />
+                    <p style={{ fontSize: '0.8rem' }}>No storage data</p>
+                </div>
+            </div>
+        );
+    }
+
     // Show all storage items, sorted by usage desc
-    let storageItems = [...data.fs].sort((a: any, b: any) => b.percent - a.percent);
-    const availableMounts = storageItems.map((fs: any) => fs.mnt_point).join(', ');
+    let storageItems = [...data.fs].sort((a, b) => b.percent - a.percent);
+    const availableMounts = storageItems.map((fs) => fs.mnt_point).join(', ');
 
     // Filter by mount points if provided
     if (config?.mountPoints && config.mountPoints.length > 0) {
-        const filtered = storageItems.filter((fs: any) => config.mountPoints!.includes(fs.mnt_point));
+        const filtered = storageItems.filter((fs) => config.mountPoints!.includes(fs.mnt_point));
         if (filtered.length > 0) {
             storageItems = filtered;
         } else {
@@ -46,7 +62,7 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
                 <span className={styles.widgetTitle}>STORAGE</span>
             </div>
             <div className={styles.storageCircularList}>
-                {storageItems.map((fs: any) => (
+                {storageItems.map((fs) => (
                     <StorageCircularProgress 
                         key={fs.mnt_point}
                         value={fs.percent}
@@ -66,7 +82,7 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
             <span className={styles.widgetTitle}>STORAGE</span>
         </div>
         <div className={styles.storageList}>
-            {storageItems.map((fs: any) => (
+            {storageItems.map((fs) => (
                 <div key={fs.mnt_point} className={styles.storageItem}>
                     <div className={styles.storageHeader}>
                         <span className={styles.mountPoint}>{fs.mnt_point}</span>

@@ -1,3 +1,5 @@
+import type { WeatherWidgetConfig } from '@/types';
+
 export interface WeatherData {
   current: {
     temperature_2m: number;
@@ -16,12 +18,8 @@ export interface WeatherData {
   };
 }
 
-export interface WeatherWidgetConfig {
-  location?: string;
-  apiKey?: string;
-  unit?: 'metric' | 'imperial';
-  view?: 'current' | 'daily' | 'weekly';
-}
+// Re-export from centralized types for convenience
+export type { WeatherWidgetConfig };
 
 export interface WeatherWidgetProps {
   config?: WeatherWidgetConfig;

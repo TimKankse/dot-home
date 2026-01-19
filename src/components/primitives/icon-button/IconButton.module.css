@@ -1,0 +1,73 @@
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+  transition: all 0.2s ease;
+  background-color: transparent;
+  color: var(--text-muted);
+}
+
+.iconButton:hover:not(:disabled) {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.active {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+}
+
+/* Variants */
+.ghost {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.outline {
+  border-color: var(--border-highlight);
+}
+
+.outline:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.solid {
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+}
+
+.solid:hover:not(:disabled) {
+  background-color: var(--border-highlight);
+}
+
+/* Sizes */
+.sm {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+
+.md {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+}
+
+.lg {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+}
+
+.rounded {
+  border-radius: 50%;
+}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePageStore } from '@/store/usePageStore';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
+import { useResponsiveState } from '@/hooks/useResponsiveState';
 import { X, House, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
 import styles from './PageIndicators.module.css';
 
@@ -9,18 +10,19 @@ export const PageIndicators: React.FC = () => {
     pages, 
     currentPageIndex, 
     setPageIndex, 
-    scrollDirection, 
     removePage,
     defaultPageId,
     setDefaultPage,
     movePage
   } = usePageStore();
 
-  const { isEditing } = usePersistenceStore();
+  const { isEditing, canEditDashboard } = usePersistenceStore();
+  const { isMobile, isMedium } = useResponsiveState();
 
   if (pages.length <= 1 && !isEditing) return null;
 
-  const isVertical = scrollDirection === 'vertical';
+  // Auto-detect direction: vertical on PC, horizontal on mobile/tablet
+  const isVertical = !isMobile && !isMedium;
   const currentPage = pages[currentPageIndex];
   const isDefault = currentPage?.id === defaultPageId;
 
@@ -28,48 +30,9 @@ export const PageIndicators: React.FC = () => {
     <div 
       className={`${styles.wrapper} ${isVertical ? styles.vertical : styles.horizontal}`}
     >
-      <div className={styles.indicators}>
-        {pages.map((page, index) => (
-          <button
-            key={page.id}
-            className={`${styles.indicator} ${currentPageIndex === index ? styles.active : ''}`}
-            onClick={() => setPageIndex(index)}
-            aria-label={`Go to page ${index + 1}`}
-          />
-        ))}
-      </div>
-      
-      {isEditing && (
-        <div className={styles.controls}>
-          {/* Move Previous (Left/Up) */}
-          <button
-            className={styles.actionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              movePage('prev');
-            }}
-            disabled={currentPageIndex === 0}
-            aria-label={isVertical ? "Move page up" : "Move page left"}
-            title={isVertical ? "Move page up" : "Move page left"}
-          >
-            {isVertical ? <ArrowUp size={14} /> : <ArrowLeft size={14} />}
-          </button>
-
-          {/* Move Next (Right/Down) */}
-          <button
-            className={styles.actionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              movePage('next');
-            }}
-            disabled={currentPageIndex === pages.length - 1}
-            aria-label={isVertical ? "Move page down" : "Move page right"}
-            title={isVertical ? "Move page down" : "Move page right"}
-          >
-            {isVertical ? <ArrowDown size={14} /> : <ArrowRight size={14} />}
-          </button>
-
-          {/* Set Default */}
+      {/* Set Default - at top in edit mode */}
+      {isEditing && canEditDashboard && (
+        <div className={styles.topControl}>
           <button
             className={`${styles.actionButton} ${styles.defaultButton} ${isDefault ? styles.isDefault : ''}`}
             onClick={(e) => {
@@ -83,23 +46,71 @@ export const PageIndicators: React.FC = () => {
           >
             <House size={14} fill={isDefault ? "currentColor" : "none"} />
           </button>
+        </div>
+      )}
 
-          {/* Remove Page */}
-          {pages.length > 1 && (
+      {/* Center section: nav buttons and indicators */}
+      <div className={styles.centerControls}>
+        {/* Move Previous (Left/Up) */}
+        {isEditing && canEditDashboard && (
+          <button
+            className={styles.actionButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              movePage('prev');
+            }}
+            disabled={currentPageIndex === 0}
+            aria-label={isVertical ? "Move page up" : "Move page left"}
+            title={isVertical ? "Move page up" : "Move page left"}
+          >
+            {isVertical ? <ArrowUp size={14} /> : <ArrowLeft size={14} />}
+          </button>
+        )}
+
+        <div className={styles.indicators}>
+          {pages.map((page, index) => (
             <button
-              className={`${styles.actionButton} ${styles.removeButton}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm('Are you sure you want to delete this page and all its widgets?')) {
-                  removePage();
-                }
-              }}
-              aria-label="Remove current page"
-              title="Remove current page"
-            >
-              <X size={14} />
-            </button>
-          )}
+              key={page.id}
+              className={`${styles.indicator} ${currentPageIndex === index ? styles.active : ''}`}
+              onClick={() => setPageIndex(index)}
+              aria-label={`Go to page ${index + 1}`}
+            />
+          ))}
+        </div>
+
+        {/* Move Next (Right/Down) */}
+        {isEditing && canEditDashboard && (
+          <button
+            className={styles.actionButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              movePage('next');
+            }}
+            disabled={currentPageIndex === pages.length - 1}
+            aria-label={isVertical ? "Move page down" : "Move page right"}
+            title={isVertical ? "Move page down" : "Move page right"}
+          >
+            {isVertical ? <ArrowDown size={14} /> : <ArrowRight size={14} />}
+          </button>
+        )}
+      </div>
+
+      {/* Remove Page - at bottom in edit mode */}
+      {isEditing && canEditDashboard && pages.length > 1 && (
+        <div className={styles.bottomControl}>
+          <button
+            className={`${styles.actionButton} ${styles.removeButton}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm('Are you sure you want to delete this page and all its widgets?')) {
+                removePage();
+              }
+            }}
+            aria-label="Remove current page"
+            title="Remove current page"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>

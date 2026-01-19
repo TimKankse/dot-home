@@ -73,6 +73,7 @@ export interface NetdataData {
   sensors?: NetdataSensor[];
   processList?: NetdataProcess[];
   network?: NetdataNetwork[];
+  chartsError?: string;
 }
 
 export interface NetdataScopeState {

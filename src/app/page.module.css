@@ -28,3 +28,51 @@
 }
 
 
+
+/* Main container for the entire app */
+.mainContainer {
+  overflow: hidden;
+  width: 100%;
+  height: 100dvh;
+  position: relative;
+}
+
+/* Wrapper for the sliding pages */
+.pagesWrapper {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+}
+
+/* Horizontal layout (desktop default) */
+.pagesWrapper[data-scroll="horizontal"] {
+  flex-direction: row;
+  width: calc(var(--total-pages) * 100%);
+  height: 100dvh;
+  transform: translateX(calc(var(--current-page-index) * -100vw));
+}
+
+/* Vertical layout (mobile/portrait/preference) */
+.pagesWrapper[data-scroll="vertical"] {
+  flex-direction: column;
+  width: 100%;
+  height: calc(var(--total-pages) * 100dvh);
+  transform: translateY(calc(var(--current-page-index) * -100dvh));
+}
+
+/* Individual page container */
+.pageContainer {
+  width: 100%;
+  height: 100dvh;
+  overflow-x: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  /* Default overflow behavior */
+  overflow-y: hidden;
+}
+
+/* Allow scrolling on mobile/medium screens */
+.pageContainer.scrollable {
+  overflow-y: auto;
+}

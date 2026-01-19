@@ -1,15 +1,41 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { CircularProgress } from '../components/CircularProgress';
 import { Sparkline } from '../components/Sparkline';
+import { NetdataApiResponse, SensorData } from '@/app/api/netdata/types';
+import type { NetdataWidgetConfig } from '@/types';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 interface CpuVariationProps {
-    data: any;
+    data: NetdataApiResponse;
     history: number[];
+    config?: NetdataWidgetConfig;
 }
 
-export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history }) => {
+export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history, config }) => {
+    const { settings } = useSettingsStore();
+    
+    // Determine temperature unit: use config if set, otherwise app settings
+    const tempUnit = config?.temperatureUnit ?? settings?.display?.temperatureUnit ?? 'C';
+    
+    // Convert temperature from Celsius to Fahrenheit if needed
+    const formatTemp = (tempC: number): string => {
+        if (tempUnit === 'F') {
+            return `${Math.round(tempC * 9/5 + 32)}°F`;
+        }
+        return `${Math.round(tempC)}°C`;
+    };
+
+    if (!data.cpu) {
+        return (
+            <div className={styles.widgetContainer}>
+                <div className={styles.offlineState}>
+                    <p style={{ fontSize: '0.8rem' }}>No CPU data</p>
+                </div>
+            </div>
+        );
+    }
+    
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
@@ -30,8 +56,8 @@ export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history }) => 
                             <div className={styles.cpuTemp}>
                                 {/* Try to find a package temp, otherwise take the first one */}
                                 {(() => {
-                                    const sensor = data.sensors.find((s: any) => s.label.toLowerCase().includes('package') || s.label.toLowerCase().includes('physical')) || data.sensors[0];
-                                    return sensor ? `${Math.round(sensor.value)}°C` : '';
+                                    const sensor = data.sensors.find((s: SensorData) => s.label.toLowerCase().includes('package') || s.label.toLowerCase().includes('physical')) || data.sensors[0];
+                                    return sensor ? formatTemp(sensor.value) : '';
                                 })()}
                             </div>
                         )}

@@ -2,13 +2,42 @@ import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
 import { Sparkline } from '../components/Sparkline';
+import type { NetdataWidgetConfig } from '@/types';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
-interface CpuCoresVariationProps {
-    data: any;
-    history: any;
+interface CoreData {
+    id: number;
+    load: number;
+    temp?: number;
 }
 
-export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, history }) => {
+interface NetdataData {
+    cores?: CoreData[];
+    coresDataType?: 'utilization' | 'frequency';
+}
+
+interface CpuCoresVariationProps {
+    data: NetdataData;
+    history: {
+        cores: Record<number, number[]>;
+    };
+    config?: NetdataWidgetConfig;
+}
+
+export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, history, config }) => {
+    const { settings } = useSettingsStore();
+    
+    // Determine temperature unit: use config if set, otherwise app settings
+    const tempUnit = config?.temperatureUnit ?? settings?.display?.temperatureUnit ?? 'C';
+    
+    // Convert temperature from Celsius to Fahrenheit if needed
+    const formatTemp = (tempC: number): string => {
+        if (tempUnit === 'F') {
+            return `${Math.round(tempC * 9/5 + 32)}°F`;
+        }
+        return `${Math.round(tempC)}°C`;
+    };
+
     if (!data.cores || data.cores.length === 0) {
         return (
             <div className={styles.widgetContainer}>
@@ -31,7 +60,7 @@ export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, hist
                 </span>
             </div>
             <div className={styles.coresGrid}>
-                {data.cores.map((core: any) => (
+                {data.cores.map((core) => (
                     <div key={core.id} className={styles.coreItem}>
                         <div className={styles.coreGraph}>
                             <Sparkline 
@@ -46,7 +75,7 @@ export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, hist
                         <div className={styles.coreFooter}>
                             <span className={styles.coreLabel}>CORE {core.id}</span>
                             {core.temp !== undefined && (
-                                <span className={styles.coreTemp}>{Math.round(core.temp)}°C</span>
+                                <span className={styles.coreTemp}>{formatTemp(core.temp)}</span>
                             )}
                         </div>
                     </div>

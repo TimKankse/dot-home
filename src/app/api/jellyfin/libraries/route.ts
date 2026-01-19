@@ -29,12 +29,21 @@ export async function GET(request: NextRequest) {
 
     const viewsData = await viewsResponse.json();
     console.log(`[Jellyfin] Found ${viewsData.Items?.length || 0} views`);
-    const libraries = [];
+    
+    interface JellyfinLibrary {
+        Id: string;
+        Name: string;
+        CollectionType: string;
+        Counts: { Series?: number; Episodes?: number; Movies?: number };
+        TotalSize: number;
+    }
+    
+    const libraries: JellyfinLibrary[] = [];
 
     // 2. Process each library
     for (const view of viewsData.Items) {
       console.log(`[Jellyfin] Processing view: ${view.Name} (${view.CollectionType})`);
-      const libraryInfo: any = {
+      const libraryInfo: JellyfinLibrary = {
         Id: view.Id,
         Name: view.Name,
         CollectionType: view.CollectionType,
@@ -70,18 +79,19 @@ export async function GET(request: NextRequest) {
           
           // Calculate counts
           if (view.CollectionType === 'tvshows') {
-            libraryInfo.Counts.Series = itemsData.Items.filter((i: any) => i.Type === 'Series').length;
-            libraryInfo.Counts.Episodes = itemsData.Items.filter((i: any) => i.Type === 'Episode').length;
+            libraryInfo.Counts.Series = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Series').length;
+            libraryInfo.Counts.Episodes = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Episode').length;
           } else if (view.CollectionType === 'movies') {
-             libraryInfo.Counts.Movies = itemsData.Items.filter((i: any) => i.Type === 'Movie').length;
+             libraryInfo.Counts.Movies = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Movie').length;
           }
 
           // Calculate total size
           // Size is usually in MediaSources[0].Size
           let totalSize = 0;
-          itemsData.Items.forEach((item: any) => {
+          interface MediaSource { Size: number; }
+          itemsData.Items.forEach((item: { MediaSources?: MediaSource[] }) => {
              if (item.MediaSources) {
-               item.MediaSources.forEach((source: any) => {
+               item.MediaSources.forEach((source: MediaSource) => {
                  if (source.Size) {
                    totalSize += source.Size;
                  }

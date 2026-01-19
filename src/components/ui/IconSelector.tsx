@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import styles from './IconSelector.module.css';
 import { ALL_APP_ICONS, getAppIconUrl } from '@/utils/appIcons';
+import { X } from 'lucide-react';
 
 interface IconSelectorProps {
   iconUrl: string;
@@ -14,15 +15,23 @@ export const IconSelector: React.FC<IconSelectorProps> = ({ iconUrl, onIconSelec
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize search term from iconUrl if present (for editing)
+  // Clear searchTerm when iconUrl is cleared externally
   useEffect(() => {
-    // Only if we haven't typed anything yet
-    if (iconUrl && !searchTerm) {
-       // We don't set searchTerm here to avoid overriding user input, 
-       // but maybe we should if we want to show what's selected?
-       // The original code did: value={showIconSuggestions || iconSearchTerm !== '' ? iconSearchTerm : iconUrl}
+    if (!iconUrl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing dependent UI state
+      setSearchTerm('');
     }
   }, [iconUrl]);
+
+  const handleClear = () => {
+    setSearchTerm('');
+    setShowSuggestions(false);
+    onIconSelect('');
+    inputRef.current?.focus();
+  };
+
+  // Check if there's content to show (either a search term or selected icon)
+  const hasContent = searchTerm !== '' || iconUrl !== '';
 
   return (
     <div className={`${styles.iconSelectorContainer} ${className || ''}`}>
@@ -38,36 +47,47 @@ export const IconSelector: React.FC<IconSelectorProps> = ({ iconUrl, onIconSelec
         </div>
       )}
       <div className={styles.iconInputWrapper} ref={dropdownRef}>
-        <input 
-          ref={inputRef}
-          className={styles.input}
-          value={showSuggestions || searchTerm !== '' ? searchTerm : iconUrl}
-          onChange={(e) => {
-            const value = e.target.value;
-            setSearchTerm(value);
-            setShowSuggestions(value.length > 0);
-            if (value.startsWith('http')) {
-              onIconSelect(value);
-            }
-          }}
-          onFocus={() => {
-            if (iconUrl && !searchTerm) {
-              setSearchTerm(iconUrl);
-            }
-            if (searchTerm) {
-              setShowSuggestions(true);
-            }
-          }}
-          onBlur={() => {
-            setTimeout(() => {
-              setShowSuggestions(false);
-              if (!searchTerm) {
+        <div className={styles.inputContainer}>
+          <input 
+            ref={inputRef}
+            className={styles.input}
+            value={searchTerm !== '' ? searchTerm : iconUrl}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSearchTerm(value);
+              setShowSuggestions(value.length > 0);
+              if (value.startsWith('http')) {
+                onIconSelect(value);
+              } else if (value === '') {
                 onIconSelect('');
               }
-            }, 200);
-          }}
-          placeholder="Search apps or paste CDN URL..."
-        />
+            }}
+            onFocus={() => {
+              if (iconUrl && !searchTerm) {
+                setSearchTerm(iconUrl);
+              }
+              if (searchTerm) {
+                setShowSuggestions(true);
+              }
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowSuggestions(false);
+              }, 200);
+            }}
+            placeholder="Search apps or paste CDN URL..."
+          />
+          {hasContent && (
+            <button 
+              type="button"
+              className={styles.clearButton}
+              onClick={handleClear}
+              title="Clear icon"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
         
         {showSuggestions && searchTerm && (
           <div className={styles.autocompleteDropdown}>

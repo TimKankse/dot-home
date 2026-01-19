@@ -4,10 +4,13 @@ interface InfoResponse {
     host_labels?: Record<string, string>;
 }
 
+interface UptimeResponse {
+    data?: number[][];
+}
+
 export const processSystemInfo = (
     infoData: InfoResponse | null, 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    uptimeData: any | null
+    uptimeData: UptimeResponse | null
 ): SystemInfoData | undefined => {
     if (!infoData) return undefined;
 

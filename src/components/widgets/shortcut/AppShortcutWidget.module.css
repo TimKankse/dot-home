@@ -15,12 +15,12 @@
   /* Mini Card Styling */
   background-color: var(--bg-card);
   border: 1px solid var(--border-dim);
-  border-radius: var(--radius-lg);
+  border-radius: var(--widget-radius);
   padding: 12px;
 }
 
 .widgetContainer:hover {
-  border-color: #333;
+  border-color: var(--border-hover);
   background-color: var(--bg-card-lighter);
 }
 
@@ -84,7 +84,7 @@
   height: 8px;
   border-radius: 50%;
   background-color: var(--text-muted); /* Default/Unknown */
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 4px var(--shadow-lg);
 }
 
 .statusOnline {

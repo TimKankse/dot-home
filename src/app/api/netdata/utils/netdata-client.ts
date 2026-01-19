@@ -17,11 +17,12 @@ export const fetchNetdata = async (baseUrl: string, chart: string): Promise<Netd
     }
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fetchInfo = async (baseUrl: string): Promise<any | null> => {
+// The info endpoint returns a complex object with system information
+// Using Record<string, unknown> as the exact shape varies by Netdata version
+export const fetchInfo = async (baseUrl: string): Promise<Record<string, unknown> | null> => {
     try {
         const res = await fetch(`${baseUrl}/api/v1/info`, {
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(10000),
             cache: 'no-store'
         });
         if (!res.ok) return null;
@@ -32,17 +33,17 @@ export const fetchInfo = async (baseUrl: string): Promise<any | null> => {
     }
 };
 
-export const fetchChartsList = async (baseUrl: string): Promise<string[]> => {
+export const fetchChartsList = async (baseUrl: string): Promise<{ charts: string[]; error?: string }> => {
     try {
         const chartsRes = await fetch(`${baseUrl}/api/v1/charts`, { 
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(30000),
             cache: 'no-store'
         });
-        if (!chartsRes.ok) throw new Error('Failed to fetch charts list');
+        if (!chartsRes.ok) throw new Error(`HTTP ${chartsRes.status}`);
         const charts = await chartsRes.json();
-        return Object.keys(charts.charts);
+        return { charts: Object.keys(charts.charts) };
     } catch (e) {
         console.error('[Netdata] Failed to fetch charts list:', e);
-        return [];
+        return { charts: [], error: e instanceof Error ? e.message : String(e) };
     }
 };

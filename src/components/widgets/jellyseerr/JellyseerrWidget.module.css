@@ -1,10 +1,12 @@
-.requestList {
+.widgetContainer {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow-y: scroll !important;
-  max-height: 100%;
-  padding-right: 8px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.requestList {
+  /* Handled by List primitive */
 }
 
 
@@ -15,18 +17,18 @@
   gap: 12px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-overlay);
   transition: background 0.2s ease;
 }
 
 .requestItem:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-overlay-hover);
 }
 
 .posterContainer {
   width: 40px;
   height: 56px;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--shadow-md);
   border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
@@ -94,7 +96,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-overlay-active);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -135,19 +137,19 @@
 }
 
 .available {
-  color: #22c55e; /* Green */
+  color: var(--accent-green);
 }
 
 .pending {
-  color: #eab308; /* Yellow/Orange */
+  color: var(--accent-orange);
 }
 
 .approved {
-  color: #3b82f6; /* Blue */
+  color: var(--accent-blue);
 }
 
 .declined {
-  color: #ef4444; /* Red */
+  color: var(--accent-red);
 }
 
 .message {
@@ -178,20 +180,20 @@
 }
 
 .approveButton {
-  background: rgba(34, 197, 94, 0.2); /* Green tint */
-  color: #4ade80;
+  background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+  color: var(--accent-green);
 }
 
 .approveButton:hover {
-  background: rgba(34, 197, 94, 0.4);
+  background: color-mix(in srgb, var(--accent-green) 40%, transparent);
 }
 
 .rejectButton {
-  background: rgba(239, 68, 68, 0.2); /* Red tint */
-  color: #f87171;
+  background: color-mix(in srgb, var(--accent-red) 20%, transparent);
+  color: var(--accent-red);
 }
 
 .rejectButton:hover {
-  background: rgba(239, 68, 68, 0.4);
+  background: color-mix(in srgb, var(--accent-red) 40%, transparent);
 }
 

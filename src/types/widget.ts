@@ -81,6 +81,7 @@ export interface Widget {
   pageId: string;
   config?: WidgetConfig;
   integrationId?: string;
+  syncConfig?: boolean; // Default: true. If false, each user has their own config
 }
 
 export interface NewWidgetInput {

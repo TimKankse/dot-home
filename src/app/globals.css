@@ -43,6 +43,18 @@
 
   --dot-color: #262626;
 
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
+
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
   --background: var(--bg-card);
@@ -79,6 +91,18 @@
   --accent-purple: #9333ea; /* purple-600 */
 
   --dot-color: #e5e5e5;
+
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(0, 0, 0, 0.03);
+  --surface-overlay-hover: rgba(0, 0, 0, 0.06);
+  --surface-overlay-active: rgba(0, 0, 0, 0.1);
+  --border-overlay: rgba(0, 0, 0, 0.1);
+  --border-hover: #a3a3a3;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.1);
+  --shadow-md: rgba(0, 0, 0, 0.15);
+  --shadow-lg: rgba(0, 0, 0, 0.2);
 
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
@@ -117,6 +141,18 @@
 
   --dot-color: #504945;
 
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
+
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
   --background: var(--bg-card);
@@ -153,6 +189,18 @@
   --accent-purple: #cba6f7;
 
   --dot-color: #45475a;
+
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
 
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
@@ -191,6 +239,18 @@
 
   --dot-color: #434c5e;
 
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
+
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
   --background: var(--bg-card);
@@ -227,6 +287,18 @@
   --accent-purple: #bb9af7;
 
   --dot-color: #414868;
+
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
 
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
@@ -265,6 +337,18 @@
 
   --dot-color: #26233a;
 
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
+
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
   --background: var(--bg-card);
@@ -301,6 +385,18 @@
   --accent-purple: #D699B6;
 
   --dot-color: #374145;
+
+  /* Theme-adaptive overlays and borders */
+  --surface-overlay: rgba(255, 255, 255, 0.03);
+  --surface-overlay-hover: rgba(255, 255, 255, 0.06);
+  --surface-overlay-active: rgba(255, 255, 255, 0.1);
+  --border-overlay: rgba(255, 255, 255, 0.1);
+  --border-hover: #333333;
+  
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.3);
+  --shadow-md: rgba(0, 0, 0, 0.4);
+  --shadow-lg: rgba(0, 0, 0, 0.5);
 
   /* Legacy / Compatibility Aliases */
   --foreground: var(--text-main);
@@ -389,6 +485,24 @@ a {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-dim);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
 
 
 /* No scroll in landscape */
@@ -408,6 +522,12 @@ a {
   border-radius: var(--radius-xl) !important;
   opacity: 0.8 !important;
   backdrop-filter: blur(4px);
+}
+
+/* Force GridStack to fill the full dashboard height */
+.grid-stack {
+  height: 100% !important;
+  min-height: 100% !important;
 }
 /* PrismJS Syntax Highlighting - Theme Adaptive */
 code[class*="language-"],

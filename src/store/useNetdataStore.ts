@@ -10,17 +10,22 @@ interface InstanceState {
   intervalId: NodeJS.Timeout | null;
 }
 
+
+
 interface NetdataStore {
   instances: Record<string, InstanceState>;
-  subscribe: (url: string, scope?: string) => void;
-  unsubscribe: (url: string, scope?: string) => void;
+  subscribe: (params: { url?: string, integrationId?: string, scope?: string }) => void;
+  unsubscribe: (params: { url?: string, integrationId?: string, scope?: string }) => void;
 }
 
 export const useNetdataStore = create<NetdataStore>((set, get) => ({
   instances: {},
 
-  subscribe: (url: string, scope: string = 'all') => {
+  subscribe: ({ url, integrationId, scope = 'all' }) => {
     const { instances } = get();
+    const key = integrationId || url;
+
+    if (!key) return;
     
     // Helper to get active scopes
     const getActiveScopes = (scopes: { [key: string]: number }) => {
@@ -28,23 +33,26 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
        return active.length > 0 ? active : undefined;
     };
 
-    if (!instances[url]) {
+    if (!instances[key]) {
       // First subscriber, start polling
       const initialScopes = { [scope]: 1 };
 
       const intervalId = setInterval(async () => {
         // dynamic grab of latest scopes from state
-        const currentInstance = get().instances[url];
+        const currentInstance = get().instances[key];
         if (!currentInstance) return;
         
         const activeScopes = getActiveScopes(currentInstance.scopes);
 
         try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (integrationId) headers['x-integration-id'] = integrationId;
+
           const res = await fetch('/api/netdata', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ 
-                url, 
+                url: integrationId ? undefined : url, 
                 _t: Date.now(),
                 scope: activeScopes
             }),
@@ -57,8 +65,8 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
           set((state) => ({
             instances: {
               ...state.instances,
-              [url]: {
-                ...state.instances[url],
+              [key]: {
+                ...state.instances[key],
                 data,
                 loading: false,
                 error: null,
@@ -70,8 +78,8 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
             set((state) => ({
                 instances: {
                   ...state.instances,
-                  [url]: {
-                    ...state.instances[url],
+                  [key]: {
+                    ...state.instances[key],
                     error: 'Failed to fetch',
                     loading: false
                   }
@@ -84,11 +92,14 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
       (async () => {
         const activeScopes = getActiveScopes(initialScopes);
         try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (integrationId) headers['x-integration-id'] = integrationId;
+
             const res = await fetch('/api/netdata', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({ 
-                  url, 
+                  url: integrationId ? undefined : url, 
                   _t: Date.now(),
                   scope: activeScopes
               }),
@@ -101,8 +112,8 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
             set((state) => ({
               instances: {
                 ...state.instances,
-                [url]: {
-                  ...state.instances[url],
+                [key]: {
+                  ...state.instances[key],
                   data,
                   loading: false,
                   error: null,
@@ -114,8 +125,8 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
               set((state) => ({
                   instances: {
                     ...state.instances,
-                    [url]: {
-                      ...state.instances[url],
+                    [key]: {
+                      ...state.instances[key],
                       error: 'Failed to fetch',
                       loading: false
                     }
@@ -127,7 +138,7 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
       set((state) => ({
         instances: {
           ...state.instances,
-          [url]: {
+          [key]: {
             data: null,
             loading: true,
             error: null,
@@ -140,14 +151,14 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
     } else {
       // Already exists, increment subscribers and update scopes
       set((state) => {
-        const instance = state.instances[url];
+        const instance = state.instances[key];
         const newScopes = { ...instance.scopes };
         newScopes[scope] = (newScopes[scope] || 0) + 1;
 
         return {
           instances: {
             ...state.instances,
-            [url]: {
+            [key]: {
               ...instance,
               subscribers: instance.subscribers + 1,
               scopes: newScopes
@@ -158,9 +169,12 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
     }
   },
 
-  unsubscribe: (url: string, scope: string = 'all') => {
+  unsubscribe: ({ url, integrationId, scope = 'all' }) => {
     const { instances } = get();
-    const instance = instances[url];
+    const key = integrationId || url;
+    if (!key) return;
+
+    const instance = instances[key];
 
     if (!instance) return;
 
@@ -172,13 +186,13 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
       
       // Remove instance from store
       const newInstances = { ...instances };
-      delete newInstances[url];
+      delete newInstances[key];
       
       set({ instances: newInstances });
     } else {
       // Decrement subscribers and update scopes
       set((state) => {
-        const currentInstance = state.instances[url];
+        const currentInstance = state.instances[key];
         const newScopes = { ...currentInstance.scopes };
         
         if (newScopes[scope]) {
@@ -191,7 +205,7 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
         return {
             instances: {
             ...state.instances,
-            [url]: {
+            [key]: {
                 ...currentInstance,
                 subscribers: currentInstance.subscribers - 1,
                 scopes: newScopes

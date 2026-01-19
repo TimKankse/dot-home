@@ -1,17 +1,26 @@
 export interface BehaviorSettings {
-  confirmEdit: boolean;
-  autoSave: boolean;
   refreshInterval: number; // in minutes
   autoDetectLocation: boolean;
+}
+
+export interface CityData {
+  name: string;           // "Stockholm"
+  country: string;        // "Sweden"
+  admin1?: string;        // State/region (optional)
+  timezone: string;       // "Europe/Stockholm"
+  latitude: number;
+  longitude: number;
+  abbreviation?: string;  // "STO" (optional, can be derived)
 }
 
 export interface DisplaySettings {
   is24Hour: boolean;
   temperatureUnit: 'C' | 'F';
-  dateFormat: 'MM/DD' | 'DD/MM' | 'YYYY-MM-DD';
-  language: string;
   timezone: string;
-  location: string;
+  city?: CityData;        // Structured city data for weather, location display, etc.
+  rowHeight?: number;
+  gapSize?: number;
+  borderRadius?: number;
 }
 
 export interface ShortcutBindings {

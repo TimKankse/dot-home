@@ -2,12 +2,10 @@
 
 import React, { useState } from 'react';
 import styles from './ImageWidget.module.css';
+import type { ImageWidgetConfig } from '@/types';
 
 export interface ImageWidgetProps {
-  config?: {
-    url?: string;
-    fit?: 'cover' | 'contain' | 'fill';
-  };
+  config?: ImageWidgetConfig;
 }
 
 export const ImageWidget: React.FC<ImageWidgetProps> = ({ config }) => {

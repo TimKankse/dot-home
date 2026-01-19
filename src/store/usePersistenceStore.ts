@@ -9,6 +9,7 @@ import { useSettingsStore } from './useSettingsStore';
 interface PersistenceState {
   isLoaded: boolean;
   isEditing: boolean;
+  canEditDashboard: boolean;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   
   fetchConfig: () => Promise<void>;
@@ -19,6 +20,7 @@ interface PersistenceState {
 export const usePersistenceStore = create<PersistenceState>((set, get) => ({
   isLoaded: false,
   isEditing: false,
+  canEditDashboard: true, // Default to true, will be updated on config fetch
   saveStatus: 'idle',
 
   fetchConfig: async () => {
@@ -57,7 +59,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
         }
 
         // Map widgets to new page IDs
-        widgets = legacyWidgets.map((w: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        widgets = legacyWidgets.map((w: Widget & { page?: number }) => ({
           ...w,
           pageId: pages[w.page || 0]?.id || pages[0].id,
           page: undefined // Remove legacy prop
@@ -85,6 +87,37 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
         };
       });
 
+      // SAFEGUARD: Ensure pages array is consistent with widget pageIds
+      // This prevents data corruption where pages array doesn't match widget references
+      const existingPageIds = new Set(pages.map(p => p.id));
+      const widgetPageIds = new Set(widgets.map(w => w.pageId).filter(Boolean));
+      
+      // Find pageIds referenced by widgets but missing from pages array
+      const missingPageIds = [...widgetPageIds].filter(pid => !existingPageIds.has(pid));
+      
+      if (missingPageIds.length > 0) {
+        console.warn(`[usePersistenceStore] Reconstructing ${missingPageIds.length} missing pages from widget references`);
+        // Add missing pages to the pages array
+        for (const pid of missingPageIds) {
+          pages.push({ id: pid });
+        }
+      }
+      
+      // Ensure at least one page exists
+      if (pages.length === 0) {
+        pages.push({ id: uuidv4() });
+      }
+      
+      // Fix widgets with null/undefined pageId - assign to first page
+      const firstPageId = pages[0].id;
+      widgets = widgets.map(w => {
+        if (!w.pageId) {
+          console.warn(`[usePersistenceStore] Widget "${w.name || w.id}" has no pageId, assigning to first page`);
+          return { ...w, pageId: firstPageId };
+        }
+        return w;
+      });
+
       // Update all stores
       usePageStore.setState({ 
         pages,
@@ -98,12 +131,10 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
       useWidgetStore.getState().setWidgets(widgets);
       useIntegrationStore.getState().setIntegrations(integrations);
 
-      // Auto-link widgets to integrations if not already linked
-      if (integrations.length > 0) {
-        useIntegrationStore.getState().autoLinkWidgets();
-      }
+      // Set edit permission from API response (default to true for owned dashboards)
+      const canEditDashboard = data.canEditDashboard ?? true;
 
-      set({ isLoaded: true });
+      set({ isLoaded: true, canEditDashboard });
     } catch (err) {
       console.error('Failed to load config:', err);
       usePageStore.getState().setPages([{ id: uuidv4() }]);
@@ -119,10 +150,44 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
 
     try {
       // Gather data from all stores
-      const widgets = useWidgetStore.getState().widgets;
-      const { pages, scrollDirection, defaultPageId } = usePageStore.getState();
+      let widgets = [...useWidgetStore.getState().widgets];
+      let { pages } = usePageStore.getState();
+      const { scrollDirection, defaultPageId } = usePageStore.getState();
       const { integrations } = useIntegrationStore.getState();
       const { settings } = useSettingsStore.getState();
+
+      // SAFEGUARD: Validate pages array matches widget pageIds before saving
+      const existingPageIds = new Set(pages.map(p => p.id));
+      const widgetPageIds = new Set(widgets.map(w => w.pageId).filter(Boolean));
+      
+      // Find pageIds referenced by widgets but missing from pages array
+      const missingPageIds = [...widgetPageIds].filter(pid => !existingPageIds.has(pid));
+      
+      if (missingPageIds.length > 0) {
+        console.warn(`[usePersistenceStore:save] Found ${missingPageIds.length} missing pages, reconstructing...`);
+        // Add missing pages
+        const updatedPages = [...pages, ...missingPageIds.map(id => ({ id }))];
+        pages = updatedPages;
+        // Also update the store to keep it in sync
+        usePageStore.setState({ pages: updatedPages });
+      }
+      
+      // Fix widgets with null/undefined pageId
+      if (pages.length > 0) {
+        const firstPageId = pages[0].id;
+        widgets = widgets.map(w => {
+          if (!w.pageId) {
+            console.warn(`[usePersistenceStore:save] Widget "${w.name || w.id}" has no pageId, assigning to first page`);
+            return { ...w, pageId: firstPageId };
+          }
+          return w;
+        });
+        // Update widget store if we made changes
+        const hasNullPageIds = useWidgetStore.getState().widgets.some(w => !w.pageId);
+        if (hasNullPageIds) {
+          useWidgetStore.getState().setWidgets(widgets);
+        }
+      }
 
       const response = await fetch('/api/config', {
         method: 'POST',

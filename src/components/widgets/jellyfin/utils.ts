@@ -13,3 +13,26 @@ export const formatSize = (bytes: number) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
+
+export const formatBitrate = (bps: number): string => {
+  if (!bps || bps === 0) return 'N/A';
+  const kbps = bps / 1000;
+  if (kbps >= 1000) {
+    return `${(kbps / 1000).toFixed(1)} Mbps`;
+  }
+  return `${kbps.toFixed(0)} Kbps`;
+};
+
+export const getResolutionLabel = (width?: number, height?: number): string => {
+  if (!width || !height) return 'N/A';
+  
+  // Common resolution labels
+  if (height >= 2160 || width >= 3840) return '4K';
+  if (height >= 1440 || width >= 2560) return '1440p';
+  if (height >= 1080 || width >= 1920) return '1080p';
+  if (height >= 720 || width >= 1280) return '720p';
+  if (height >= 576 || width >= 720) return '576p';
+  if (height >= 480 || width >= 640) return '480p';
+  
+  return `${width}x${height}`;
+};

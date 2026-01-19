@@ -1,21 +1,27 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
 import { Sparkline } from '../components/Sparkline';
 import { formatBytes } from '../utils';
+import { NetdataApiResponse, NetworkInterfaceData } from '@/app/api/netdata/types';
+import type { NetdataWidgetConfig } from '@/types';
+
+interface NetworkHistory {
+    netRx: number[];
+    netTx: number[];
+}
 
 interface NetworkVariationProps {
-    data: any;
-    history: any;
-    config: any;
+    data: NetdataApiResponse;
+    history: NetworkHistory;
+    config?: NetdataWidgetConfig;
 }
 
 export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, history, config }) => {
     // Find target interface
     const targetInterface = config?.interfaceName 
-        ? data.network?.find((n: any) => n.interface_name === config.interfaceName)
-        : data.network?.find((n: any) => n.interface_name !== 'lo');
+        ? data.network?.find((n: NetworkInterfaceData) => n.interface_name === config.interfaceName)
+        : data.network?.find((n: NetworkInterfaceData) => n.interface_name !== 'lo');
 
     if (!targetInterface) {
         return (

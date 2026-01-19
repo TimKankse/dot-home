@@ -11,7 +11,7 @@
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--surface-overlay-active);
 }
 
 .statusInfo {
@@ -40,9 +40,7 @@
 }
 
 .queueList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  /* Handled by List primitive */
   overflow-y: auto;
   flex: 1;
   padding-right: 4px;
@@ -54,24 +52,24 @@
 }
 
 .queueList::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-overlay);
   border-radius: 2px;
 }
 
 .queueList::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-overlay-active);
   border-radius: 2px;
 }
 
 .queueList::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--border-overlay);
 }
 
 .queueItem {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--surface-overlay-active);
   padding-bottom: 8px;
 }
 
@@ -101,7 +99,7 @@
 .progressBarContainer {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-overlay-active);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -151,14 +149,14 @@
 
 .footer {
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--surface-overlay-active);
   display: flex;
   justify-content: center;
 }
 
 .pauseButton {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-overlay);
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 0.8rem;
@@ -174,7 +172,7 @@
 }
 
 .pauseButton:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-overlay-active);
   color: var(--text-main);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: var(--text-dim);
 }

@@ -1,5 +1,27 @@
 import { NextResponse } from 'next/server';
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
+async function getCredentials(req: Request) {
+    const integrationId = req.headers.get('x-integration-id');
+    let url = req.headers.get('x-jellyseerr-url');
+    let apiKey = req.headers.get('x-jellyseerr-apikey');
+
+    if (integrationId) {
+        const integration = await prisma.integration.findUnique({
+            where: { id: integrationId }
+        });
+        
+        if (integration) {
+            const config = decryptSensitiveFields(JSON.parse(integration.config));
+            url = (config.externalUrl || config.url) as string;
+            apiKey = config.apiKey as string;
+        }
+    }
+    return { url, apiKey };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const path = searchParams.get('path');
@@ -8,8 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Path is required' }, { status: 400 });
   }
 
-  const jellyseerrUrl = request.headers.get('x-jellyseerr-url');
-  const jellyseerrApiKey = request.headers.get('x-jellyseerr-apikey');
+  const { url: jellyseerrUrl, apiKey: jellyseerrApiKey } = await getCredentials(request);
 
   if (!jellyseerrUrl || !jellyseerrApiKey) {
     return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
@@ -59,8 +80,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Path is required' }, { status: 400 });
   }
 
-  const jellyseerrUrl = request.headers.get('x-jellyseerr-url');
-  const jellyseerrApiKey = request.headers.get('x-jellyseerr-apikey');
+  const { url: jellyseerrUrl, apiKey: jellyseerrApiKey } = await getCredentials(request);
 
   if (!jellyseerrUrl || !jellyseerrApiKey) {
     return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });

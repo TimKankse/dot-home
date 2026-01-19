@@ -3,6 +3,7 @@
   z-index: 100;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .indicators {
@@ -16,22 +17,36 @@
   align-items: center;
 }
 
+/* Vertical layout (PC) - positioned on left side */
 .vertical {
   flex-direction: column;
   left: 24px;
   top: 50%;
   transform: translateY(-50%);
+  gap: 12px;
 }
 
 .vertical .indicators {
   flex-direction: column;
 }
 
+.vertical .centerControls {
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Horizontal layout (mobile/tablet) - positioned at top */
 .horizontal {
   flex-direction: row;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
+  gap: 12px;
+}
+
+.horizontal .centerControls {
+  flex-direction: row;
+  gap: 8px;
 }
 
 .indicator {
@@ -53,23 +68,21 @@
 .active {
   background: var(--text-main);
   transform: scale(1.2);
-  box-shadow: 0 0 10px var(--text-main);
+  box-shadow: 0 0 8px var(--text-dim), 0 0 4px var(--text-muted);
 }
 
-.controls {
+/* Center controls - contains nav buttons and indicators */
+.centerControls {
   display: flex;
-  gap: 8px;
   align-items: center;
 }
 
-.vertical .controls {
-  flex-direction: column;
-  margin-top: 12px;
-}
-
-.horizontal .controls {
-  flex-direction: row;
-  margin-left: 12px;
+/* Top and bottom control containers */
+.topControl,
+.bottomControl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .actionButton {
@@ -111,8 +124,6 @@
   color: var(--bg-card);
 }
 
-
-
 .defaultButton:hover {
   background: var(--accent-orange);
   color: var(--bg-card);
@@ -120,5 +131,7 @@
 
 .isDefault {
   color: var(--accent-orange);
-  box-shadow: 0 0 10px var(--accent-orange);
+  box-shadow: 0 0 8px var(--accent-orange);
+  opacity: 0.8;
 }
+

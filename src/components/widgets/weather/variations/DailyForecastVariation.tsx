@@ -1,6 +1,6 @@
 import React from 'react';
 import { WeatherData, WeatherWidgetConfig } from '../types';
-import { getWeatherIcon } from '../utils';
+import { getWeatherIcon, getWeatherDescription } from '../utils';
 
 interface DailyForecastVariationProps {
   weather: WeatherData;
@@ -46,12 +46,15 @@ export const DailyForecastVariation: React.FC<DailyForecastVariationProps> = ({ 
 
   return (
     <div className="widget-weather" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '12px' }}>
-         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {React.createElement(IconComponent, { size: 24 })}
                 <span className="font-display text-lg">{Math.round(weather.current.temperature_2m)}{unitSymbol}</span>
             </div>
-            <span className="font-mono text-xs text-muted">{config?.location || 'Stockholm'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                <span className="font-mono text-xs text-muted">{config?.cityData?.name || config?.location || 'Stockholm'}</span>
+                <span className="font-mono text-[10px] text-muted">{getWeatherDescription(weather.current.weather_code)}</span>
+            </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1, alignItems: 'flex-end' }}>
             {nextIndices.map((idx, i) => {

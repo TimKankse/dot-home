@@ -1,7 +1,26 @@
 import { NextResponse } from 'next/server';
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function POST(request: Request) {
-  const { channels, clientId, clientSecret } = await request.json();
+  const { channels, clientId: bodyClientId, clientSecret: bodyClientSecret } = await request.json();
+  const integrationId = request.headers.get('x-integration-id');
+
+  let clientId = bodyClientId;
+  let clientSecret = bodyClientSecret;
+
+  if (integrationId) {
+      const integration = await prisma.integration.findUnique({
+          where: { id: integrationId }
+      });
+      
+      if (integration) {
+          const config = decryptSensitiveFields(JSON.parse(integration.config));
+          clientId = config.clientId;
+          clientSecret = config.clientSecret;
+      }
+  }
 
   if (!channels || !Array.isArray(channels) || channels.length === 0) {
     return NextResponse.json({ data: [] });
@@ -60,15 +79,17 @@ export async function POST(request: Request) {
     });
 
     // Merge data - We want to return ALL users, with their stream info if live
-    const streamMap: Record<string, any> = {};
-    streamsData.data.forEach((stream: any) => {
+    interface TwitchStream { user_login: string; user_name: string; game_name: string; viewer_count: number; title: string; started_at: string }
+    const streamMap: Record<string, TwitchStream> = {};
+    streamsData.data.forEach((stream: TwitchStream) => {
         streamMap[stream.user_login] = stream;
     });
 
     const combinedData = [];
     if (usersRes.ok) {
         const usersData = await usersRes.json();
-        combinedData.push(...usersData.data.map((user: any) => ({
+        interface TwitchUser { login: string; display_name: string; profile_image_url: string }
+        combinedData.push(...usersData.data.map((user: TwitchUser) => ({
             user_login: user.login,
             user_name: user.display_name,
             profile_image_url: user.profile_image_url,

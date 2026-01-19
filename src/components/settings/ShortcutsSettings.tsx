@@ -3,6 +3,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { ShortcutBindings } from '@/types/settings';
 import { getNormalizedKey } from '@/utils/keyboardUtils';
 import { Keyboard, RotateCcw } from 'lucide-react';
+import { Button } from '../primitives';
 import styles from './SettingsDialog.module.css';
 
 const SHORTCUT_LABELS: Record<keyof ShortcutBindings, string> = {
@@ -86,9 +87,7 @@ export const ShortcutsSettings: React.FC = () => {
     <div className={styles.section}>
       <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div className={styles.sectionTitle}>Keyboard Shortcuts</div>
-        <button className={styles.iconButton} onClick={handleReset} title="Reset to Defaults">
-            <RotateCcw size={16} />
-        </button>
+        <Button variant="ghost" size="icon" onClick={handleReset} title="Reset to Defaults" leftIcon={<RotateCcw size={16} />} />
       </div>
 
       <div className={styles.shortcutsGrid}>
@@ -98,7 +97,6 @@ export const ShortcutsSettings: React.FC = () => {
               <span className={styles.settingLabel}>{SHORTCUT_LABELS[action as keyof ShortcutBindings]}</span>
             </div>
             <button 
-                className={`${styles.shortcutButton} ${recordingKey === action ? styles.recording : ''}`}
                 onClick={() => setRecordingKey(action as keyof ShortcutBindings)}
                 style={{
                     background: recordingKey === action ? 'var(--accent-red)' : 'var(--bg-card-lighter)',

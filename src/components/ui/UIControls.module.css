@@ -20,14 +20,14 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .button:hover {
   background: var(--bg-highlight);
   color: var(--text-main);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 16px var(--shadow-sm);
 }
 
 .button:active {
@@ -53,7 +53,7 @@
 .indicator:hover {
   transform: none;
   background: var(--bg-card);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px var(--shadow-md);
 }
 
 .statusIndicator {

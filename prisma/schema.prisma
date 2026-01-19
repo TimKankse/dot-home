@@ -7,29 +7,148 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./editorial.db"
+  url      = "file:./dothome.db"
 }
 
+// ============================================================================
+// ENUMS (stored as strings in SQLite)
+// ============================================================================
+
+// Access levels for objects (Dashboard, Page, Integration)
+// PUBLIC    - Anyone can view AND edit
+// VIEWABLE  - Anyone can view, only owner can edit
+// PRIVATE   - Only owner can view and edit (default)
+
+// Per-user permission overrides
+// BLOCKED   - Cannot access at all (overrides even PUBLIC)
+// VIEW      - Can view (overrides PRIVATE)
+// EDIT      - Full access (overrides everything)
+
+// ============================================================================
+// CORE MODELS
+// ============================================================================
+
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  displayName  String?
-  passwordHash String
-  role         String      @default("member") // "admin" | "member" | "viewer"
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  dashboards   Dashboard[]
+  id                String             @id @default(cuid())
+  email             String             @unique
+  displayName       String?
+  passwordHash      String
+  role              String             @default("member") // "admin" | "member" | "viewer"
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  dashboards           Dashboard[]
+  integrations         Integration[]
+  permissions          ObjectPermission[] // Permissions granted TO this user
+  widgetUserConfigs    WidgetUserConfig[]
+  dashboardPreference  UserDashboardPreference?
 }
 
 model Dashboard {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String   @default("Main")
-  layout    String   // JSON blob: widgets, pages, scroll direction, settings
-  isDefault Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String             @id @default(cuid())
+  userId      String
+  name        String             @default("Main")
+  layout      String             // JSON blob: widgets, scroll direction, settings
+  isDefault   Boolean            @default(true)
+  accessLevel String             @default("PRIVATE") // "PUBLIC" | "VIEWABLE" | "PRIVATE"
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages       Page[]
 
   @@index([userId])
+  @@index([accessLevel])
+}
+
+model Page {
+  id          String             @id @default(cuid())
+  dashboardId String
+  name        String             @default("Page")
+  sortOrder   Int                @default(0)
+  accessLevel String             @default("PRIVATE") // "PUBLIC" | "VIEWABLE" | "PRIVATE"
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  dashboard   Dashboard          @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+
+  @@index([dashboardId])
+  @@index([sortOrder])
+}
+
+model Integration {
+  id          String             @id @default(cuid())
+  userId      String
+  name        String
+  type        String             // jellyfin, radarr, sonarr, etc.
+  config      String             // JSON blob: url, externalUrl, apiKey (encrypted), etc.
+  accessLevel String             @default("PRIVATE") // "PUBLIC" | "VIEWABLE" | "PRIVATE"
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([accessLevel])
+}
+
+// ============================================================================
+// PERMISSION MODELS
+// ============================================================================
+
+// Per-user overrides for any object
+// Note: objectId references are handled at application level since SQLite
+// doesn't support polymorphic foreign keys
+model ObjectPermission {
+  id         String   @id @default(cuid())
+  userId     String   // User being granted/denied access
+  objectType String   // "dashboard" | "page" | "integration"
+  objectId   String   // ID of the object (no FK constraint)
+  permission String   // "BLOCKED" | "VIEW" | "EDIT"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, objectType, objectId])
+  @@index([objectType, objectId])
+}
+
+// Per-user widget configurations (for non-synced widgets)
+model WidgetUserConfig {
+  id        String   @id @default(cuid())
+  userId    String
+  widgetId  String   // References Widget.id in Dashboard.layout JSON
+  config    String   // User's personal config JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, widgetId])
+  @@index([widgetId])
+}
+
+// ============================================================================
+// USER PREFERENCES
+// ============================================================================
+
+// Per-user dashboard preference (allows users to set any accessible dashboard as their default)
+model UserDashboardPreference {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  defaultDashboardId String?  // ID of preferred default dashboard (any accessible)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// LEGACY / ROLE-BASED WIDGET ACCESS
+// ============================================================================
+
+model WidgetPermission {
+  id         String   @id @default(cuid())
+  widgetType String   @unique // e.g., "clock", "jellyfin", "weather"
+  roles      String   // JSON array: ["admin", "member", "viewer"]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

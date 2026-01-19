@@ -10,6 +10,11 @@ const eslintConfig = defineConfig([
     rules: {
       // Downgrade to warnings - will be addressed incrementally
       "@typescript-eslint/no-explicit-any": "warn",
+      // Allow underscore-prefixed variables to be unused (common convention)
+      "@typescript-eslint/no-unused-vars": ["warn", { 
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }],
       // External/dynamic images can't use next/image optimization  
       "@next/next/no-img-element": "off",
       // React compiler memoization warnings are informational

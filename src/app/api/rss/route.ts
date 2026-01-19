@@ -39,7 +39,8 @@ export async function GET(request: Request) {
           if (!thumbnail && item['media:content']) {
             const mediaContent = item['media:content'];
             if (Array.isArray(mediaContent)) {
-              const image = mediaContent.find((m: any) => m.$?.type?.startsWith('image') || m.$?.medium === 'image');
+              interface MediaObject { $: { type?: string; medium?: string; url?: string } }
+              const image = mediaContent.find((m: MediaObject) => m.$?.type?.startsWith('image') || m.$?.medium === 'image');
               thumbnail = image?.$?.url;
             } else {
               thumbnail = mediaContent.$?.url;
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
               let hostname = urlObj.hostname;
               if (hostname.startsWith('www.')) hostname = hostname.slice(4);
               sourceName = hostname.charAt(0).toUpperCase() + hostname.slice(1);
-            } catch (e) {
+            } catch {
               // Invalid URL
             }
           }

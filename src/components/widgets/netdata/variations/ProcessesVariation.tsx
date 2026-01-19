@@ -1,16 +1,18 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
+import { NetdataApiResponse, ProcessData } from '@/app/api/netdata/types';
+import type { NetdataWidgetConfig } from '@/types';
+import { List } from '@/components/primitives';
 
 interface ProcessesVariationProps {
-    data: any;
-    config: any;
+    data: NetdataApiResponse;
+    config?: NetdataWidgetConfig;
 }
 
 export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, config }) => {
     // Sort by CPU usage desc
     const processes = [...(data.processList || [])]
-        .sort((a: any, b: any) => b.cpu_percent - a.cpu_percent)
+        .sort((a: ProcessData, b: ProcessData) => b.cpu_percent - a.cpu_percent)
         .slice(0, config?.processLimit || 5);
 
     if (processes.length === 0) {
@@ -32,19 +34,21 @@ export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, co
             <div className={styles.header}>
                 <span className={styles.widgetTitle}>TOP APPS</span>
             </div>
-            <div className={styles.processList}>
+            <div className={styles.processListWrapper}>
                 <div className={styles.processHeader}>
                     <span>NAME</span>
                     <span>CPU</span>
                     <span>MEM</span>
                 </div>
-                {processes.map((proc: any) => (
-                    <div key={proc.pid} className={styles.processItem}>
-                        <span className={styles.processName} title={proc.name}>{proc.name}</span>
-                        <span className={styles.processValue}>{proc.cpu_percent.toFixed(1)}%</span>
-                        <span className={styles.processValue}>{proc.memory_percent.toFixed(1)}%</span>
-                    </div>
-                ))}
+                <List variant="compact" className={styles.processList}>
+                    {processes.map((proc: ProcessData) => (
+                        <div key={proc.pid} className={styles.processItem}>
+                            <span className={styles.processName} title={proc.name}>{proc.name}</span>
+                            <span className={styles.processValue}>{proc.cpu_percent.toFixed(1)}%</span>
+                            <span className={styles.processValue}>{proc.memory_percent.toFixed(1)}%</span>
+                        </div>
+                    ))}
+                </List>
             </div>
         </div>
     );

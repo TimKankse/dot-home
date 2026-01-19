@@ -1,3 +1,5 @@
+import type { CalendarWidgetConfig } from '@/types';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -9,15 +11,9 @@ export interface CalendarEvent {
   allDay?: boolean;
 }
 
+// Re-export from centralized types for convenience
+export type { CalendarWidgetConfig };
+
 export interface CalendarWidgetProps {
-  config: {
-    icalUrl?: string; // Legacy support
-    icalUrls?: string[];
-    radarrUrl?: string;
-    radarrApiKey?: string;
-    sonarrUrl?: string;
-    sonarrApiKey?: string;
-    weekStart?: 'monday' | 'sunday';
-    defaultView?: 'daily' | 'monthly';
-  };
+  config: CalendarWidgetConfig;
 }

@@ -71,8 +71,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const body = await request.json();
     const { displayName, password, role } = body;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updateData: any = {};
+    interface UserUpdateData {
+        displayName?: string | null;
+        passwordHash?: string;
+        role?: string;
+    }
+    
+    const updateData: UserUpdateData = {};
 
     // Anyone can update their own display name
     if (displayName !== undefined) {

@@ -1,25 +1,23 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, Puzzle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Link2, ArrowLeft, Check } from 'lucide-react';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
-import { Integration } from '@/types/integration';
+import { 
+  Integration, 
+  IntegrationType, 
+  INTEGRATION_TYPE_META,
+  getIntegrationTypeMeta 
+} from '@/types/integration';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import { v4 as uuidv4 } from 'uuid';
 import { IconSelector } from '../ui/IconSelector';
 import styles from './SettingsDialog.module.css';
+import { Button, Input, Label, Card } from '../primitives';
 
-const INTEGRATION_TYPES = [
-  { value: 'jellyfin', label: 'Jellyfin' },
-  { value: 'sonarr', label: 'Sonarr' },
-  { value: 'radarr', label: 'Radarr' },
-  { value: 'portainer', label: 'Portainer' },
-  { value: 'netdata', label: 'Netdata' },
-  { value: 'generic', label: 'Generic' },
-];
+type ViewMode = 'list' | 'add-select-type' | 'add-form' | 'edit';
 
 export const IntegrationsSettings: React.FC = () => {
-  // Integration store
   const { 
     integrations, 
     addIntegration, 
@@ -27,55 +25,125 @@ export const IntegrationsSettings: React.FC = () => {
     removeIntegration
   } = useIntegrationStore();
 
-  // Persistence store  
   const { saveConfig } = usePersistenceStore();
 
-  const [isAdding, setIsAdding] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<IntegrationType | null>(null);
   
-  const [newIntegration, setNewIntegration] = useState<Partial<Integration>>({
-    name: '',
-    type: 'generic',
-    config: {}
-  });
-
   // Form state
+  const [name, setName] = useState('');
+  const [iconUrl, setIconUrl] = useState('');
   const [url, setUrl] = useState('');
-  const [externalUrl, setExternalUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [iconUrl, setIconUrl] = useState('');
-  const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
+  const [userId, setUserId] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [endpointId, setEndpointId] = useState('');
 
-  const handleSaveIntegration = () => {
-    if (!newIntegration.name || !newIntegration.type) return;
+  const resetForm = () => {
+    setViewMode('list');
+    setEditingId(null);
+    setSelectedType(null);
+    setName('');
+    setIconUrl('');
+    setUrl('');
+    setApiKey('');
+    setUsername('');
+    setPassword('');
+    setUserId('');
+    setClientId('');
+    setClientSecret('');
+    setEndpointId('');
+  };
 
-    const config: Record<string, any> = {};
-    if (url) config.url = url;
-    if (externalUrl) config.externalUrl = externalUrl;
-    if (apiKey) config.apiKey = apiKey;
-    if (username) config.username = username;
-    if (password) config.password = password;
-    if (iconUrl) config.iconUrl = iconUrl;
+  const handleSelectType = (type: IntegrationType) => {
+    setSelectedType(type);
+    const meta = getIntegrationTypeMeta(type);
+    setName(meta?.label || type);
+    setViewMode('add-form');
+  };
+
+  const handleEdit = (integration: Integration) => {
+    setEditingId(integration.id);
+    setSelectedType(integration.type);
+    setName(integration.name);
+    setIconUrl(integration.iconUrl || '');
     
-    customFields.forEach(field => {
-      if (field.key && field.value) {
-        config[field.key] = field.value;
-      }
-    });
+    const config = integration.config as Record<string, string | undefined>;
+    setUrl(config.url || '');
+    setApiKey(config.apiKey || '');
+    setUsername(config.username || '');
+    setPassword(config.password || '');
+    setUserId(config.userId || '');
+    setClientId(config.clientId || '');
+    setClientSecret(config.clientSecret || '');
+    setEndpointId(config.endpointId || '');
+    
+    setViewMode('edit');
+  };
+
+  const buildConfig = (): Record<string, string> => {
+    const config: Record<string, string> = {};
+    
+    if (!selectedType) return config;
+    
+    // Add fields based on type
+    switch (selectedType) {
+      case 'jellyfin':
+        if (url) config.url = url;
+        if (apiKey) config.apiKey = apiKey;
+        if (userId) config.userId = userId;
+        break;
+      case 'jellyseerr':
+      case 'sabnzbd':
+      case 'radarr':
+      case 'sonarr':
+        if (url) config.url = url;
+        if (apiKey) config.apiKey = apiKey;
+        break;
+      case 'netdata':
+        if (url) config.url = url;
+        break;
+      case 'portainer':
+        if (url) config.url = url;
+        if (apiKey) config.apiKey = apiKey;
+        if (endpointId) config.endpointId = endpointId;
+        break;
+      case 'qbittorrent':
+        if (url) config.url = url;
+        if (username) config.username = username;
+        if (password) config.password = password;
+        break;
+      case 'twitch':
+        if (clientId) config.clientId = clientId;
+        if (clientSecret) config.clientSecret = clientSecret;
+        break;
+    }
+    
+    return config;
+  };
+
+  const handleSave = () => {
+    if (!name || !selectedType) return;
+
+    const config = buildConfig();
 
     if (editingId) {
       updateIntegration(editingId, {
-        name: newIntegration.name,
-        type: newIntegration.type,
+        name,
+        type: selectedType,
+        iconUrl: iconUrl || undefined,
         config
       });
     } else {
       const integration: Integration = {
         id: uuidv4(),
-        name: newIntegration.name!,
-        type: newIntegration.type!,
+        name,
+        type: selectedType,
+        iconUrl: iconUrl || undefined,
         config
       };
       addIntegration(integration);
@@ -85,42 +153,6 @@ export const IntegrationsSettings: React.FC = () => {
     resetForm();
   };
 
-  const handleEdit = (integration: Integration) => {
-    setIsAdding(true);
-    setEditingId(integration.id);
-    setNewIntegration({
-      name: integration.name,
-      type: integration.type,
-      config: integration.config
-    });
-
-    setUrl(integration.config.url || '');
-    setExternalUrl(integration.config.externalUrl || '');
-    setApiKey(integration.config.apiKey || '');
-    setUsername(integration.config.username || '');
-    setPassword(integration.config.password || '');
-    setIconUrl(integration.config.iconUrl || '');
-
-    const standardKeys = ['url', 'externalUrl', 'apiKey', 'username', 'password', 'iconUrl'];
-    const custom = Object.entries(integration.config)
-      .filter(([key]) => !standardKeys.includes(key))
-      .map(([key, value]) => ({ key, value: String(value) }));
-    setCustomFields(custom);
-  };
-
-  const resetForm = () => {
-    setIsAdding(false);
-    setEditingId(null);
-    setNewIntegration({ name: '', type: 'generic', config: {} });
-    setUrl('');
-    setExternalUrl('');
-    setApiKey('');
-    setUsername('');
-    setPassword('');
-    setIconUrl('');
-    setCustomFields([]);
-  };
-
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to delete this integration?')) {
       removeIntegration(id);
@@ -128,218 +160,271 @@ export const IntegrationsSettings: React.FC = () => {
     }
   };
 
-  const addCustomField = () => {
-    setCustomFields([...customFields, { key: '', value: '' }]);
-  };
+  // Render type selection cards
+  const renderTypeSelection = () => (
+    <div className={styles.form}>
+      <div className={styles.formHeader}>
+        <Button onClick={resetForm} variant="ghost" size="icon" title="Back">
+          <ArrowLeft size={18} />
+        </Button>
+        <h3 className={styles.formHeaderTitle}>Select Service Type</h3>
+      </div>
+      
+      <div className={styles.typeGrid}>
+        {INTEGRATION_TYPE_META.map((meta) => (
+          <Card 
+            key={meta.type}
+            className={styles.typeCard}
+            onClick={() => handleSelectType(meta.type)}
+            style={{ cursor: 'pointer', padding: '16px' }}
+          >
+            <div className={styles.typeCardContent}>
+              <span className={styles.typeCardLabel}>{meta.label}</span>
+              <span className={styles.typeCardDescription}>{meta.description}</span>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
 
-  const updateCustomField = (index: number, field: 'key' | 'value', value: string) => {
-    const newFields = [...customFields];
-    newFields[index][field] = value;
-    setCustomFields(newFields);
-  };
+  // Render form fields based on selected type
+  const renderFormFields = () => {
+    if (!selectedType) return null;
 
-  const removeCustomField = (index: number) => {
-    const newFields = customFields.filter((_, i) => i !== index);
-    setCustomFields(newFields);
-  };
+    const hasUrl = ['jellyfin', 'jellyseerr', 'netdata', 'portainer', 'sabnzbd', 'qbittorrent', 'radarr', 'sonarr'].includes(selectedType);
+    const hasApiKey = ['jellyfin', 'jellyseerr', 'portainer', 'sabnzbd', 'radarr', 'sonarr'].includes(selectedType);
+    const hasCredentials = selectedType === 'qbittorrent';
+    const hasTwitchAuth = selectedType === 'twitch';
+    const hasUserId = selectedType === 'jellyfin';
+    const hasEndpointId = selectedType === 'portainer';
 
-  return (
-    <>
-      {!isAdding ? (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-            <button 
-              onClick={() => setIsAdding(true)} 
-              className={`${styles.button} ${styles.primaryButton}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <Plus size={16} /> Add Integration
-            </button>
-          </div>
-          <div className={styles.integrationList}>
-            {integrations.map((integration) => (
-              <div key={integration.id} className={styles.integrationItem}>
-                <div className={styles.integrationInfo}>
-                  <span className={styles.integrationName}>{integration.name}</span>
-                  <span className={styles.integrationType}>
-                    {INTEGRATION_TYPES.find(t => t.value === integration.type)?.label || integration.type}
-                    {integration.config.url && ` • ${integration.config.url}`}
-                  </span>
-                </div>
-                <div className={styles.actions}>
-                  <button 
-                    onClick={() => handleEdit(integration)} 
-                    className={styles.iconButton}
-                  >
-                    <Pencil size={18} />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(integration.id)} 
-                    className={`${styles.iconButton} ${styles.danger}`}
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {integrations.length === 0 && (
-              <div className={styles.emptyState}>
-                <Puzzle size={32} className={styles.emptyStateIcon} />
-                <p>No integrations configured yet.</p>
-                <p style={{ fontSize: '0.75rem', marginTop: '8px', opacity: 0.7 }}>Click &quot;Add Integration&quot; to get started.</p>
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className={styles.form}>
-          <h3 className={styles.sectionTitle}>
-            {editingId ? 'Edit Integration' : 'New Integration'}
-          </h3>
-          
+    return (
+      <>
+        {hasUrl && (
           <div className={styles.formGroup}>
-            <label className={styles.label}>Name</label>
-            <input 
-              className={styles.input}
-              value={newIntegration.name}
-              onChange={(e) => setNewIntegration({ ...newIntegration, name: e.target.value })}
-              placeholder="e.g. Home Jellyfin"
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Custom Icon (Optional)</label>
-            <IconSelector 
-              iconUrl={iconUrl} 
-              onIconSelect={setIconUrl} 
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Type</label>
-            <select 
-              className={styles.select}
-              value={newIntegration.type}
-              onChange={(e) => setNewIntegration({ ...newIntegration, type: e.target.value })}
-            >
-              {INTEGRATION_TYPES.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className={styles.formGroup}>
-            <label className={styles.label}>URL (Internal)</label>
-            <input 
-              className={styles.input}
+            <Input 
+              label="URL"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="http://192.168.1.100:8096"
             />
           </div>
+        )}
 
+        {hasApiKey && (
           <div className={styles.formGroup}>
-            <label className={styles.label}>External URL</label>
-            <input 
-              className={styles.input}
-              value={externalUrl}
-              onChange={(e) => setExternalUrl(e.target.value)}
-              placeholder="https://jellyfin.example.com"
+            <Input 
+              label="API Key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="API Key / Token"
             />
           </div>
+        )}
 
-          {['jellyfin', 'sonarr', 'radarr', 'netdata'].includes(newIntegration.type || '') && (
+        {hasUserId && (
+          <div className={styles.formGroup}>
+            <Input 
+              label="User ID (Optional)"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="Jellyfin User ID"
+            />
+          </div>
+        )}
+
+        {hasEndpointId && (
+          <div className={styles.formGroup}>
+            <Input 
+              label="Endpoint ID"
+              value={endpointId}
+              onChange={(e) => setEndpointId(e.target.value)}
+              placeholder="1"
+            />
+          </div>
+        )}
+
+        {hasCredentials && (
+          <>
             <div className={styles.formGroup}>
-              <label className={styles.label}>API Key / Token</label>
-              <input 
-                className={styles.input}
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Secret API Key"
+              <Input 
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin"
               />
             </div>
-          )}
-
-          {['portainer'].includes(newIntegration.type || '') && (
-            <>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Username</label>
-                <input 
-                  className={styles.input}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Password</label>
-                <input 
-                  className={styles.input}
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          <hr className={styles.divider} />
-          
-          <div className={styles.formGroup}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <label className={styles.label} style={{ marginBottom: 0 }}>Custom Fields</label>
-              <button 
-                onClick={addCustomField}
-                className={`${styles.button} ${styles.secondaryButton}`}
-                style={{ fontSize: '0.8rem', padding: '4px 12px', height: 'auto' }}
-              >
-                <Plus size={12} style={{ marginRight: '4px' }} /> Add Field
-              </button>
+            <div className={styles.formGroup}>
+              <Input 
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-            
-            {customFields.map((field, index) => (
-              <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <input 
-                  className={styles.input}
-                  value={field.key}
-                  onChange={(e) => updateCustomField(index, 'key', e.target.value)}
-                  placeholder="Field Name"
-                  style={{ flex: 1 }}
-                />
-                <input 
-                  className={styles.input}
-                  value={field.value}
-                  onChange={(e) => updateCustomField(index, 'value', e.target.value)}
-                  placeholder="Value"
-                  style={{ flex: 1 }}
-                />
-                <button 
-                  onClick={() => removeCustomField(index)}
-                  className={styles.iconButton}
-                  style={{ color: 'var(--accent-red)' }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+          </>
+        )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
-            <button 
-              onClick={resetForm} 
-              className={`${styles.button} ${styles.secondaryButton}`}
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleSaveIntegration} 
-              className={`${styles.button} ${styles.primaryButton}`}
-            >
-              {editingId ? 'Update Integration' : 'Save Integration'}
-            </button>
-          </div>
+        {hasTwitchAuth && (
+          <>
+            <div className={styles.formGroup}>
+              <Input 
+                label="Client ID"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="Twitch Client ID"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <Input 
+                label="Client Secret"
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder="Twitch Client Secret"
+              />
+            </div>
+          </>
+        )}
+      </>
+    );
+  };
+
+  // Render form (add or edit)
+  const renderForm = () => {
+    const typeMeta = selectedType ? getIntegrationTypeMeta(selectedType) : null;
+    
+    return (
+      <div className={styles.form}>
+        <div className={styles.formHeader}>
+          <Button 
+            onClick={() => editingId ? resetForm() : setViewMode('add-select-type')} 
+            variant="ghost" 
+            size="icon" 
+            title="Back"
+          >
+            <ArrowLeft size={18} />
+          </Button>
+          <h3 className={styles.formHeaderTitle}>
+            {editingId ? 'Edit' : 'New'} {typeMeta?.label || 'Integration'}
+          </h3>
         </div>
-      )}
+
+        <div className={styles.formGroup}>
+          <Input 
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Home Media Server"
+          />
+        </div>
+
+        <div className={styles.formGroup}>
+          <Label>Custom Icon (Optional)</Label>
+          <IconSelector 
+            iconUrl={iconUrl} 
+            onIconSelect={setIconUrl} 
+          />
+        </div>
+
+        {renderFormFields()}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+          <Button 
+            onClick={resetForm} 
+            variant="secondary"
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            variant="primary"
+            leftIcon={<Check size={16} />}
+          >
+            {editingId ? 'Update' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render list view
+  const renderList = () => (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+        <Button 
+          onClick={() => setViewMode('add-select-type')} 
+          variant="primary"
+          leftIcon={<Plus size={16} />}
+        >
+          Add Integration
+        </Button>
+      </div>
+      
+      <div className={styles.integrationList}>
+        {integrations.map((integration) => {
+          const meta = getIntegrationTypeMeta(integration.type);
+          const config = integration.config as Record<string, string | undefined>;
+          
+          return (
+            <Card 
+              key={integration.id} 
+              className={styles.integrationItem} 
+              style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <div className={styles.integrationInfo}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Link2 size={16} style={{ color: 'var(--text-muted)' }} />
+                  <span className={styles.integrationName}>{integration.name}</span>
+                </div>
+                <span className={styles.integrationType}>
+                  {meta?.label || integration.type}
+                  {config.url && ` • ${config.url}`}
+                </span>
+              </div>
+              <div className={styles.actions}>
+                <Button 
+                  onClick={() => handleEdit(integration)} 
+                  variant="ghost"
+                  size="icon"
+                >
+                  <Pencil size={18} />
+                </Button>
+                <Button 
+                  onClick={() => handleDelete(integration.id)} 
+                  variant="danger"
+                  size="icon"
+                >
+                  <Trash2 size={18} />
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+        
+        {integrations.length === 0 && (
+          <div className={styles.emptyState}>
+            <Link2 size={32} className={styles.emptyStateIcon} />
+            <p>No integrations configured yet.</p>
+            <p style={{ fontSize: '0.75rem', marginTop: '8px', opacity: 0.7 }}>
+              Integrations let you save connection settings and reuse them across widgets.
+            </p>
+          </div>
+        )}
+      </div>
     </>
   );
+
+  // Main render
+  switch (viewMode) {
+    case 'add-select-type':
+      return renderTypeSelection();
+    case 'add-form':
+    case 'edit':
+      return renderForm();
+    default:
+      return renderList();
+  }
 };

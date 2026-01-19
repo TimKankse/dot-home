@@ -33,12 +33,20 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# info
+/info
+
 # User configuration (contains API keys)
-config.yml
+config.yml*
 
 # SQLite database (contains user data)
+*.db
+*.db-journal
 prisma/*.db
 prisma/*.db-journal
+
+# Temporary lint output
+lint_results*.txt
 
 # vercel
 .vercel

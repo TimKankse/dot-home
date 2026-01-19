@@ -14,9 +14,26 @@ import { processNetwork } from './processors/network-processor';
 import { processSensors } from './processors/sensor-processor';
 import { processSystemInfo, processCpuModel } from './processors/system-processor';
 
+import { prisma } from '@/lib/db';
+import { decryptSensitiveFields } from '@/utils/crypto';
+
 export async function POST(request: Request) {
   try {
-    const { url, processLimit = 10, scope } = await request.json();
+    const { url: bodyUrl, processLimit = 10, scope } = await request.json();
+    const integrationId = request.headers.get('x-integration-id');
+    
+    let url = bodyUrl;
+
+    if (integrationId) {
+        const integration = await prisma.integration.findUnique({
+            where: { id: integrationId }
+        });
+        
+        if (integration) {
+            const config = decryptSensitiveFields(JSON.parse(integration.config));
+            url = config.url || config.externalUrl;
+        }
+    }
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -32,23 +49,29 @@ export async function POST(request: Request) {
     const fetcher = (chart: string) => fetchNetdata(cleanUrl, chart);
 
     // Dynamic Chart Discovery
-    const dynamicScopes = ['storage', 'network', 'sensors', 'processes', 'cpu-cores', 'gpu', 'cpu'];
+    const dynamicScopes = ['storage', 'network', 'sensors', 'processes', 'cpu-cores'];
     const needsDynamicCharts = requestedScopes.includes('all') || requestedScopes.some(s => dynamicScopes.includes(s));
 
     let chartNames: string[] = [];
+    let chartsError: string | undefined;
     if (needsDynamicCharts) {
-        chartNames = await fetchChartsList(cleanUrl);
-        if (chartNames.length === 0 && !isScopeActive('cpu') && !isScopeActive('ram')) {
-             // If chart list fails and we strictly need it, fail. 
-             // Logic from original: proceed if cpu/ram is active, else fail.
-             // But here chartNames is empty if fail.
-             return NextResponse.json({ error: 'Failed to connect to Netdata' }, { status: 500 });
+        const result = await fetchChartsList(cleanUrl);
+        chartNames = result.charts;
+        chartsError = result.error;
+
+        if (chartNames.length === 0) {
+             console.warn('Netdata: Failed to fetch charts list, proceeding with fallbacks');
         }
     }
 
     // Chart Filtering
     const diskCharts = isScopeActive('storage') ? chartNames.filter(c => c.startsWith('disk_space.')) : [];
     const netCharts = isScopeActive('network') ? chartNames.filter(c => c.startsWith('net.') && !c.includes('lo') && !c.startsWith('net.veth') && !c.startsWith('net.docker')) : [];
+    
+    // Fallback for network if no charts found
+    if (isScopeActive('network') && netCharts.length === 0) {
+        netCharts.push('system.net');
+    }
     const sensorCharts = (isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu')) ? chartNames.filter(c => c.startsWith('sensors.')) : [];
     
     // Container Charts
@@ -84,6 +107,7 @@ export async function POST(request: Request) {
     const netPromises = netCharts.map(c => fetcher(c));
     const sensorPromises = sensorCharts.map(c => fetcher(c));
 
+    // Await All
     // Await All
     const [
         cpuData, ramData, appsCpuData, appsMemData, uptimeData, infoData, functionsData, cpuFreqData,
@@ -146,7 +170,8 @@ export async function POST(request: Request) {
       processList,
       network,
       cpuModel,
-      systemInfo
+      systemInfo,
+      chartsError
     });
 
   } catch (error) {

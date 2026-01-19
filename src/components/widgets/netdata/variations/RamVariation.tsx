@@ -1,15 +1,25 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { Sparkline } from '../components/Sparkline';
 import { formatBytes } from '../utils';
+import { NetdataApiResponse } from '@/app/api/netdata/types';
 
 interface RamVariationProps {
-    data: any;
+    data: NetdataApiResponse;
     history: number[];
 }
 
 export const RamVariation: React.FC<RamVariationProps> = ({ data, history }) => {
+    if (!data.mem) {
+        return (
+            <div className={styles.widgetContainer}>
+                <div className={styles.offlineState}>
+                    <p style={{ fontSize: '0.8rem' }}>No RAM data</p>
+                </div>
+            </div>
+        );
+    }
+    
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>

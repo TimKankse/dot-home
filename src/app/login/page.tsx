@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import styles from './page.module.css';
+import styles from '../(auth)/auth.module.css';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
@@ -63,10 +63,13 @@ export default function LoginPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1 className={styles.logo}>Editorial OS</h1>
-            <p className={styles.subtitle}>Welcome! Let&apos;s set up your dashboard.</p>
+            <h1 className={styles.logo}>dotHome</h1>
+            <p className={styles.subtitle}>Welcome! Let's set up your dashboard.</p>
           </div>
-          <Link href="/setup" className={styles.button} style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+          <Link 
+            href="/setup" 
+            className={styles.button}
+          >
             Get Started
           </Link>
         </div>
@@ -78,7 +81,7 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.header}>
-          <h1 className={styles.logo}>Editorial OS</h1>
+          <h1 className={styles.logo}>dotHome</h1>
           <p className={styles.subtitle}>Sign in to your dashboard</p>
         </div>
 
@@ -129,5 +132,26 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className={styles.container}>
+      <div className={styles.card}>
+        <div className={styles.header}>
+          <h1 className={styles.logo}>dotHome</h1>
+          <p className={styles.subtitle}>Loading...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   );
 }

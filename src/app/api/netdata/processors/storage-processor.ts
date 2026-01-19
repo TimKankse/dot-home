@@ -1,8 +1,7 @@
 import { NetdataChartResponse, DiskData } from '../types';
 
 export const processStorage = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mountPointsList: any[], 
+    mountPointsList: DiskData[], 
     diskCharts: string[], 
     diskData: (NetdataChartResponse | null)[]
 ): DiskData[] => {
@@ -10,8 +9,7 @@ export const processStorage = (
 
     if (mountPointsList.length > 0) {
         // Strategy A: Use Netdata 'mount-points' function data
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fs = mountPointsList.filter((m: any) => {
+        fs = mountPointsList.filter((m: DiskData) => {
             if (m.mnt_point.startsWith('/host/')) {
                 m.mnt_point = m.mnt_point.replace('/host/', '/');
             } else if (m.mnt_point === '/host') {

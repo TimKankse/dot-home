@@ -1,7 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+export interface ProcessInfo {
+    pid: number;
+    name: string;
+    cpu_percent: number;
+    memory_percent: number;
+    username: string;
+}
+
+export interface MountPointInfo {
+    mnt_point: string;
+    percent: number;
+    used: number;
+    size: number;
+}
+
 export interface FunctionsData {
-    processList: any[];
-    mountPointsList: any[];
+    processList: ProcessInfo[];
+    mountPointsList: MountPointInfo[];
 }
 
 export const fetchFunctionsData = async (
@@ -9,8 +23,8 @@ export const fetchFunctionsData = async (
     isScopeActive: (s: string) => boolean,
     processLimit: number
 ): Promise<FunctionsData> => {
-    let processList: any[] = [];
-    let mountPointsList: any[] = [];
+    let processList: ProcessInfo[] = [];
+    let mountPointsList: MountPointInfo[] = [];
 
     if (!isScopeActive('processes') && !isScopeActive('storage')) {
         return { processList, mountPointsList };
@@ -44,12 +58,12 @@ export const fetchFunctionsData = async (
                             const userIdx = cols.indexOf('user');
 
                             if (pidIdx !== -1 && nameIdx !== -1) {
-                                processList = procData.data.slice(0, processLimit).map((row: any) => ({
-                                    pid: row[pidIdx],
-                                    name: row[nameIdx],
-                                    cpu_percent: cpuIdx !== -1 ? row[cpuIdx] : 0,
-                                    memory_percent: memIdx !== -1 ? row[memIdx] : 0,
-                                    username: userIdx !== -1 ? row[userIdx] : 'unknown'
+                                processList = procData.data.slice(0, processLimit).map((row: unknown[]) => ({
+                                    pid: Number(row[pidIdx]),
+                                    name: String(row[nameIdx]),
+                                    cpu_percent: cpuIdx !== -1 ? Number(row[cpuIdx]) : 0,
+                                    memory_percent: memIdx !== -1 ? Number(row[memIdx]) : 0,
+                                    username: userIdx !== -1 ? String(row[userIdx]) : 'unknown'
                                 }));
                             }
                         }
@@ -75,15 +89,16 @@ export const fetchFunctionsData = async (
                             const usedPercentIdx = cols.indexOf('used_percent'); 
 
                             if (mountIdx !== -1) {
-                                mountPointsList = mountData.data.map((row: any) => {
-                                    const used = usedIdx !== -1 ? row[usedIdx] : 0;
-                                    const avail = availIdx !== -1 ? row[availIdx] : 0;
-                                    const total = sizeIdx !== -1 ? row[sizeIdx] : (used + avail);
+                                mountPointsList = mountData.data.map((row: unknown[]) => {
+                                    const used = usedIdx !== -1 ? Number(row[usedIdx]) : 0;
+                                    const avail = availIdx !== -1 ? Number(row[availIdx]) : 0;
+                                    const total = sizeIdx !== -1 ? Number(row[sizeIdx]) : (used + avail);
+                                    const percent = usedPercentIdx !== -1 ? Number(row[usedPercentIdx]) : (total > 0 ? (used / total) * 100 : 0);
                                     
                                     return {
-                                        mnt_point: row[mountIdx],
-                                        percent: usedPercentIdx !== -1 ? row[usedPercentIdx] : (total > 0 ? (used / total) * 100 : 0),
-                                        used: used,
+                                        mnt_point: String(row[mountIdx]),
+                                        percent,
+                                        used,
                                         size: total
                                     };
                                 });

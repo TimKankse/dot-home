@@ -32,8 +32,8 @@
   padding-right: 3rem; /* Space for icon */
   font-size: 1.1rem;
   font-family: var(--font-inter), sans-serif;
-  background-color: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: var(--surface-overlay);
+  border: 1px solid var(--border-overlay);
   border-radius: 32px;
   color: var(--foreground);
   outline: none;
@@ -41,13 +41,13 @@
 }
 
 .searchInput:focus {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background-color: var(--surface-overlay-active);
+  border-color: var(--border-overlay);
+  box-shadow: 0 4px 12px var(--shadow-sm);
 }
 
 .searchInput::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-dim);
   font-family: var(--font-gloock), serif; /* Editorial touch */
   font-style: italic;
 }
@@ -55,13 +55,13 @@
 .searchIcon {
   position: absolute;
   right: 1rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-dim);
   pointer-events: none;
 }
 
 .helperText {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-dim);
   text-align: center;
   font-family: var(--font-mono), monospace;
   opacity: 0;

@@ -1,12 +1,10 @@
-# Editorial OS
+# dotHome
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Editorial OS** is a self-hosted personal dashboard that combines the elegance of editorial design with the precision of industrial data visualization. Built for homelab enthusiasts and power users who want a beautiful, functional interface for their self-hosted services.
+**dotHome** is a self-hosted personal dashboard that combines the elegance of editorial design with the precision of industrial data visualization. Built for homelab enthusiasts and power users who want a beautiful, functional interface for their self-hosted services.
 
-![Editorial OS Screenshot](./public/screenshot.png)
-
-## ✨ Features
+## Features
 
 ### Dashboard
 - **Bento Grid Layout** — Drag-and-drop widgets with fluid, responsive design
@@ -46,30 +44,24 @@ Configure your services once, use them across multiple widgets:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/editorial-os.git
-cd editorial-os
-
-# Copy example config
-cp config.example.yml config.yml
+git clone https://github.com/TimKankse/dot-home.git
+cd dot-home
 
 # Start with Docker Compose
 docker compose up -d
 ```
 
-Access the dashboard at `http://localhost:3000`
+Access the dashboard at `http://localhost:9292`
 
 ### Manual Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/editorial-os.git
-cd editorial-os
+git clone https://github.com/TimKankse/dot-home.git
+cd dot-home
 
 # Install dependencies
 npm install
-
-# Copy example config
-cp config.example.yml config.yml
 
 # Start development server
 npm run dev
@@ -79,14 +71,14 @@ npm run build
 npm start
 ```
 
-## ⚙️ Configuration
+## Configuration
 
-All configuration is done through the web UI. Your settings are automatically saved to `config.yml`.
+All configuration is stored in a SQLite database. The web UI is the primary way to configure your dashboard.
 
 ### First Launch
-On first launch, Editorial OS creates a default `config.yml` with sensible defaults. Use the UI to:
+On first launch, you'll be prompted to create an admin account. Once logged in, use the UI to:
 
-1. **Add Integrations** (Settings → Integrations) — Configure your services with their URLs and API keys
+1. **Add Integrations** (Settings > Integrations) — Configure your services with their URLs and API keys
 2. **Add Widgets** (+ button) — Choose from available widget types
 3. **Customize Layout** (Pencil icon) — Drag and resize widgets to your liking
 
@@ -97,24 +89,24 @@ On first launch, Editorial OS creates a default `config.yml` with sensible defau
 | `Alt + ,` | Open settings |
 | `Alt + N` | Add new widget |
 | `Alt + S` | Save changes |
-| `Alt + ←/→` | Navigate pages |
+| `Alt + Left/Right` | Navigate pages |
 
-Shortcuts can be customized in Settings → Shortcuts.
+Shortcuts can be customized in Settings > Shortcuts.
 
-## 🐳 Docker Configuration
+## Docker Configuration
 
 ### Docker Compose
 
 ```yaml
 services:
-  editorial-os:
-    image: ghcr.io/yourusername/editorial-os:latest
-    container_name: editorial-os
+  dot-home:
+    image: ghcr.io/timkankse/dot-home:latest
+    container_name: dot-home
     restart: unless-stopped
     ports:
       - "9292:9292"
     volumes:
-      - ./config.yml:/app/config.yml
+      - ./data:/app/prisma
 ```
 
 ### Environment Variables
@@ -124,9 +116,9 @@ services:
 | `NODE_ENV` | `production` | Node environment |
 | `PORT` | `9292` | Server port |
 
-## 🎨 Themes
+## Themes
 
-Editorial OS includes 8 carefully crafted themes:
+dotHome includes 8 carefully crafted themes:
 
 - **Dark** (default) - High contrast dark theme
 - **Light** - Clean light theme
@@ -137,9 +129,9 @@ Editorial OS includes 8 carefully crafted themes:
 - **Rose Pine** - All natural pine, faux fur, and a bit of soho vibes
 - **Everforest** - Comfortable green theme
 
-Change themes in Settings → Appearance.
+Change themes in Settings > Appearance.
 
-## 🔧 Development
+## Development
 
 ```bash
 # Install dependencies
@@ -160,6 +152,7 @@ npm run build
 - **Styling**: CSS Modules + CSS Variables
 - **State**: Zustand
 - **Grid**: GridStack
+- **Database**: SQLite with Prisma
 - **Language**: TypeScript
 
 ## License
@@ -168,10 +161,12 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. Its my first open source project, so I am still learning, and getting the hang of maintaining a github repository.
+Contributions are welcome! Please feel free to submit a Pull Request. This is my first open source project, so I'm still learning and getting the hang of maintaining a GitHub repository.
 
 ## Acknowledgments
 
-- Design inspired by Nothing OS and homarr. And the current project are using icons directly compiled by the homarr team. 
+- Design inspired by Nothing OS and Homarr
+- Icons compiled by the Homarr team
+- Generative AI was used as a tool to generate code for the project. No AI was used to generate images or other graphic assets.
 - Icons from [Lucide](https://lucide.dev)
 - Fonts: Gloock, Inter, Space Mono

@@ -1,10 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
+import { NetdataApiResponse } from '@/app/api/netdata/types';
+import { List } from '@/components/primitives';
 
 interface SystemVariationProps {
-    data: any;
+    data: NetdataApiResponse;
 }
 
 export const SystemVariation: React.FC<SystemVariationProps> = ({ data }) => {
@@ -40,7 +41,7 @@ export const SystemVariation: React.FC<SystemVariationProps> = ({ data }) => {
             <div className={styles.header}>
                 <span className={styles.widgetTitle}>{hostname.toUpperCase()}</span>
             </div>
-            <div className={styles.systemInfoList}>
+            <List variant="compact" className={styles.systemInfoList}>
                 <div className={styles.systemInfoItem}>
                     <span className={styles.systemInfoLabel}>UPTIME</span>
                     <span className={styles.systemInfoValue}>{formatUptime(uptime)}</span>
@@ -61,7 +62,7 @@ export const SystemVariation: React.FC<SystemVariationProps> = ({ data }) => {
                     <span className={styles.systemInfoLabel}>VIRT</span>
                     <span className={styles.systemInfoValue}>{virtualization}</span>
                 </div>
-            </div>
+            </List>
         </div>
     );
 };

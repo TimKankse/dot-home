@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { Users, Plus, Trash2, Shield, User, Eye, X } from 'lucide-react';
+import { Users, Plus, Trash2, Shield, User, Eye, ArrowLeft } from 'lucide-react';
+import { Button, Input, Select, Label } from '../primitives';
 import styles from './SettingsDialog.module.css';
 
 interface UserData {
@@ -13,14 +14,16 @@ interface UserData {
   createdAt: string;
 }
 
+type FormMode = 'list' | 'create';
+
 export const UsersSettings: React.FC = () => {
   const { data: session } = useSession();
   const [users, setUsers] = useState<UserData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>('list');
   const [newUser, setNewUser] = useState({ email: '', displayName: '', password: '', role: 'member' });
-  const [isAdding, setIsAdding] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAdmin = session?.user?.role === 'admin';
 
@@ -43,9 +46,15 @@ export const UsersSettings: React.FC = () => {
     }
   }, [isAdmin, fetchUsers]);
 
+  const resetForm = () => {
+    setFormMode('list');
+    setNewUser({ email: '', displayName: '', password: '', role: 'member' });
+    setError('');
+  };
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsAdding(true);
+    setIsSubmitting(true);
     setError('');
 
     try {
@@ -60,13 +69,12 @@ export const UsersSettings: React.FC = () => {
         throw new Error(data.error || 'Failed to create user');
       }
 
-      setShowAddModal(false);
-      setNewUser({ email: '', displayName: '', password: '', role: 'member' });
+      resetForm();
       fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
-      setIsAdding(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -131,42 +139,107 @@ export const UsersSettings: React.FC = () => {
     );
   }
 
+  // Render the form view
+  if (formMode === 'create') {
+    return (
+      <div className={styles.form}>
+        <div className={styles.formHeader}>
+          <Button variant="ghost" size="icon" onClick={resetForm} title="Back to list" leftIcon={<ArrowLeft size={18} />} />
+          <h3 className={styles.formHeaderTitle}>Add New User</h3>
+        </div>
+
+        {error && (
+          <div className={styles.errorBanner}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleAddUser}>
+          <div className={styles.formGroup}>
+            <Label>Email *</Label>
+            <Input
+              type="email"
+              value={newUser.email}
+              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              required
+              placeholder="user@example.com"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <Label>Display Name</Label>
+            <Input
+              type="text"
+              value={newUser.displayName}
+              onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })}
+              placeholder="John Doe"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <Label>Password *</Label>
+            <Input
+              type="password"
+              value={newUser.password}
+              onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+              required
+              minLength={8}
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <Label>Role</Label>
+            <Select
+              value={newUser.role}
+              onChange={(val) => setNewUser({ ...newUser, role: val })}
+              options={[
+                { value: 'admin', label: 'Admin — Full access' },
+                { value: 'member', label: 'Member — Can edit own dashboard' },
+                { value: 'viewer', label: 'Viewer — Read only' },
+              ]}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={resetForm}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={isSubmitting}
+              loading={isSubmitting}
+            >
+              Create User
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // Render the list view
   return (
     <div className={styles.section}>
-      <div className={styles.sectionTitle} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className={styles.sectionTitle}>
         <span>User Management</span>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className={styles.addButton}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            background: 'var(--color-text-primary)',
-            color: 'var(--color-background)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: 500
-          }}
+        <Button 
+          variant="primary"
+          size="sm"
+          onClick={() => setFormMode('create')}
+          leftIcon={<Plus size={16} />}
         >
-          <Plus size={16} />
           Add User
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <div style={{ 
-          background: 'rgba(239, 68, 68, 0.1)', 
-          border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '8px',
-          padding: '0.75rem 1rem',
-          marginBottom: '1rem',
-          color: '#ef4444',
-          fontSize: '0.875rem'
-        }}>
+        <div className={styles.errorBanner}>
           {error}
         </div>
       )}
@@ -181,224 +254,48 @@ export const UsersSettings: React.FC = () => {
           <p>No users found.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className={styles.integrationList}>
           {users.map((user) => (
-            <div 
-              key={user.id} 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '1rem',
-                background: 'var(--color-background)',
-                borderRadius: '12px',
-                border: '1px solid var(--color-border)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  background: 'var(--color-surface)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-text-secondary)'
-                }}>
+            <div key={user.id} className={styles.integrationItem}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className={styles.userAvatar}>
                   {getRoleIcon(user.role)}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                <div className={styles.integrationInfo}>
+                  <span className={styles.integrationName}>
                     {user.displayName || user.email}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                  </span>
+                  <span className={styles.integrationType}>
                     {user.email}
-                  </div>
+                  </span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <select
-                  value={user.role}
-                  onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                  disabled={user.id === session?.user?.id}
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    padding: '0.5rem 0.75rem',
-                    color: 'var(--color-text-primary)',
-                    fontSize: '0.875rem',
-                    cursor: user.id === session?.user?.id ? 'not-allowed' : 'pointer',
-                    opacity: user.id === session?.user?.id ? 0.5 : 1
-                  }}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                  <option value="viewer">Viewer</option>
-                </select>
+              <div className={styles.actions}>
+                <div style={{ width: '120px' }}>
+                  <Select
+                    value={user.role}
+                    onChange={(val) => handleRoleChange(user.id, val)}
+                    disabled={user.id === session?.user?.id}
+                    options={[
+                      { value: 'admin', label: 'Admin' },
+                      { value: 'member', label: 'Member' },
+                      { value: 'viewer', label: 'Viewer' },
+                    ]}
+                  />
+                </div>
 
-                <button
+                <Button
+                  variant="danger"
+                  size="icon"
                   onClick={() => handleDeleteUser(user.id, user.email)}
                   disabled={user.id === session?.user?.id}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '0.5rem',
-                    cursor: user.id === session?.user?.id ? 'not-allowed' : 'pointer',
-                    color: user.id === session?.user?.id ? 'var(--color-text-tertiary)' : '#ef4444',
-                    opacity: user.id === session?.user?.id ? 0.5 : 1,
-                    borderRadius: '8px',
-                    transition: 'background 0.2s'
-                  }}
                   title={user.id === session?.user?.id ? "Can't delete yourself" : 'Delete user'}
-                >
-                  <Trash2 size={18} />
-                </button>
+                  leftIcon={<Trash2 size={18} />}
+                />
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Add User Modal */}
-      {showAddModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'var(--color-surface)',
-            borderRadius: '24px',
-            padding: '2rem',
-            width: '100%',
-            maxWidth: '400px',
-            border: '1px solid var(--color-border)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>Add New User</h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    background: 'var(--color-background)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: '1rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  value={newUser.displayName}
-                  onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    background: 'var(--color-background)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: '1rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  required
-                  minLength={8}
-                  placeholder="At least 8 characters"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    background: 'var(--color-background)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: '1rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                  Role
-                </label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 1rem',
-                    background: 'var(--color-background)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    color: 'var(--color-text-primary)',
-                    fontSize: '1rem'
-                  }}
-                >
-                  <option value="admin">Admin - Full access</option>
-                  <option value="member">Member - Can edit own dashboard</option>
-                  <option value="viewer">Viewer - Read only</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isAdding}
-                style={{
-                  padding: '0.875rem 1rem',
-                  background: 'var(--color-text-primary)',
-                  color: 'var(--color-background)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: isAdding ? 'not-allowed' : 'pointer',
-                  opacity: isAdding ? 0.5 : 1,
-                  fontSize: '1rem',
-                  fontWeight: 500,
-                  marginTop: '0.5rem'
-                }}
-              >
-                {isAdding ? 'Creating...' : 'Create User'}
-              </button>
-            </form>
-          </div>
         </div>
       )}
     </div>

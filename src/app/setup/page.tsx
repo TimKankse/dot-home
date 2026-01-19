@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import styles from '../login/page.module.css';
+import styles from '../(auth)/auth.module.css';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -98,8 +98,11 @@ export default function SetupPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1 className={styles.logo}>Editorial OS</h1>
+            <h1 className={styles.logo}>dotHome</h1>
             <p className={styles.subtitle}>Checking setup status...</p>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem 0' }}>
+            <span className={styles.spinner} style={{ width: 32, height: 32 }} />
           </div>
         </div>
       </div>
@@ -111,8 +114,12 @@ export default function SetupPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1 className={styles.logo}>✓</h1>
-            <p className={styles.subtitle}>Account created! Redirecting to your dashboard...</p>
+            <div className={styles.welcomeIcon}>✓</div>
+            <h1 className={styles.logo}>All Set!</h1>
+            <p className={styles.subtitle}>Redirecting to your dashboard...</p>
+          </div>
+          <div className={styles.success}>
+            Account created successfully
           </div>
         </div>
       </div>
@@ -123,8 +130,9 @@ export default function SetupPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.header}>
-          <h1 className={styles.logo}>Editorial OS</h1>
-          <p className={styles.subtitle}>Create your admin account</p>
+          <div className={styles.welcomeIcon}>🚀</div>
+          <h1 className={styles.logo}>dotHome</h1>
+          <p className={styles.subtitle}>Create your admin account to get started</p>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
@@ -203,7 +211,7 @@ export default function SetupPage() {
 
         <div className={styles.footer}>
           <p className={styles.footerText}>
-            This account will have full admin access to manage users and all widgets.
+            This account will have full admin access to manage users and all dashboard widgets.
           </p>
         </div>
       </div>

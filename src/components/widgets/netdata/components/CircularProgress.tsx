@@ -19,7 +19,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({ value, color
                     cx="50"
                     cy="50"
                     r={radius}
-                    stroke="rgba(255,255,255,0.1)"
+                    stroke="var(--surface-overlay-active)"
                     strokeWidth="14"
                     fill="none"
                 />

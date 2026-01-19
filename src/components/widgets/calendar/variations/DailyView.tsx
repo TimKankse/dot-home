@@ -2,6 +2,7 @@ import React from 'react';
 import styles from '../CalendarWidget.module.css';
 import { CalendarEvent } from '../types';
 import { getDailyGroups, getEventTypeClass, getEventTypeLabel } from '../utils';
+import { List } from '@/components/primitives/list/List';
 
 interface DailyViewProps {
   events: CalendarEvent[];
@@ -13,7 +14,7 @@ export const DailyView: React.FC<DailyViewProps> = ({ events }) => {
   }
 
   return (
-    <div className={styles.eventList}>
+    <List className={styles.eventList}>
       {Object.entries(getDailyGroups(events)).map(([dateLabel, groupEvents]) => (
         <div key={dateLabel} className={styles.dailyGroup}>
           <div className={styles.dailyHeader}>{dateLabel}</div>
@@ -37,6 +38,6 @@ export const DailyView: React.FC<DailyViewProps> = ({ events }) => {
           })}
         </div>
       ))}
-    </div>
+    </List>
   );
 };
