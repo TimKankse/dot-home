@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { load, dump } from 'js-yaml';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
@@ -67,8 +67,12 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const initializedRef = useRef(false);
+  // Capture initial state on first render to avoid reinitializing on every change
+  const initialStateRef = useRef(currentState);
 
-  const handleChange = useCallback((val: string) => {
+  // Use a ref for the change handler to avoid recreating the editor
+  const handleChangeRef = useRef<((val: string) => void) | undefined>(undefined);
+  handleChangeRef.current = (val: string) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parsed: any = load(val);
@@ -79,14 +83,14 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
     } catch (e) {
       setYamlError((e as Error).message);
     }
-  }, [onUpdate]);
+  };
 
   // Initialize CodeMirror when tab becomes active
   useEffect(() => {
     if (!isActive || !editorRef.current || initializedRef.current) return;
 
     try {
-      const yamlContent = dump(currentState);
+      const yamlContent = dump(initialStateRef.current);
       
       const state = EditorState.create({
         doc: yamlContent,
@@ -97,7 +101,7 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
           syntaxHighlighting(customHighlight),
           EditorView.updateListener.of((update: { docChanged: boolean; state: EditorState }) => {
             if (update.docChanged) {
-              handleChange(update.state.doc.toString());
+              handleChangeRef.current?.(update.state.doc.toString());
             }
           }),
         ]
@@ -121,7 +125,8 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
         initializedRef.current = false;
       }
     };
-  }, [isActive, currentState, handleChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]); // Only reinitialize when tab activation changes
 
   if (!isActive) return null;
 

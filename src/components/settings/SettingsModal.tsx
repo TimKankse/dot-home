@@ -6,6 +6,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import styles from './SettingsDialog.module.css';
 import { Modal, ModalSidebar, ModalSidebarItem, ModalContent, ModalHeader, ModalBody } from '../primitives/modal';
+import { FormErrorBoundary } from '../item-editor/FormErrorBoundary';
 import { GeneralSettings } from './GeneralSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { UsersSettings } from './UsersSettings';
@@ -122,12 +123,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         } onClose={handleClose} />
         
         <ModalBody>
-          {activeTab === 'general' && <GeneralSettings />}
-          {activeTab === 'appearance' && <AppearanceSettings />}
-          {activeTab === 'boards' && <BoardsSettings />}
-          {activeTab === 'users' && <UsersSettings />}
-          {activeTab === 'integrations' && <IntegrationsSettings />}
-          {activeTab === 'shortcuts' && <ShortcutsSettings />}
+          {activeTab === 'general' && <FormErrorBoundary sectionName="General Settings"><GeneralSettings /></FormErrorBoundary>}
+          {activeTab === 'appearance' && <FormErrorBoundary sectionName="Appearance Settings"><AppearanceSettings /></FormErrorBoundary>}
+          {activeTab === 'boards' && <FormErrorBoundary sectionName="Boards Settings"><BoardsSettings /></FormErrorBoundary>}
+          {activeTab === 'users' && <FormErrorBoundary sectionName="Users Settings"><UsersSettings /></FormErrorBoundary>}
+          {activeTab === 'integrations' && <FormErrorBoundary sectionName="Integrations Settings"><IntegrationsSettings /></FormErrorBoundary>}
+          {activeTab === 'shortcuts' && <FormErrorBoundary sectionName="Shortcuts Settings"><ShortcutsSettings /></FormErrorBoundary>}
         </ModalBody>
       </ModalContent>
     </Modal>

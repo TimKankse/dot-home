@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Link2, Unlink } from 'lucide-react';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 import type { IntegrationType, Integration } from '@/types';
@@ -29,7 +29,13 @@ export const IntegrationSelect: React.FC<IntegrationSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const integrations = useIntegrationStore((s) => s.getIntegrationsByType(type));
+  // Select raw integrations array (stable reference) and filter with useMemo
+  // to avoid infinite loop from calling filter inside selector
+  const allIntegrations = useIntegrationStore((s) => s.integrations);
+  const integrations = useMemo(
+    () => allIntegrations.filter((i) => i.type === type),
+    [allIntegrations, type]
+  );
   const selectedIntegration = integrations.find((i) => i.id === value);
 
   // Close dropdown when clicking outside

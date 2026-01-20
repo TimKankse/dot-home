@@ -43,7 +43,7 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
       label: 'Metric Type', 
       options: [
         { value: 'cpu', label: 'CPU' },
-        { value: 'memory', label: 'Memory' },
+        { value: 'ram', label: 'RAM' },
         { value: 'storage', label: 'Storage' },
         { value: 'network', label: 'Network' },
         { value: 'processes', label: 'Processes' },
@@ -66,7 +66,7 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
       label: 'View Mode', 
       options: [
         { value: 'linear', label: 'Linear' },
-        { value: 'radial', label: 'Radial' }
+        { value: 'circular', label: 'Circular' }
       ],
       fullWidth: true,
       condition: (c) => c.metricType === 'storage'

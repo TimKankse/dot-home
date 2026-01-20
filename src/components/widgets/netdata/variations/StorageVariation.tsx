@@ -32,8 +32,13 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
     const availableMounts = storageItems.map((fs) => fs.mnt_point).join(', ');
 
     // Filter by mount points if provided
+    // Handle both string (comma-separated from form input) and array formats
     if (config?.mountPoints && config.mountPoints.length > 0) {
-        const filtered = storageItems.filter((fs) => config.mountPoints!.includes(fs.mnt_point));
+        const rawMountPoints = config.mountPoints as string | string[];
+        const mountPointsArray = Array.isArray(rawMountPoints) 
+            ? rawMountPoints 
+            : rawMountPoints.split(',').map((mp: string) => mp.trim());
+        const filtered = storageItems.filter((fs) => mountPointsArray.includes(fs.mnt_point));
         if (filtered.length > 0) {
             storageItems = filtered;
         } else {

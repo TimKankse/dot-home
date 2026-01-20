@@ -8,6 +8,7 @@ import { Select } from '../../primitives/select';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 import { YamlEditorTab } from './YamlEditorTab';
 import { SyncConfigToggle } from '../../widgets/SyncConfigToggle';
+import { FormErrorBoundary } from '../FormErrorBoundary';
 import { CalendarConfig } from '@/components/widgets/calendar/CalendarConfig';
 import { ClockConfig } from '@/components/widgets/clock/ClockConfig';
 import { JellyfinConfig } from '@/components/widgets/jellyfin/JellyfinConfig';
@@ -120,6 +121,7 @@ export const WidgetForm: React.FC<FormProps> = ({
       <form id={formId} onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formContent}>
           <div style={{ display: activeTab === 'configuration' ? 'block' : 'none' }}>
+            <FormErrorBoundary sectionName="Widget Configuration">
              <div className={styles.formGroup} style={{ marginBottom: '20px' }}>
               <label className={styles.label}>Name</label>
               <input 
@@ -167,9 +169,11 @@ export const WidgetForm: React.FC<FormProps> = ({
                 onChange={setSyncConfig}
               />
             </div>
+            </FormErrorBoundary>
           </div>
 
           <div style={{ display: activeTab === 'appearance' ? 'block' : 'none' }}>
+            <FormErrorBoundary sectionName="Appearance Settings">
 
 
             <div className={styles.formGroup}>
@@ -179,6 +183,7 @@ export const WidgetForm: React.FC<FormProps> = ({
                 onIconSelect={setIconUrl} 
               />
             </div>
+            </FormErrorBoundary>
           </div>
 
 
