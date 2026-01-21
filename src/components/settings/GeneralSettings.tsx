@@ -1,14 +1,15 @@
 "use client";
 
 import React from 'react';
-import { Layout, Check, Globe, RefreshCw } from 'lucide-react';
+import { Globe, RefreshCw } from 'lucide-react';
+import { DotHomeVersionCard } from '../ui/DotHomeVersionCard';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { SearchableSelect } from '../primitives/searchable-select';
 import { Select, Switch, ToggleGroup, Badge, CitySearch } from '../primitives';
 import { TIMEZONES, CITIES, extractCityFromTimezone } from '@/constants/cities';
 import type { CityData } from '@/types';
 import styles from './SettingsDialog.module.css';
-import pkg from '../../../package.json';
+
 
 export const GeneralSettings: React.FC = () => {
   const { settings, updateSettings } = useSettingsStore();
@@ -160,23 +161,7 @@ export const GeneralSettings: React.FC = () => {
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>About</div>
-        <div className={styles.aboutCard}>
-          <div className={styles.aboutHeader}>
-            <div className={styles.aboutIcon}>
-              <Layout size={24} />
-            </div>
-            <div className={styles.aboutInfo}>
-              <h4 className={styles.aboutTitle}>Editorial OS</h4>
-              <p className={styles.aboutVersion}>v{pkg.version}</p>
-            </div>
-          </div>
-          <div className={styles.aboutStatus}>
-            <Badge variant="success" icon={<Check size={12} />}>
-              Up to date
-            </Badge>
-            <span className={styles.statusText}>You are running the latest version</span>
-          </div>
-        </div>
+        <DotHomeVersionCard />
       </div>
     </>
   );
