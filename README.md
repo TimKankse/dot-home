@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A self-hosted personal dashboard that combines editorial elegance with industrial precision</strong>
+  <strong>A self-hosted dashboard for your homelab with arr-stack integrations</strong>
 </p>
 
 <p align="center">
@@ -18,6 +18,9 @@
   </a>
   <a href="https://github.com/TimKankse/dot-home">
     <img src="https://img.shields.io/badge/Docker-Ready-2496ed.svg?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+  </a>
+  <a href="docs/README.md">
+    <img src="https://img.shields.io/badge/Docs-📚-8b5cf6.svg?style=flat-square" alt="Documentation">
   </a>
 </p>
 
