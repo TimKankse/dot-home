@@ -1,12 +1,12 @@
 # Authentication System
 
-The application uses session-based authentication with middleware protection.
+The application uses session-based authentication with proxy protection.
 
 ## Overview
 
 ```mermaid
 flowchart TD
-    REQ[Request] --> MW[Middleware]
+    REQ[Request] --> MW[Proxy]
     MW --> |has session| ROUTE[Route Handler]
     MW --> |no session| LOGIN[/login]
     ROUTE --> |check perms| AUTH[Auth Check]
@@ -20,7 +20,7 @@ flowchart TD
 Sessions are stored server-side with JWT tokens for validation.
 
 ### Protected Routes
-The middleware (`src/middleware.ts`) protects:
+The proxy (`src/proxy.ts`) protects:
 - All routes except `/login`, `/register`, `/api/auth/*`
 - Static assets are excluded
 
@@ -77,11 +77,11 @@ if (!session) {
 
 ---
 
-## Middleware Flow
+## Proxy Flow
 
 ```typescript
-// src/middleware.ts
-export function middleware(request: NextRequest) {
+// src/proxy.ts
+export function proxy(request: NextRequest) {
   const session = request.cookies.get('session');
   
   if (!session && !isPublicRoute(request.pathname)) {
