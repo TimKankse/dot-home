@@ -96,7 +96,7 @@ Get started instantly with a single command:
 ```bash
 docker run -d \
   -p 9292:9292 \
-  -v $(pwd)/.config:/app/config \
+  -v $(pwd)/config:/app/config \
   --name dot-home \
   ghcr.io/timkankse/dot-home:latest
 ```
@@ -116,7 +116,7 @@ services:
     ports:
       - "9292:9292"
     volumes:
-      - ./.config:/app/config
+      - ./config:/app/config
 ```
 
 Run with `docker compose up -d`.
@@ -142,7 +142,7 @@ npm run dev
 ## Configuration
 
 All configuration is stored in a SQLite database located at `/app/config/dothome.db` inside the container.
-Using the volume mapping `-v $(pwd)/.config:/app/config` ensures your data persists in your local `.config` directory.
+Using the volume mapping `-v $(pwd)/config:/app/config` ensures your data persists in your local `config` directory.
 
 ### Environment Variables
 
