@@ -1,19 +1,10 @@
 services:
   dot-home:
     build: .
+    image: dot-home:latest
     container_name: dot-home
     restart: unless-stopped
     ports:
       - "9292:9292"
     volumes:
-      # Persist database across container restarts
-      - ./prisma/dothome.db:/app/prisma/dothome.db
-    environment:
-      - NODE_ENV=production
-    # Optional: Add health check
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - ./config:/app/config

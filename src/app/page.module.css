@@ -6,8 +6,7 @@
   max-width: 1200px;
   margin: 0 auto;
   box-sizing: border-box;
-  min-height: 100dvh;
-  padding-top: max(20px, env(safe-area-inset-top));
+  /* padding-top handled dynamically via JS */
 }
 
 /* Responsive adjustments */
@@ -64,11 +63,6 @@
   width: 100%;
   height: 100dvh;
   overflow-x: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  
-  /* Default overflow behavior */
   overflow-y: hidden;
 }
 

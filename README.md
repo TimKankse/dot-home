@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/License-AGPL_3.0-22c55e.svg?style=flat-square" alt="License: AGPL-3.0">
   </a>
   <a href="https://github.com/TimKankse/dot-home">
-    <img src="https://img.shields.io/badge/Next.js-15+-black.svg?style=flat-square&logo=next.js" alt="Next.js">
+    <img src="https://img.shields.io/badge/Next.js-16+-black.svg?style=flat-square&logo=next.js" alt="Next.js">
   </a>
   <a href="https://github.com/TimKankse/dot-home">
     <img src="https://img.shields.io/badge/TypeScript-5+-3178c6.svg?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
@@ -89,20 +89,39 @@ Jellyfin • Radarr • Sonarr • Portainer • Netdata • Generic API
 
 ## Quick Start
 
-### Docker (Recommended)
+### Docker Run (Recommended)
+
+Get started instantly with a single command:
 
 ```bash
-# Clone the repository
-git clone https://github.com/TimKankse/dot-home.git
-cd dot-home
-
-# Start with Docker Compose
-docker compose up -d
+docker run -d \
+  -p 9292:9292 \
+  -v $(pwd)/.config:/app/config \
+  --name dot-home \
+  ghcr.io/timkankse/dot-home:latest
 ```
 
-Access your dashboard at **[http://localhost:9292](http://localhost:9292)**
+Access your dashboard at **[http://localhost:9292](http://localhost:9292)**.
 
-### Manual Installation
+### Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  dot-home:
+    image: ghcr.io/timkankse/dot-home:latest
+    container_name: dot-home
+    restart: unless-stopped
+    ports:
+      - "9292:9292"
+    volumes:
+      - ./.config:/app/config
+```
+
+Run with `docker compose up -d`.
+
+### Manual Installation (Development)
 
 ```bash
 # Clone the repository
@@ -114,9 +133,6 @@ npm install
 
 # Start development server
 npm run dev
-
-# Or build for production
-npm run build && npm start
 ```
 
 <br>
@@ -125,48 +141,8 @@ npm run build && npm start
 
 ## Configuration
 
-All configuration is stored in a SQLite database. The web UI is the primary interface for configuring your dashboard.
-
-### First Launch
-
-On first launch, you'll be prompted to create an admin account. Once logged in:
-
-1. **Add Integrations** — Settings > Integrations — Configure your services
-2. **Add Widgets** — Click the + button — Choose from available types
-3. **Customize Layout** — Click the pencil icon — Drag and resize widgets
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|:---------|:-------|
-| `Alt + E` | Toggle edit mode |
-| `Alt + ,` | Open settings |
-| `Alt + N` | Add new widget |
-| `Alt + S` | Save changes |
-| `Alt + ←/→` | Navigate pages |
-
-> [!TIP]
-> Shortcuts can be customized in **Settings > Shortcuts**
-
-<br>
-
----
-
-## Docker Configuration
-
-### Docker Compose
-
-```yaml
-services:
-  dot-home:
-    image: ghcr.io/timkankse/dot-home:latest
-    container_name: dot-home
-    restart: unless-stopped
-    ports:
-      - "9292:9292"
-    volumes:
-      - ./data:/app/prisma
-```
+All configuration is stored in a SQLite database located at `/app/config/dothome.db` inside the container.
+Using the volume mapping `-v $(pwd)/.config:/app/config` ensures your data persists in your local `.config` directory.
 
 ### Environment Variables
 

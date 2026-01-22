@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import { ObjectPermission } from '@prisma/client';
 
 // Type definitions
 export type AccessLevel = 'PUBLIC' | 'VIEWABLE' | 'PRIVATE';
@@ -225,7 +226,7 @@ export async function batchResolvePermissions(
     },
   });
 
-  const overrideMap = new Map(overrides.map((o) => [o.objectId, o]));
+  const overrideMap = new Map(overrides.map((o: ObjectPermission) => [o.objectId, o]));
 
   const result = new Map<string, EffectivePermission>();
 

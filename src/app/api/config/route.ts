@@ -68,7 +68,7 @@ async function getUserIntegrations(userId: string) {
       orderBy: { createdAt: 'asc' },
     });
 
-    return integrations.map((i) => ({
+    return integrations.map((i: typeof integrations[number]) => ({
       id: i.id,
       name: i.name,
       type: i.type,
@@ -231,18 +231,18 @@ export async function GET() {
 
         // Create a map of widgetId -> userConfig
         const userConfigMap = new Map(
-          userConfigs.map((uc) => [uc.widgetId, JSON.parse(uc.config)])
+          userConfigs.map((uc: typeof userConfigs[number]) => [uc.widgetId, JSON.parse(uc.config)])
         );
 
         // Merge user configs into widgets
         dashboardData.widgets = dashboardData.widgets.map((widget: Record<string, unknown>) => {
           if (widget.syncConfig === false && userConfigMap.has(widget.id as string)) {
-            const userConfig = userConfigMap.get(widget.id as string);
+            const userConfig = userConfigMap.get(widget.id as string) as Record<string, unknown>;
             return {
               ...widget,
               config: {
                 ...(widget.config as Record<string, unknown> || {}),
-                ...userConfig,
+                ...(userConfig || {}),
               },
             };
           }

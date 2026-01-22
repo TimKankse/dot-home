@@ -130,7 +130,6 @@ export default function SetupPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.header}>
-          <div className={styles.welcomeIcon}>🚀</div>
           <h1 className={styles.logo}>dotHome</h1>
           <p className={styles.subtitle}>Create your admin account to get started</p>
         </div>

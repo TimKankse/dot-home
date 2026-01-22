@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Globe, RefreshCw } from 'lucide-react';
-import { DotHomeVersionCard } from '../ui/DotHomeVersionCard';
+
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { SearchableSelect } from '../primitives/searchable-select';
 import { Select, Switch, ToggleGroup, Badge, CitySearch } from '../primitives';
@@ -159,10 +159,6 @@ export const GeneralSettings: React.FC = () => {
         </div>
       </div>
 
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>About</div>
-        <DotHomeVersionCard />
-      </div>
     </>
   );
 };

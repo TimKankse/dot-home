@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
     const baseUrl = url.replace(/\/$/, '');
     
     // 1. Fetch User Views (Libraries)
-    console.log(`[Jellyfin] Fetching views for user ${userId} from ${baseUrl}`);
     const viewsResponse = await fetch(`${baseUrl}/Users/${userId}/Views`, {
       headers: {
         'X-Emby-Token': apiKey,
@@ -28,7 +27,6 @@ export async function GET(request: NextRequest) {
     }
 
     const viewsData = await viewsResponse.json();
-    console.log(`[Jellyfin] Found ${viewsData.Items?.length || 0} views`);
     
     interface JellyfinLibrary {
         Id: string;
@@ -42,7 +40,6 @@ export async function GET(request: NextRequest) {
 
     // 2. Process each library
     for (const view of viewsData.Items) {
-      console.log(`[Jellyfin] Processing view: ${view.Name} (${view.CollectionType})`);
       const libraryInfo: JellyfinLibrary = {
         Id: view.Id,
         Name: view.Name,

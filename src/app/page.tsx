@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
@@ -19,6 +19,107 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { getResponsiveLayout } from "@/utils/gridUtils";
 import { NewWidgetInput } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
+
+import { Widget } from "@/types/widget";
+
+interface DashboardPageContentProps {
+  pageId: string;
+  widgets: Widget[];
+  contentHeight: number;
+  safeAreaTop: number;
+  className: string;
+  isEditing: boolean;
+  canEditDashboard: boolean;
+  handleLayoutChange: (layout: any) => void;
+  handleBreakpointChange: (bp: string, cols: number) => void;
+  handleEditWidget: (w: Widget) => void;
+  showWidgetNames: boolean;
+  rowHeight: number;
+  gapSize: number;
+  isMedium: boolean;
+  isMobile: boolean;
+}
+
+const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
+  pageId,
+  widgets,
+  contentHeight,
+  safeAreaTop,
+  className,
+  isEditing,
+  canEditDashboard,
+  handleLayoutChange,
+  handleBreakpointChange,
+  handleEditWidget,
+  showWidgetNames,
+  rowHeight,
+  gapSize,
+  isMedium,
+  isMobile
+}) => {
+  const [windowHeight, setWindowHeight] = useState(0);
+
+  useEffect(() => {
+    const updateHeight = () => {
+        setWindowHeight(window.innerHeight);
+    };
+    
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
+
+  const paddingTop = useMemo(() => {
+    if (windowHeight === 0) return safeAreaTop; // Initial render / SSR
+    
+    const delta = windowHeight - contentHeight;
+    // Divide delta by 2 for centering, ensuring it's at least safeAreaTop
+    const padding = Math.max(0, delta / 2);
+    return padding;
+  }, [windowHeight, contentHeight, safeAreaTop]);
+
+  return (
+    <div 
+        className={className} 
+        style={{ paddingTop: `${paddingTop}px` }}
+    >
+      <DashboardGrid 
+        items={widgets}
+        isEditing={isEditing && canEditDashboard} 
+        onLayoutChange={handleLayoutChange} 
+        onBreakpointChange={handleBreakpointChange}
+        rowHeight={rowHeight}
+        gap={gapSize}
+        gs-no-move={(!isEditing || !canEditDashboard) ? "true" : "false"}
+        gs-no-resize={(!isEditing || !canEditDashboard) ? "true" : "false"}
+        isMedium={isMedium}
+        isMobile={isMobile}
+      >
+        {widgets.map((widget) => (
+          <div 
+            key={widget.id} 
+            className="widget-candidate"
+            gs-id={widget.id}
+            gs-x={widget.grid.x}
+            gs-y={widget.grid.y}
+            gs-w={widget.grid.w}
+            gs-h={widget.grid.h}
+          >
+            <div className="grid-stack-item-content">
+              <WidgetRenderer 
+                widget={widget} 
+                isEditing={isEditing}
+                canEditDashboard={canEditDashboard}
+                onEdit={handleEditWidget}
+                showTitle={showWidgetNames}
+              />
+            </div>
+          </div>
+        ))}
+      </DashboardGrid>
+    </div>
+  );
+};
 
 export default function Home() {
   // Persistence store
@@ -130,7 +231,7 @@ export default function Home() {
     currentPageIndex,
     pagesLength: pages.length,
     setPageIndex,
-    isAddModalOpen,
+    isModalOpen: isAddModalOpen || isSettingsOpen,
     effectiveScrollDirection
   });
 
@@ -191,50 +292,47 @@ export default function Home() {
           ['--total-pages' as string]: pages.length,
         } as React.CSSProperties}
       >
-        {pages.map((page) => (
-          <div 
-            key={page.id} 
-            className={`${styles.pageContainer} ${(isMedium || isMobile) ? styles.scrollable : ''}`}
-          >
-            <div className={styles.dashboard}>
-              <DashboardGrid 
-                items={getWidgetsForPage(page.id)}
-                isEditing={isEditing && canEditDashboard} 
-                onLayoutChange={handleLayoutChange} 
-                onBreakpointChange={handleBreakpointChange}
-                // layouts={getLayoutsForPage(page.id)} // Legacy RGL prop
+        {(() => {
+           // Calculate max content height across ALL pages to ensure consistent vertical centering
+           let maxContentHeight = 0;
+           
+           pages.forEach(page => {
+             const pageWidgets = getWidgetsForPage(page.id);
+             let maxRow = 0;
+             if (pageWidgets.length > 0) {
+                maxRow = Math.max(...pageWidgets.map(w => w.grid.y + w.grid.h));
+             }
+             const height = maxRow > 0 
+                ? (maxRow * rowHeight)
+                : 0;
+             if (height > maxContentHeight) maxContentHeight = height;
+           });
+
+           return pages.map((page) => (
+            <div 
+              key={page.id} 
+              className={`${styles.pageContainer} ${(isMedium || isMobile) ? styles.scrollable : ''}`}
+            >
+              <DashboardPageContent 
+                pageId={page.id}
+                widgets={getWidgetsForPage(page.id)}
+                contentHeight={maxContentHeight}
+                safeAreaTop={32}
+                className={styles.dashboard}
+                isEditing={isEditing}
+                canEditDashboard={canEditDashboard}
+                handleLayoutChange={handleLayoutChange}
+                handleBreakpointChange={handleBreakpointChange}
+                handleEditWidget={handleEditWidget}
+                showWidgetNames={showWidgetNames}
                 rowHeight={rowHeight}
-                gap={gapSize}
-                gs-no-move={(!isEditing || !canEditDashboard) ? "true" : "false"}
-                gs-no-resize={(!isEditing || !canEditDashboard) ? "true" : "false"}
+                gapSize={gapSize}
                 isMedium={isMedium}
                 isMobile={isMobile}
-              >
-                {getWidgetsForPage(page.id).map((widget) => (
-                  <div 
-                    key={widget.id} 
-                    className="widget-candidate"
-                    gs-id={widget.id}
-                    gs-x={widget.grid.x}
-                    gs-y={widget.grid.y}
-                    gs-w={widget.grid.w}
-                    gs-h={widget.grid.h}
-                  >
-                    <div className="grid-stack-item-content">
-                      <WidgetRenderer 
-                        widget={widget} 
-                        isEditing={isEditing}
-                        canEditDashboard={canEditDashboard}
-                        onEdit={handleEditWidget}
-                        showTitle={showWidgetNames}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </DashboardGrid>
+              />
             </div>
-          </div>
-        ))}
+          ));
+        })()}
       </div>
       
       <UIControls 

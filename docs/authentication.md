@@ -8,9 +8,9 @@ The application uses session-based authentication with proxy protection.
 flowchart TD
     REQ[Request] --> MW[Proxy]
     MW --> |has session| ROUTE[Route Handler]
-    MW --> |no session| LOGIN[/login]
+    MW --> |no session| LOGIN["/login"]
     ROUTE --> |check perms| AUTH[Auth Check]
-    AUTH --> PAGE[Page/API]
+    AUTH --> PAGE["Page/API"]
 ```
 
 ---

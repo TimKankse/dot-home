@@ -4,7 +4,7 @@ interface UseScrollNavigationProps {
   currentPageIndex: number;
   pagesLength: number;
   setPageIndex: (index: number) => void;
-  isAddModalOpen: boolean;
+  isModalOpen: boolean;
   effectiveScrollDirection: 'vertical' | 'horizontal';
 }
 
@@ -12,28 +12,25 @@ export const useScrollNavigation = ({
   currentPageIndex,
   pagesLength,
   setPageIndex,
-  isAddModalOpen,
+  isModalOpen,
   effectiveScrollDirection
 }: UseScrollNavigationProps) => {
-  const lastScrollTime = useRef(0);
+  const isScrollLocked = useRef(false);
+  const scrollUnlockTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (isAddModalOpen) return;
+      if (isModalOpen) return;
 
-      // Check if we are scrolling inside a scrollable element
       let target = e.target as HTMLElement;
       while (target && target !== document.body) {
         const style = window.getComputedStyle(target);
         
         if (effectiveScrollDirection === 'vertical') {
-          // In vertical page layout, we only care if we're inside a vertically scrollable container
           const overflowY = style.overflowY;
           const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && target.scrollHeight > target.clientHeight;
           if (isScrollableY) return;
         } else {
-          // In horizontal page layout (portrait), we only care if we're inside a horizontally scrollable container
-          // Vertical scrolling inside a container shouldn't block horizontal page switching
           const overflowX = style.overflowX;
           const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll') && target.scrollWidth > target.clientWidth;
           if (isScrollableX) return;
@@ -42,14 +39,18 @@ export const useScrollNavigation = ({
         target = target.parentElement as HTMLElement;
       }
 
-      const now = Date.now();
-      if (now - lastScrollTime.current < 400) return; // Throttle to 400ms
+      if (scrollUnlockTimeout.current) {
+        clearTimeout(scrollUnlockTimeout.current);
+      }
+      
+      scrollUnlockTimeout.current = setTimeout(() => {
+        isScrollLocked.current = false;
+      }, 30);
+
+      if (isScrollLocked.current) return;
 
       const threshold = 30;
       
-      // Determine which delta to check based on effective scroll direction
-      // If vertical layout: check deltaY (mouse wheel)
-      // If horizontal layout: check deltaX (trackpad swipe / shift+wheel)
       const primaryDelta = effectiveScrollDirection === 'vertical' ? e.deltaY : e.deltaX;
       
       if (Math.abs(primaryDelta) > threshold) {
@@ -57,13 +58,13 @@ export const useScrollNavigation = ({
           // Next page
           if (currentPageIndex < pagesLength - 1) {
             setPageIndex(currentPageIndex + 1);
-            lastScrollTime.current = now;
+            isScrollLocked.current = true;
           }
         } else {
           // Previous page
           if (currentPageIndex > 0) {
             setPageIndex(currentPageIndex - 1);
-            lastScrollTime.current = now;
+            isScrollLocked.current = true;
           }
         }
       }
@@ -79,7 +80,7 @@ export const useScrollNavigation = ({
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (isAddModalOpen) return;
+      if (isModalOpen) return;
 
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
@@ -87,12 +88,10 @@ export const useScrollNavigation = ({
       const deltaX = touchStartX - touchEndX;
       const deltaY = touchStartY - touchEndY;
 
-      // Check for scrollable ancestors (same logic as wheel)
       let target = e.target as HTMLElement;
       while (target && target !== document.body) {
         const style = window.getComputedStyle(target);
         
-        // For swipe, we primarily care about horizontal scrollable containers blocking the swipe
         const overflowX = style.overflowX;
         const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll') && target.scrollWidth > target.clientWidth;
         
@@ -103,15 +102,12 @@ export const useScrollNavigation = ({
 
       const minSwipeDistance = 50;
 
-      // Check if horizontal swipe is dominant and exceeds threshold
       if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaX) > Math.abs(deltaY)) {
         if (deltaX > 0) {
-          // Swiped Left -> Next Page
           if (currentPageIndex < pagesLength - 1) {
             setPageIndex(currentPageIndex + 1);
           }
         } else {
-          // Swiped Right -> Previous Page
           if (currentPageIndex > 0) {
             setPageIndex(currentPageIndex - 1);
           }
@@ -127,6 +123,9 @@ export const useScrollNavigation = ({
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
+      if (scrollUnlockTimeout.current) {
+        clearTimeout(scrollUnlockTimeout.current);
+      }
     };
-  }, [currentPageIndex, pagesLength, setPageIndex, isAddModalOpen, effectiveScrollDirection]);
+  }, [currentPageIndex, pagesLength, setPageIndex, isModalOpen, effectiveScrollDirection]);
 };

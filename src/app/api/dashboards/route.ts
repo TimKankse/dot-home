@@ -89,7 +89,7 @@ export async function GET() {
         },
         select: { objectId: true },
       });
-      permittedDashboardIds = userPermissions.map((p) => p.objectId);
+      permittedDashboardIds = userPermissions.map((p: typeof userPermissions[number]) => p.objectId);
     } catch (permError) {
       // ObjectPermission table might not exist yet, continue without it
       console.warn('Could not fetch user permissions, continuing:', permError);
@@ -121,7 +121,7 @@ export async function GET() {
     try {
       permissionMap = await batchResolvePermissions(
         'dashboard',
-        dashboards.map((d) => ({
+        dashboards.map((d: typeof dashboards[number]) => ({
           id: d.id,
           ownerId: d.userId,
           accessLevel: d.accessLevel as AccessLevel,
@@ -147,12 +147,12 @@ export async function GET() {
 
     // Filter out dashboards where user has 'none' permission (blocked)
     const accessibleDashboards = dashboards.filter(
-      (d) => permissionMap.get(d.id) !== 'none'
+      (d: typeof dashboards[number]) => permissionMap.get(d.id) !== 'none'
     );
 
     // Parse layouts and compute stats
     const dashboardsWithStats: DashboardWithStats[] = accessibleDashboards.map(
-      (d) => {
+      (d: typeof accessibleDashboards[number]) => {
         const layout = JSON.parse(d.layout);
         const isOwner = d.userId === userId;
         // Determine if this is the user's default

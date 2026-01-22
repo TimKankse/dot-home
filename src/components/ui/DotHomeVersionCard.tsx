@@ -22,13 +22,16 @@ export const DotHomeVersionCard: React.FC = () => {
   useEffect(() => {
     const fetchLatestRelease = async () => {
       try {
-        const response = await fetch('https://api.github.com/repos/TimKankse/dot-home/releases/latest');
+        // Fetch releases list (per_page=1) to get the most recent one, including prereleases
+        const response = await fetch('https://api.github.com/repos/TimKankse/dot-home/releases?per_page=1');
         if (!response.ok) {
           throw new Error('Failed to fetch release');
         }
-        const data: ReleaseData = await response.json();
-        setLatestVersion(data.tag_name);
-        setReleaseUrl(data.html_url);
+        const data: ReleaseData[] = await response.json();
+        if (data && data.length > 0) {
+          setLatestVersion(data[0].tag_name);
+          setReleaseUrl(data[0].html_url);
+        }
       } catch (err) {
         console.error('Error checking version:', err);
         setError(true);
@@ -43,7 +46,21 @@ export const DotHomeVersionCard: React.FC = () => {
   // Clean tag name (remove 'v' prefix if present)
   const cleanVersion = (ver: string) => ver.startsWith('v') ? ver.substring(1) : ver;
   
-  const isUpdateAvailable = latestVersion && cleanVersion(latestVersion) !== cleanVersion(currentVersion);
+  // Compare semantic versions properly (returns 1 if a > b, -1 if a < b, 0 if equal)
+  const compareVersions = (a: string, b: string): number => {
+    const aParts = cleanVersion(a).split('.').map(Number);
+    const bParts = cleanVersion(b).split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const aVal = aParts[i] || 0;
+      const bVal = bParts[i] || 0;
+      if (aVal > bVal) return 1;
+      if (aVal < bVal) return -1;
+    }
+    return 0;
+  };
+  
+  const isUpdateAvailable = latestVersion && compareVersions(latestVersion, currentVersion) > 0;
 
   return (
     <div className={styles.card}>

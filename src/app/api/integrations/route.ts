@@ -22,7 +22,7 @@ export async function GET() {
 
     // Parse config JSON but DO NOT decrypt sensitive fields for the client
     // We only want to send non-sensitive config like 'url' or 'externalUrl'
-    const parsed = integrations.map((i) => {
+    const parsed = integrations.map((i: typeof integrations[number]) => {
       const config = JSON.parse(i.config); // Still encrypted values
       
       // We can iterate and mask or just send raw (encrypted) values.

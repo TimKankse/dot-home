@@ -2,7 +2,7 @@
  * Encryption utilities for sensitive configuration values
  * 
  * Uses AES-256-GCM encryption with a server-generated key stored in .env.local
- * Encrypted values are stored in config.yml with an "enc:" prefix for identification
+ * Encrypted values are stored with an "enc:" prefix for identification
  */
 
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
