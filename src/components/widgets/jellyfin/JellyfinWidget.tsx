@@ -3,7 +3,8 @@ import styles from './JellyfinWidget.module.css';
 import { JellyfinSession, LibraryStats, JellyfinWidgetConfig } from './types';
 import { NowPlayingVariation } from './variations/NowPlayingVariation';
 import { LibrariesVariation } from './variations/LibrariesVariation';
-import { fetchJellyfinData, createJellyfinWebSocket } from '@/services/jellyfin';
+import { fetchJellyfinData, createJellyfinWebSocket, fetchJellyfinLibraryCounts } from '@/services/jellyfin';
+import isEqual from 'lodash/isEqual';
 
 interface JellyfinWidgetProps {
   config?: JellyfinWidgetConfig;
@@ -15,6 +16,13 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Keep ref to latest libraries for comparison in polling closure
+  const librariesRef = useRef<LibraryStats[]>([]);
+  useEffect(() => {
+    librariesRef.current = libraries;
+  }, [libraries]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -29,7 +37,29 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
         setLibraries(data.libraries);
         setLoading(false);
 
-        if (config?.url && config?.apiKey) {
+        // Smart Polling for Libraries View
+        if (config?.viewMode === 'libraries') {
+           // Clear existing interval if any
+           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+           
+           pollIntervalRef.current = setInterval(async () => {
+               try {
+                   const newCounts = await fetchJellyfinLibraryCounts({ config, integrationId });
+                   
+                   // Compare simplified objects (Id + Counts)
+                   const currentState = librariesRef.current.map(l => ({ Id: l.Id, Counts: l.Counts }));
+                   const newState = newCounts.map(l => ({ Id: l.Id, Counts: l.Counts }));
+                   
+                   if (!isEqual(currentState, newState)) {
+                       // Refresh full data to get updated sizes
+                       loadData(); 
+                   }
+               } catch (e) {
+                   console.error('Failed to poll Jellyfin counts', e);
+               }
+           }, 60000);
+        } else if (config?.url && config?.apiKey) {
+           // WebSocket for Now Playing View
           const ws = createJellyfinWebSocket(config, (newSessions) => {
             setSessions(newSessions);
           });
@@ -53,6 +83,7 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
     return () => {
       if (wsRef.current) wsRef.current.close();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [config, integrationId]);
 

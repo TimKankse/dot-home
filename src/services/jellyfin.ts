@@ -46,6 +46,24 @@ export async function fetchJellyfinData(params: JellyfinFetchParams): Promise<Je
   return { sessions, libraries };
 }
 
+export async function fetchJellyfinLibraryCounts(params: JellyfinFetchParams): Promise<LibraryStats[]> {
+  const { config, integrationId } = params;
+
+  if (config?.userId && config?.url && config?.apiKey) {
+    const libRes = await fetch('/api/jellyfin/libraries?mode=counts', {
+      headers: {
+        'x-jellyfin-url': config.url,
+        'x-jellyfin-apikey': config.apiKey,
+        'x-jellyfin-userid': config.userId
+      }
+    });
+    if (libRes.ok) {
+      return await libRes.json();
+    }
+  }
+  return [];
+}
+
 export function createJellyfinWebSocket(
   config: JellyfinWidgetConfig, 
   onMessage: (sessions: JellyfinSession[]) => void

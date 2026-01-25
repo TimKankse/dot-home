@@ -4,6 +4,8 @@ export async function GET(request: NextRequest) {
   const url = request.headers.get('x-jellyfin-url');
   const apiKey = request.headers.get('x-jellyfin-apikey');
   const userId = request.headers.get('x-jellyfin-userid');
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get('mode');
 
   if (!url || !apiKey || !userId) {
     return NextResponse.json({ error: 'Missing configuration' }, { status: 400 });
@@ -12,7 +14,6 @@ export async function GET(request: NextRequest) {
   try {
     const baseUrl = url.replace(/\/$/, '');
     
-    // 1. Fetch User Views (Libraries)
     const viewsResponse = await fetch(`${baseUrl}/Users/${userId}/Views`, {
       headers: {
         'X-Emby-Token': apiKey,
@@ -36,10 +37,8 @@ export async function GET(request: NextRequest) {
         TotalSize: number;
     }
     
-    const libraries: JellyfinLibrary[] = [];
-
-    // 2. Process each library
-    for (const view of viewsData.Items) {
+    // 2. Process each library concurrently
+    const libraries = await Promise.all(viewsData.Items.map(async (view: any) => {
       const libraryInfo: JellyfinLibrary = {
         Id: view.Id,
         Name: view.Name,
@@ -56,53 +55,75 @@ export async function GET(request: NextRequest) {
           : [];
 
       if (includeItemTypes.length > 0) {
-        // Fetch items recursively to get counts and size
-        // We need MediaSources to get the size
-        const itemsUrl = `${baseUrl}/Items?ParentId=${view.Id}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}&Fields=MediaSources,RunTimeTicks`;
-        // console.log(`[Jellyfin] Fetching items for ${view.Name}`);
-        
-        const itemsResponse = await fetch(
-          itemsUrl, 
-          {
-            headers: {
-              'X-Emby-Token': apiKey,
-            },
-          }
-        );
-
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          // console.log(`[Jellyfin] Found ${itemsData.Items?.length} items in ${view.Name}`);
-          
-          // Calculate counts
-          if (view.CollectionType === 'tvshows') {
-            libraryInfo.Counts.Series = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Series').length;
-            libraryInfo.Counts.Episodes = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Episode').length;
-          } else if (view.CollectionType === 'movies') {
-             libraryInfo.Counts.Movies = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Movie').length;
-          }
-
-          // Calculate total size
-          // Size is usually in MediaSources[0].Size
-          let totalSize = 0;
-          interface MediaSource { Size: number; }
-          itemsData.Items.forEach((item: { MediaSources?: MediaSource[] }) => {
-             if (item.MediaSources) {
-               item.MediaSources.forEach((source: MediaSource) => {
-                 if (source.Size) {
-                   totalSize += source.Size;
-                 }
-               });
-             }
-          });
-          libraryInfo.TotalSize = totalSize;
+        if (mode === 'counts') {
+            // LIGHTWEIGHT PATH: Use /Items/Counts
+            const countsUrl = `${baseUrl}/Items/Counts?ParentId=${view.Id}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}`;
+            try {
+                const countsResponse = await fetch(countsUrl, {
+                    headers: { 'X-Emby-Token': apiKey }
+                });
+                if (countsResponse.ok) {
+                    const countsData = await countsResponse.json();
+                     if (view.CollectionType === 'tvshows') {
+                        libraryInfo.Counts.Series = countsData.SeriesCount;
+                        libraryInfo.Counts.Episodes = countsData.EpisodeCount;
+                     } else if (view.CollectionType === 'movies') {
+                        libraryInfo.Counts.Movies = countsData.MovieCount;
+                     }
+                }
+            } catch (err) {
+                 console.error(`[Jellyfin] Error fetching counts for ${view.Name}:`, err);
+            }
         } else {
-            console.error(`[Jellyfin] Failed to fetch items for ${view.Name}: ${itemsResponse.status}`);
+            // HEAVY PATH: Recursive Items Fetch (with Size)
+            const itemsUrl = `${baseUrl}/Items?ParentId=${view.Id}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}&Fields=MediaSources,RunTimeTicks`;
+            
+            try {
+              const itemsResponse = await fetch(
+                itemsUrl, 
+                {
+                  headers: {
+                    'X-Emby-Token': apiKey,
+                  },
+                }
+              );
+
+              if (itemsResponse.ok) {
+                const itemsData = await itemsResponse.json();
+                
+                // Calculate counts
+                if (view.CollectionType === 'tvshows') {
+                  libraryInfo.Counts.Series = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Series').length;
+                  libraryInfo.Counts.Episodes = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Episode').length;
+                } else if (view.CollectionType === 'movies') {
+                   libraryInfo.Counts.Movies = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Movie').length;
+                }
+
+                // Calculate total size
+                // Size is usually in MediaSources[0].Size
+                let totalSize = 0;
+                interface MediaSource { Size: number; }
+                itemsData.Items.forEach((item: { MediaSources?: MediaSource[] }) => {
+                   if (item.MediaSources) {
+                     item.MediaSources.forEach((source: MediaSource) => {
+                       if (source.Size) {
+                         totalSize += source.Size;
+                       }
+                     });
+                   }
+                });
+                libraryInfo.TotalSize = totalSize;
+              } else {
+                  console.error(`[Jellyfin] Failed to fetch items for ${view.Name}: ${itemsResponse.status}`);
+              }
+            } catch (err) {
+              console.error(`[Jellyfin] Error fetching items for ${view.Name}:`, err);
+            }
         }
       }
 
-      libraries.push(libraryInfo);
-    }
+      return libraryInfo;
+    }));
 
     return NextResponse.json(libraries);
 
