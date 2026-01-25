@@ -14,6 +14,7 @@ interface ExtendedGridStack {
   _ignoreEvents?: boolean;
   engine?: {
     maxRow: number;
+    nodes: GridStackNode[];
   };
   opts: GridStackOptions;
   el: HTMLElement;
@@ -143,114 +144,95 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
     // eslint-disable-next-line react-hooks/immutability
     grid._ignoreEvents = true;
 
-    const candidates = container.querySelectorAll('.widget-candidate');
-    candidates.forEach((el) => {
-      if (!el.classList.contains('grid-stack-item')) {
-        if (!hasChanges) {
-           gridStack.batchUpdate();
-           hasChanges = true;
-        }
+    const processedIds = new Set<string>();
+
+    items.forEach((item) => {
+      processedIds.add(item.id);
+      const { w: minW, h: minH } = getMinDimensions(
+        (item.type === 'widget' ? item.widgetType : item.type) || 'clock',
+        item.config || {}
+      );
+
+      // @ts-ignore - engine exists on GridStack instance
+      const node = grid.engine?.nodes.find((n) => n.id === item.id);
+
+      if (node) {
+        const x = item.grid.x;
+        const y = item.grid.y;
+        const w = item.grid.w;
+        const h = item.grid.h;
         
-        
-        const id = el.getAttribute('gs-id');
-        const item = items.find(i => i.id === id);
-        
-        const { w: minW, h: minH } = item ? getMinDimensions(
-          (item.type === 'widget' ? item.widgetType : item.type) || 'clock',
-          item.config || {}
-        ) : { w: 1, h: 1 };
-
-        const options = item ? {
-           id: item.id,
-           x: item.grid.x,
-           y: item.grid.y,
-           w: item.grid.w,
-           h: item.grid.h,
-           minW,
-           minH,
-           autoPosition: false
-        } : undefined;
-
-        gridStack.makeWidget(el as HTMLElement, options);
-      }
-    });
-
-    const gridNodes = gridStack.getGridItems().map(el => (el as ExtendedGridStackElement).gridstackNode);
-    gridNodes.forEach((node) => {
-      if (node && node.el && !container.contains(node.el)) {
-        if (!hasChanges) {
-           grid._ignoreEvents = true;
-           gridStack.batchUpdate();
-           hasChanges = true;
-        }
-        gridStack.removeWidget(node.el, false); 
-      }
-    });
-
-    const gridItems = container.querySelectorAll('.grid-stack-item');
-    gridItems.forEach((el) => {
-       const node = (el as unknown as { gridstackNode: GridStackNode }).gridstackNode;
-       const id = el.getAttribute('gs-id');
-       const item = items.find(i => i.id === id);
- 
-        if (node && item) {
-          const x = item.grid.x;
-          const y = item.grid.y;
-          const w = item.grid.w;
-          const h = item.grid.h;
-          
-          const { w: minW, h: minH } = getMinDimensions(
-            (item.type === 'widget' ? item.widgetType : item.type) || 'clock',
-            item.config || {}
-          );
-
-          // Simplified: Always enforce the definition's min dimensions
-          node.minW = minW;
-          node.minH = minH;
-          // @ts-ignore - Ensure legacy props are set too
-          node.minWidth = minW;
-          // @ts-ignore
-          node.minHeight = minH;
-
-          // Force update attributes on the DOM element to ensure consistency
-          el.setAttribute('gs-min-w', String(minW));
-          el.setAttribute('gs-min-h', String(minH));
-          el.setAttribute('data-gs-min-w', String(minW));
-          el.setAttribute('data-gs-min-h', String(minH)); // Also set data attribute manually
-
-          // Always update GridStack if we have the node, or if position changes.
-          // We include minW/minH in the update object regardless of whether they "changed"
-          // to ensure the engine is in sync.
-          
-          if (
+        const needsUpdate = (
             node.x !== x || node.y !== y || node.w !== w || node.h !== h ||
-             // Even if position/size didn't change, we want to ensure min dimensions are enforced
-             // We can check if the internal state matches, or just force it. 
-             // Given the issue, forcing it is safer.
-             // However, forcing update() on every cycle might be heavy if thousands of widgets.
-             // But for ~50 widgets it's fine.
-             // Let's check strict equality on the internal node values we just set? No, that's tautological.
-             // Let's check against what the engine MIGHT have had before we overwrote it (too late).
-             // Let's just FORCE update of Min dimensions.
-             true 
-          ) {
-             const needsBatch = !hasChanges && (node.x !== x || node.y !== y || node.w !== w || node.h !== h);
-             
-             if (needsBatch) {
-                grid._ignoreEvents = true;
+            node.minW !== minW || node.minH !== minH
+        );
+
+        if (needsUpdate) {
+           if (!hasChanges) {
+              gridStack.batchUpdate();
+              hasChanges = true;
+           }
+
+           if (node.el) {
+             node.el.setAttribute('gs-min-w', String(minW));
+             node.el.setAttribute('gs-min-h', String(minH));
+             node.el.setAttribute('data-gs-min-w', String(minW));
+             node.el.setAttribute('data-gs-min-h', String(minH));
+           }
+
+           gridStack.update(node.el!, {
+             x, y, w, h,
+             minW, minH,
+             // @ts-ignore
+             minWidth: minW, 
+             // @ts-ignore
+             minHeight: minH
+           });
+        }
+      } else {
+        const el = container.querySelector(`.widget-candidate[gs-id="${item.id}"]`);
+        if (el && !el.classList.contains('grid-stack-item')) {
+           if (!hasChanges) {
+              gridStack.batchUpdate();
+              hasChanges = true;
+           }
+
+           const options = {
+             id: item.id,
+             x: item.grid.x,
+             y: item.grid.y,
+             w: item.grid.w,
+             h: item.grid.h,
+             minW,
+             minH,
+             autoPosition: false
+           };
+
+           gridStack.makeWidget(el as HTMLElement, options);
+        }
+      }
+    });
+
+    // @ts-ignore
+    const nodes = grid.engine?.nodes || [];
+    nodes.forEach((node: GridStackNode) => {
+      if (node.id && !processedIds.has(String(node.id))) {
+         if (!hasChanges) {
+            gridStack.batchUpdate();
+            hasChanges = true;
+         }
+         gridStack.removeWidget(node.el!, false);
+      }
+    });
+
+    nodes.forEach((node: GridStackNode) => {
+        if (node.el && !container.contains(node.el)) {
+            if (!hasChanges) {
                 gridStack.batchUpdate();
                 hasChanges = true;
-             }
-             
-             gridStack.update(el as HTMLElement, { 
-               x, y, w, h, 
-               minW, minH,
-               // @ts-ignore
-               minWidth: minW, 
-               minHeight: minH
-            });
-          }
-       }
+            }
+            gridStack.removeWidget(node.el, false);
+        }
     });
 
     if (hasChanges) {

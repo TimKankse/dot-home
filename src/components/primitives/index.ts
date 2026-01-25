@@ -15,3 +15,4 @@ export * from './city-search';
 export * from './integration-select';
 
 export * from './modal';
+export * from './checkbox';

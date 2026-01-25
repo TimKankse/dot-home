@@ -18,7 +18,6 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Keep ref to latest libraries for comparison in polling closure
   const librariesRef = useRef<LibraryStats[]>([]);
   useEffect(() => {
     librariesRef.current = libraries;
@@ -37,21 +36,17 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
         setLibraries(data.libraries);
         setLoading(false);
 
-        // Smart Polling for Libraries View
         if (config?.viewMode === 'libraries') {
-           // Clear existing interval if any
            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
            
            pollIntervalRef.current = setInterval(async () => {
                try {
                    const newCounts = await fetchJellyfinLibraryCounts({ config, integrationId });
                    
-                   // Compare simplified objects (Id + Counts)
                    const currentState = librariesRef.current.map(l => ({ Id: l.Id, Counts: l.Counts }));
                    const newState = newCounts.map(l => ({ Id: l.Id, Counts: l.Counts }));
                    
                    if (!isEqual(currentState, newState)) {
-                       // Refresh full data to get updated sizes
                        loadData(); 
                    }
                } catch (e) {
@@ -59,7 +54,6 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
                }
            }, 60000);
         } else if (config?.url && config?.apiKey) {
-           // WebSocket for Now Playing View
           const ws = createJellyfinWebSocket(config, (newSessions) => {
             setSessions(newSessions);
           });
@@ -92,7 +86,7 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   }
 
   if (config?.viewMode === 'libraries') {
-    return <LibrariesVariation libraries={libraries} userId={config.userId} />;
+    return <LibrariesVariation libraries={libraries} userId={config.userId} selectedLibraries={config.selectedLibraries} />;
   }
 
   if (config?.viewMode === 'now-playing') {
@@ -100,7 +94,7 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   }
 
   if (sessions.length === 0 && libraries.length > 0) {
-    return <LibrariesVariation libraries={libraries} userId={config?.userId} />;
+    return <LibrariesVariation libraries={libraries} userId={config?.userId} selectedLibraries={config?.selectedLibraries} />;
   }
 
   return <NowPlayingVariation sessions={sessions} config={config} />;

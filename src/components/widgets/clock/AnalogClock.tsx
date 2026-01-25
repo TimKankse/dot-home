@@ -1,5 +1,7 @@
 "use client";
 
+// This is pretty much all AI generated code, cuz what the heck is an SVG?
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import type { ClockWidgetConfig, CityData } from '@/types';
@@ -138,7 +140,6 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
         // Bottom (180) -> 90
         // Left (270) -> 180
         
-        // Let's us geometry instead of blind formula to preserve quadrants
         // x = sin(a), y = -cos(a) (screen coords, centered)
         const dx = Math.sin(angleDeg * Math.PI / 180);
         const dy = -Math.cos(angleDeg * Math.PI / 180);
@@ -150,7 +151,6 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
         // Since we started with sin/cos, it is already length 1.
         const dirX = dx;
         const dirY = dy;
-
 
         // Half dimensions
         const hw = w / 2;
@@ -348,7 +348,6 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
     
     // Helper to get hand end points
     // Hands usually don't reach the very edge in this style, maybe 80%?
-    // And "Nothing OS" style has distinctive hands.
     // Hour: Thick, rounded. Minute: Thinner, rounded. Second: Thin line.
     
     // We can just use rotation transforms for simple hands

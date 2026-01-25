@@ -60,6 +60,7 @@ export interface JellyfinWidgetConfig {
   apiKey?: string;
   userId?: string;
   viewMode?: 'now-playing' | 'libraries';
+  selectedLibraries?: string[];  // IDs of libraries to show
 }
 
 // ============================================================================

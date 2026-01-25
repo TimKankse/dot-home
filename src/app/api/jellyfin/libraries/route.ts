@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
         TotalSize: 0,
       };
 
-      // Determine what to count based on collection type
       const includeItemTypes = view.CollectionType === 'tvshows' 
         ? ['Series', 'Episode'] 
         : view.CollectionType === 'movies' 
@@ -99,8 +98,6 @@ export async function GET(request: NextRequest) {
                    libraryInfo.Counts.Movies = itemsData.Items.filter((i: { Type: string }) => i.Type === 'Movie').length;
                 }
 
-                // Calculate total size
-                // Size is usually in MediaSources[0].Size
                 let totalSize = 0;
                 interface MediaSource { Size: number; }
                 itemsData.Items.forEach((item: { MediaSources?: MediaSource[] }) => {

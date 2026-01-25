@@ -4,6 +4,7 @@ import React from 'react';
 import { buildConfigForm } from '@/components/item-editor/forms/config-form-builder';
 import { IntegrationSelect } from '@/components/primitives';
 import type { JellyfinWidgetConfig } from '@/types';
+import { LibrarySelector } from './config/LibrarySelector';
 
 export const JellyfinConfig = buildConfigForm<JellyfinWidgetConfig>([
   // Integration selector at top
@@ -55,5 +56,12 @@ export const JellyfinConfig = buildConfigForm<JellyfinWidgetConfig>([
       { value: 'now-playing', label: 'Now Playing' },
       { value: 'libraries', label: 'Libraries' }
     ]
+  },
+  {
+      type: 'custom',
+      key: 'selectedLibraries',
+      label: 'Visible Libraries',
+      render: (props) => <LibrarySelector {...props} />,
+      condition: (c) => c.viewMode === 'libraries'
   }
 ]);
