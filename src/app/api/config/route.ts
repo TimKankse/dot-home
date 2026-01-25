@@ -115,7 +115,7 @@ function createDefaultDashboardLayout() {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -136,10 +136,46 @@ export async function GET() {
     // Get user's integrations from database
     const integrations = await getUserIntegrations(userId);
 
+    // Get dashboardId from URL
+    const { searchParams } = new URL(request.url);
+    const dashboardId = searchParams.get('dashboardId');
+
     // Try to get user's preferred dashboard (may be a shared dashboard)
     let dashboard = null;
+
+    if (dashboardId) {
+       // Explicit request for a specific dashboard
+       const requestedDashboard = await prisma.dashboard.findUnique({
+         where: { id: dashboardId },
+       });
+
+       if (requestedDashboard) {
+          // Check access
+          const isOwner = requestedDashboard.userId === userId;
+          
+          if (isOwner) {
+             dashboard = requestedDashboard;
+          } else {
+             // Check permissions
+             const effectivePermission = await resolvePermission(
+               {
+                 objectType: 'dashboard',
+                 objectId: dashboardId,
+                 ownerId: requestedDashboard.userId,
+                 accessLevel: (requestedDashboard.accessLevel || 'PRIVATE') as AccessLevel,
+               },
+               userId
+             );
+
+             if (effectivePermission === 'view' || effectivePermission === 'edit') {
+               dashboard = requestedDashboard;
+             }
+          }
+       }
+    }
     
-    // 1. Check for user preference
+    // 1. Check for user preference if no specific dashboard requested
+    if (!dashboard) {
     const preference = await prisma.userDashboardPreference.findUnique({
       where: { userId },
     });
@@ -176,6 +212,7 @@ export async function GET() {
           dashboard = preferredDashboard;
         }
       }
+    }
     }
     
     // 2. Fall back to user's owned default dashboard
@@ -315,13 +352,44 @@ export async function POST(request: Request) {
       settings: body.settings,
     };
 
-    // Find or create user's default dashboard
-    const existingDashboard = await prisma.dashboard.findFirst({
-      where: {
-        userId,
-        isDefault: true,
-      },
-    });
+    // Find or create dashboard
+    let existingDashboard = null;
+
+    if (body.dashboardId) {
+       // Best case: we have a specific ID
+       existingDashboard = await prisma.dashboard.findUnique({
+         where: { id: body.dashboardId },
+       });
+       
+       // Verify ownership or permission
+       // If not owner, check if they have EDIT permission
+       if (existingDashboard && existingDashboard.userId !== userId) {
+          // Check permissions
+          const permission = await resolvePermission(
+             {
+               objectType: 'dashboard',
+               objectId: existingDashboard.id,
+               ownerId: existingDashboard.userId,
+               accessLevel: existingDashboard.accessLevel as AccessLevel
+             },
+             userId
+          );
+          
+          if (permission !== 'edit') {
+             return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+          }
+       }
+    }
+
+    if (!existingDashboard) {
+      // Fallback: Use default dashboard logic (legacy behavior)
+      existingDashboard = await prisma.dashboard.findFirst({
+        where: {
+          userId,
+          isDefault: true,
+        },
+      });
+    }
 
     if (existingDashboard) {
       // Update existing dashboard

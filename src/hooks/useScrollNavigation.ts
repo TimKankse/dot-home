@@ -20,7 +20,7 @@ export const useScrollNavigation = ({
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (isModalOpen) return;
+      if (isModalOpen || document.body.style.overflow === 'hidden') return;
 
       let target = e.target as HTMLElement;
       while (target && target !== document.body) {
@@ -80,7 +80,7 @@ export const useScrollNavigation = ({
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (isModalOpen) return;
+      if (isModalOpen || document.body.style.overflow === 'hidden') return;
 
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;

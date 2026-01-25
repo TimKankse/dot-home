@@ -31,7 +31,7 @@ export interface WeatherWidgetConfig {
   location?: string; // Legacy: plain text location
   cityData?: CityData; // New: structured city data with coordinates
   apiKey?: string;
-  unit?: 'metric' | 'imperial';
+  unit?: 'metric' | 'imperial' | 'app';
   view?: 'current' | 'daily' | 'weekly';
 }
 
@@ -86,6 +86,7 @@ export interface NetdataWidgetConfig {
   processLimit?: number;
   gpuId?: string;
   temperatureUnit?: 'C' | 'F'; // undefined = use app settings
+  refreshInterval?: number;
 }
 
 // ============================================================================

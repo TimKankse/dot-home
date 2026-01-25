@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, LayoutGrid, Check, Star, Calendar, Layers, Box, Shield, ArrowLeft } from 'lucide-react';
+import { Plus, Pencil, Trash2, LayoutGrid, Check, Star, Calendar, Layers, Box, Shield, ArrowLeft, Eye } from 'lucide-react';
 import { PermissionManager } from './PermissionManager';
 import { type AccessLevel } from '../ui/AccessLevelSelect';
 import { Button, Input, Label, Badge } from '../primitives';
+import { usePersistenceStore } from '@/store/usePersistenceStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import styles from './SettingsDialog.module.css';
 
 interface Dashboard {
@@ -25,7 +27,7 @@ interface Dashboard {
 
 type FormMode = 'list' | 'create' | 'edit';
 
-export const BoardsSettings: React.FC = () => {
+export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +129,16 @@ export const BoardsSettings: React.FC = () => {
     }
   };
 
+  const handleViewDashboard = async (dashboard: Dashboard) => {
+    try {
+      await usePersistenceStore.getState().loadDashboard(dashboard.id);
+      if (onClose) onClose();
+    } catch (err) {
+      console.error('Failed to load dashboard:', err);
+      alert('Failed to load dashboard');
+    }
+  };
+
   const handleSetDefault = async (dashboard: Dashboard) => {
     if (dashboard.isUserDefault) return;
     
@@ -149,6 +161,9 @@ export const BoardsSettings: React.FC = () => {
           isUserDefault: d.id === dashboard.id,
         }))
       );
+
+      // Immediately load the new default dashboard
+      await usePersistenceStore.getState().loadDashboard(dashboard.id);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to set default dashboard');
     }
@@ -324,6 +339,11 @@ export const BoardsSettings: React.FC = () => {
                   leftIcon={<Star size={18} />}
                 />
               )}
+              <Button variant="ghost" size="icon"
+                onClick={() => handleViewDashboard(dashboard)} 
+                title="View dashboard"
+                leftIcon={<Eye size={18} />}
+              />
               <Button variant="ghost" size="icon"
                 onClick={() => handleStartEdit(dashboard)} 
                 title={dashboard.isOwner ? 'Edit dashboard' : 'View dashboard access'}

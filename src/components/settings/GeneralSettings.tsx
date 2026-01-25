@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Globe, RefreshCw } from 'lucide-react';
 
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -10,9 +10,42 @@ import { TIMEZONES, CITIES, extractCityFromTimezone } from '@/constants/cities';
 import type { CityData } from '@/types';
 import styles from './SettingsDialog.module.css';
 
+// Helper to run auto-detection logic
+const runAutoDetection = (): { timezone: string; city: CityData } => {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+  // Find city from CITIES constant based on timezone
+  const matchedCity = CITIES.find(c => c.timezone === timeZone);
+  const cityName = matchedCity?.name || extractCityFromTimezone(timeZone);
+  
+  // Create CityData from timezone
+  const cityData: CityData = {
+    name: cityName,
+    country: '', // Unknown from timezone
+    timezone: timeZone,
+    latitude: 0, // Unknown from timezone
+    longitude: 0,
+    abbreviation: matchedCity?.abbreviation || cityName.substring(0, 3).toUpperCase(),
+  };
+  
+  return {
+    timezone: timeZone,
+    city: cityData
+  };
+};
 
 export const GeneralSettings: React.FC = () => {
   const { settings, updateSettings } = useSettingsStore();
+  const hasRunAutoDetect = useRef(false);
+  
+  // Run auto-detection on mount if enabled (fixes issue where setting is true from DB but detection never ran)
+  useEffect(() => {
+    if (settings?.behavior?.autoDetectLocation && !hasRunAutoDetect.current) {
+      hasRunAutoDetect.current = true;
+      const detected = runAutoDetection();
+      updateSettings(detected, 'display');
+    }
+  }, [settings?.behavior?.autoDetectLocation, updateSettings]);
 
   const handleCityChange = (city: CityData | undefined) => {
     updateSettings({ city }, 'display');
@@ -29,39 +62,16 @@ export const GeneralSettings: React.FC = () => {
         
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
-            <span className={styles.settingLabel}>Auto-Detect Settings</span>
-            <span className={styles.settingDesc}>Set time, city and units based on browser</span>
+            <span className={styles.settingLabel}>Auto-Detect Location</span>
+            <span className={styles.settingDesc}>Set timezone and city based on browser</span>
           </div>
           <Switch 
             checked={settings?.behavior?.autoDetectLocation ?? false}
             onCheckedChange={(checked) => {
               updateSettings({ autoDetectLocation: checked }, 'behavior');
               if (checked) {
-                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                const locale = navigator.language;
-                const temperatureUnit = locale === 'en-US' ? 'F' : 'C';
-                const is24Hour = !new Date().toLocaleTimeString(locale).match(/AM|PM/i);
-                
-                // Find city from CITIES constant based on timezone
-                const matchedCity = CITIES.find(c => c.timezone === timeZone);
-                const cityName = matchedCity?.name || extractCityFromTimezone(timeZone);
-                
-                // Create CityData from timezone
-                const cityData: CityData = {
-                  name: cityName,
-                  country: '', // Unknown from timezone
-                  timezone: timeZone,
-                  latitude: 0, // Unknown from timezone
-                  longitude: 0,
-                  abbreviation: matchedCity?.abbreviation || cityName.substring(0, 3).toUpperCase(),
-                };
-                
-                updateSettings({
-                  timezone: timeZone,
-                  temperatureUnit,
-                  is24Hour,
-                  city: cityData
-                }, 'display');
+                const detected = runAutoDetection();
+                updateSettings(detected, 'display');
               }
             }}
           />

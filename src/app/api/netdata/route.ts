@@ -17,6 +17,48 @@ import { processSystemInfo, processCpuModel } from './processors/system-processo
 import { prisma } from '@/lib/db';
 import { decryptSensitiveFields } from '@/utils/crypto';
 
+interface ChartCacheEntry {
+    names: string[];
+    error?: string;
+    timestamp: number;
+}
+
+const chartCache = new Map<string, ChartCacheEntry>();
+const activeRequests = new Map<string, Promise<{ names: string[], error?: string }>>();
+
+async function getCachedCharts(url: string): Promise<{ names: string[], error?: string }> {
+    const now = Date.now();
+    const entry = chartCache.get(url);
+
+    // Return valid cache if fresh (5 minutes)
+    if (entry && (now - entry.timestamp < 300000)) {
+        return { names: entry.names, error: entry.error };
+    }
+
+    // Deduplicate simultaneous fetches
+    if (activeRequests.has(url)) {
+        return activeRequests.get(url)!;
+    }
+
+    // Fetch fresh data
+    const fetchPromise = fetchChartsList(url).then(result => {
+        const names = result.charts || [];
+        // Update cache
+        chartCache.set(url, { 
+            names, 
+            error: result.error, 
+            timestamp: Date.now() 
+        });
+        activeRequests.delete(url); // Clear the promise tracker
+        return { names, error: result.error };
+    });
+
+    activeRequests.set(url, fetchPromise);
+    return fetchPromise;
+}
+
+const integrationConfigCache = new Map<string, { url: string, timestamp: number }>();
+
 export async function POST(request: Request) {
   try {
     const { url: bodyUrl, processLimit = 10, scope } = await request.json();
@@ -25,13 +67,24 @@ export async function POST(request: Request) {
     let url = bodyUrl;
 
     if (integrationId) {
-        const integration = await prisma.integration.findUnique({
-            where: { id: integrationId }
-        });
-        
-        if (integration) {
-            const config = decryptSensitiveFields(JSON.parse(integration.config));
-            url = config.url || config.externalUrl;
+        // Check cache first
+        const cached = integrationConfigCache.get(integrationId);
+        const now = Date.now();
+        if (cached && (now - cached.timestamp < 60000)) { // 60s TTL
+            url = cached.url;
+        } else {
+            const integration = await prisma.integration.findUnique({
+                where: { id: integrationId }
+            });
+            
+            if (integration) {
+                const config = decryptSensitiveFields(JSON.parse(integration.config));
+                url = config.url || config.externalUrl;
+                // Update cache
+                if (url) {
+                    integrationConfigCache.set(integrationId, { url, timestamp: now });
+                }
+            }
         }
     }
 
@@ -55,8 +108,8 @@ export async function POST(request: Request) {
     let chartNames: string[] = [];
     let chartsError: string | undefined;
     if (needsDynamicCharts) {
-        const result = await fetchChartsList(cleanUrl);
-        chartNames = result.charts;
+        const result = await getCachedCharts(cleanUrl);
+        chartNames = result.names;
         chartsError = result.error;
 
         if (chartNames.length === 0) {
@@ -65,21 +118,44 @@ export async function POST(request: Request) {
     }
 
     // Chart Filtering
-    const diskCharts = isScopeActive('storage') ? chartNames.filter(c => c.startsWith('disk_space.')) : [];
-    const netCharts = isScopeActive('network') ? chartNames.filter(c => c.startsWith('net.') && !c.includes('lo') && !c.startsWith('net.veth') && !c.startsWith('net.docker')) : [];
-    
+    const diskCharts: string[] = [];
+    const netCharts: string[] = [];
+    const sensorCharts: string[] = [];
+    const containerCpuCharts: string[] = [];
+    const containerMemCharts: string[] = [];
+    const cpuCoreCharts: string[] = [];
+
+    const scopeStorage = isScopeActive('storage');
+    const scopeNetwork = isScopeActive('network');
+    const scopeSensors = isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu');
+    const scopeProcesses = isScopeActive('processes');
+    const scopeCpuCores = isScopeActive('cpu-cores');
+
+    if (scopeStorage || scopeNetwork || scopeSensors || scopeProcesses || scopeCpuCores) {
+        for (const c of chartNames) {
+            if (scopeStorage && c.startsWith('disk_space.')) {
+                diskCharts.push(c);
+            }
+            if (scopeNetwork && c.startsWith('net.') && !c.includes('lo') && !c.startsWith('net.veth') && !c.startsWith('net.docker')) {
+                netCharts.push(c);
+            }
+            if (scopeSensors && c.startsWith('sensors.')) {
+                sensorCharts.push(c);
+            }
+            if (scopeProcesses && c.startsWith('app.')) {
+                if (c.endsWith('_cpu_utilization')) containerCpuCharts.push(c);
+                else if (c.endsWith('_mem_usage')) containerMemCharts.push(c);
+            }
+            if (scopeCpuCores && c.startsWith('cpu.cpu') && /^cpu\.cpu\d+$/.test(c)) {
+                cpuCoreCharts.push(c);
+            }
+        }
+    }
+
     // Fallback for network if no charts found
-    if (isScopeActive('network') && netCharts.length === 0) {
+    if (scopeNetwork && netCharts.length === 0) {
         netCharts.push('system.net');
     }
-    const sensorCharts = (isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu')) ? chartNames.filter(c => c.startsWith('sensors.')) : [];
-    
-    // Container Charts
-    const containerCpuCharts = isScopeActive('processes') ? chartNames.filter(c => c.startsWith('app.') && c.endsWith('_cpu_utilization')) : [];
-    const containerMemCharts = isScopeActive('processes') ? chartNames.filter(c => c.startsWith('app.') && c.endsWith('_mem_usage')) : [];
-    
-    // Core Charts
-    const cpuCoreCharts = isScopeActive('cpu-cores') ? chartNames.filter(c => /^cpu\.cpu\d+$/.test(c)) : [];
 
     // Promise Orchestration
     const cpuPromise = isScopeActive('cpu') ? fetcher('system.cpu') : Promise.resolve(null);

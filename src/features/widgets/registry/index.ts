@@ -18,6 +18,7 @@ import { ImageWidget } from '@/components/widgets/image/ImageWidget';
 import { AppShortcutWidget } from '@/components/widgets/shortcut/AppShortcutWidget';
 import { SpacerWidget } from '@/components/widgets/spacer/SpacerWidget';
 
+
 export const WIDGET_REGISTRY: Record<WidgetTypeKey, WidgetDefinition> = {
   clock: {
     component: ClockWidget as WidgetDefinition['component'],

@@ -11,7 +11,7 @@ export const PortainerConfig = buildConfigForm<PortainerWidgetConfig>([
     key: 'integrationId', 
     label: 'Connection',
     render: ({ config, onChange, styles }) => (
-      <div key="integrationId" className={styles.fieldGroup}>
+      <div key="integrationId" className={styles.formGroup}>
         <label className={styles.label}>Connection</label>
         <IntegrationSelect
           type="portainer"

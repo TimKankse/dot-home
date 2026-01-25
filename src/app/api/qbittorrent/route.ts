@@ -38,6 +38,12 @@ interface Slot {
 import { prisma } from '@/lib/db';
 import { decryptSensitiveFields } from '@/utils/crypto';
 
+interface AuthCacheEntry {
+    cookie: string;
+    timestamp: number;
+}
+const authCache = new Map<string, AuthCacheEntry>();
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get('mode');
@@ -70,33 +76,42 @@ export async function GET(request: Request) {
     // 1. Authenticate (if credentials provided)
     let cookie = '';
     if (qbUsername && qbPassword) {
-      const authUrl = new URL(`${qbUrl}/api/v2/auth/login`);
-      const authBody = new URLSearchParams();
-      authBody.append('username', qbUsername);
-      authBody.append('password', qbPassword);
+        // Check cache first (valid for 30 minutes)
+        const cached = authCache.get(qbUrl);
+        if (cached && (Date.now() - cached.timestamp < 1800000)) {
+            cookie = cached.cookie;
+        } else {
+            const authUrl = new URL(`${qbUrl}/api/v2/auth/login`);
+            const authBody = new URLSearchParams();
+            authBody.append('username', qbUsername);
+            authBody.append('password', qbPassword);
 
-      const authRes = await fetch(authUrl.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: authBody,
-      });
+            const authRes = await fetch(authUrl.toString(), {
+                method: 'POST',
+                headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: authBody,
+            });
 
-      if (!authRes.ok) {
-         console.error(`qBittorrent Auth Error: ${authRes.status}`);
-         // Continue anyway, maybe no auth needed? Or return error?
-         // Let's try to continue, but if it fails later we know why.
-      } else {
-        const setCookie = authRes.headers.get('set-cookie');
-        if (setCookie) {
-            // Extract SID
-            const match = setCookie.match(/(SID=[^;]+)/);
-            if (match) {
-                cookie = match[1];
+            if (!authRes.ok) {
+                console.error(`qBittorrent Auth Error: ${authRes.status}`);
+            } else {
+                const setCookie = authRes.headers.get('set-cookie');
+                if (setCookie) {
+                    // Extract SID
+                    const match = setCookie.match(/(SID=[^;]+)/);
+                    if (match) {
+                        cookie = match[1];
+                        // Cache the cookie
+                        authCache.set(qbUrl, {
+                            cookie,
+                            timestamp: Date.now()
+                        });
+                    }
+                }
             }
         }
-      }
     }
 
     const headers: HeadersInit = {};
@@ -116,6 +131,9 @@ export async function GET(request: Request) {
         ]);
         
         if (!syncRes.ok) {
+             if (syncRes.status === 401 || syncRes.status === 403) {
+                 authCache.delete(qbUrl);
+             }
              throw new Error(`Failed to fetch sync data: ${syncRes.statusText}`);
         }
         
@@ -193,6 +211,9 @@ export async function GET(request: Request) {
         });
 
         if (!actionRes.ok) {
+             if (actionRes.status === 401 || actionRes.status === 403) {
+                 authCache.delete(qbUrl);
+             }
              throw new Error(`Failed to ${command} torrents: ${actionRes.statusText}`);
         }
         

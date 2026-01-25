@@ -21,6 +21,8 @@ import { NewWidgetInput } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
 
 import { Widget } from "@/types/widget";
+import { WIDGET_DEFINITIONS, getMinDimensions } from "@/constants/widget-definitions";
+import { getGridDimensions } from "@/constants/grid";
 
 interface DashboardPageContentProps {
   pageId: string;
@@ -70,10 +72,9 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   }, []);
 
   const paddingTop = useMemo(() => {
-    if (windowHeight === 0) return safeAreaTop; // Initial render / SSR
+    if (windowHeight === 0) return safeAreaTop;
     
     const delta = windowHeight - contentHeight;
-    // Divide delta by 2 for centering, ensuring it's at least safeAreaTop
     const padding = Math.max(0, delta / 2);
     return padding;
   }, [windowHeight, contentHeight, safeAreaTop]);
@@ -95,7 +96,13 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
         isMedium={isMedium}
         isMobile={isMobile}
       >
-        {widgets.map((widget) => (
+        {widgets.map((widget) => {
+          const { w: minW, h: minH } = getMinDimensions(
+            (widget.type === 'widget' ? widget.widgetType : widget.type) || 'clock',
+            widget.config || {}
+          );
+          
+          return (
           <div 
             key={widget.id} 
             className="widget-candidate"
@@ -104,6 +111,10 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
             gs-y={widget.grid.y}
             gs-w={widget.grid.w}
             gs-h={widget.grid.h}
+            gs-min-w={minW}
+            gs-min-h={minH}
+            data-gs-min-w={minW}
+            data-gs-min-h={minH}
           >
             <div className="grid-stack-item-content">
               <WidgetRenderer 
@@ -115,7 +126,8 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
               />
             </div>
           </div>
-        ))}
+        );
+      })}
       </DashboardGrid>
     </div>
   );
@@ -134,7 +146,7 @@ export default function Home() {
   } = usePersistenceStore();
 
   // Widget store
-  const { widgets, updateLayout } = useWidgetStore();
+  const { widgets, updateLayout, updateWidget } = useWidgetStore();
 
   // Page store
   const {
@@ -145,15 +157,24 @@ export default function Home() {
     setPageIndex
   } = usePageStore();
 
-  // const { settings } = useSettingsStore();
-  
-  // Grid appearance settings from localStorage (personal preferences, like theme)
+  // Custom hooks - Moved up to fix ReferenceError
+  const {
+    isMobile,
+    isMedium,
+    breakpointRef,
+    mainRef,
+    handleBreakpointChange
+  } = useResponsiveState();
+
   const [rowHeight, setRowHeight] = useState(100);
   const [gapSize, setGapSize] = useState(8);
   const [borderRadius, setBorderRadius] = useState(32);
   const [showWidgetNames, setShowWidgetNames] = useState(true);
+  
 
-  // Load grid appearance from localStorage on mount and listen for changes
+
+
+
   useEffect(() => {
     const loadGridSettings = () => {
       const storedRowHeight = localStorage.getItem('grid-row-height');
@@ -169,7 +190,6 @@ export default function Home() {
     
     loadGridSettings();
     
-    // Listen for changes from AppearanceSettings
     const handleChange = (e: CustomEvent) => {
       if (e.detail.rowHeight !== undefined) setRowHeight(e.detail.rowHeight);
       if (e.detail.gapSize !== undefined) setGapSize(e.detail.gapSize);
@@ -183,14 +203,7 @@ export default function Home() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // Custom hooks
-  const {
-    isMobile,
-    isMedium,
-    breakpointRef,
-    mainRef,
-    handleBreakpointChange
-  } = useResponsiveState();
+
 
   const {
     isAddModalOpen,
@@ -203,7 +216,6 @@ export default function Home() {
     openAddModal
   } = useWidgetManager();
 
-  // Keyboard shortcuts
   useKeyboardShortcuts({
     onToggleEdit: () => handleToggleEdit(),
     onOpenSettings: () => setIsSettingsOpen(true),
@@ -215,18 +227,14 @@ export default function Home() {
     isModalOpen: isAddModalOpen || isSettingsOpen
   });
 
-  // Auto-save hook
   useAutoSave();
 
-  // Determine the effective scroll direction
-  // In portrait/mobile mode, we force horizontal layout to allow vertical scrolling for content
   const effectiveScrollDirection = (isMedium || isMobile) ? 'horizontal' : scrollDirection;
 
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Handle scroll navigation
   useScrollNavigation({
     currentPageIndex,
     pagesLength: pages.length,
@@ -236,7 +244,6 @@ export default function Home() {
   });
 
   const handleToggleEdit = () => {
-    // If we're currently editing, save before exiting edit mode
     if (isEditing) {
       saveConfig();
     }
@@ -245,7 +252,6 @@ export default function Home() {
 
   const handleLayoutChange = (currentLayout: { i?: string; x?: number; y?: number; w?: number; h?: number }[]) => { 
     if ((breakpointRef.current === 'lg' || breakpointRef.current === 'md') && !isMedium && !isMobile) {
-      // Filter to only items with all required properties defined
       const validLayout = currentLayout.filter(
         (item): item is { i: string; x: number; y: number; w: number; h: number } => 
           item.i !== undefined && item.x !== undefined && item.y !== undefined && 
@@ -292,31 +298,20 @@ export default function Home() {
           ['--total-pages' as string]: pages.length,
         } as React.CSSProperties}
       >
-        {(() => {
-           // Calculate max content height across ALL pages to ensure consistent vertical centering
-           let maxContentHeight = 0;
-           
-           pages.forEach(page => {
-             const pageWidgets = getWidgetsForPage(page.id);
-             let maxRow = 0;
-             if (pageWidgets.length > 0) {
-                maxRow = Math.max(...pageWidgets.map(w => w.grid.y + w.grid.h));
-             }
-             const height = maxRow > 0 
-                ? (maxRow * rowHeight)
-                : 0;
-             if (height > maxContentHeight) maxContentHeight = height;
-           });
+{pages.map((page) => {
+            const pageWidgets = getWidgetsForPage(page.id);
+            const { maxRows } = getGridDimensions(isMedium, isMobile);
+            const pageContentHeight = maxRows * rowHeight;
 
-           return pages.map((page) => (
+            return (
             <div 
               key={page.id} 
               className={`${styles.pageContainer} ${(isMedium || isMobile) ? styles.scrollable : ''}`}
             >
               <DashboardPageContent 
                 pageId={page.id}
-                widgets={getWidgetsForPage(page.id)}
-                contentHeight={maxContentHeight}
+                widgets={pageWidgets}
+                contentHeight={pageContentHeight}
                 safeAreaTop={32}
                 className={styles.dashboard}
                 isEditing={isEditing}
@@ -330,11 +325,13 @@ export default function Home() {
                 isMedium={isMedium}
                 isMobile={isMobile}
               />
+
             </div>
-          ));
-        })()}
+          )})}
       </div>
       
+
+
       <UIControls 
         isEditing={isEditing} 
         canEdit={canEditDashboard}

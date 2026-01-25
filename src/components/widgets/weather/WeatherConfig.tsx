@@ -28,7 +28,7 @@ export const WeatherConfig: React.FC<WidgetConfigProps<WeatherWidgetConfig>> = (
       key: 'cityData', 
       label: 'Location',
       render: ({ styles: s }) => (
-        <div key="cityData" className={s.fieldGroup}>
+        <div key="cityData" className={s.formGroup}>
           <label className={s.label}>Location</label>
           <CitySearch
             value={config.cityData}

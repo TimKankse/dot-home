@@ -134,7 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <ModalBody>
           {activeTab === 'general' && <FormErrorBoundary sectionName="General Settings"><GeneralSettings /></FormErrorBoundary>}
           {activeTab === 'appearance' && <FormErrorBoundary sectionName="Appearance Settings"><AppearanceSettings /></FormErrorBoundary>}
-          {activeTab === 'boards' && <FormErrorBoundary sectionName="Boards Settings"><BoardsSettings /></FormErrorBoundary>}
+          {activeTab === 'boards' && <FormErrorBoundary sectionName="Boards Settings"><BoardsSettings onClose={handleClose} /></FormErrorBoundary>}
           {activeTab === 'users' && <FormErrorBoundary sectionName="Users Settings"><UsersSettings /></FormErrorBoundary>}
           {activeTab === 'integrations' && <FormErrorBoundary sectionName="Integrations Settings"><IntegrationsSettings /></FormErrorBoundary>}
           {activeTab === 'shortcuts' && <FormErrorBoundary sectionName="Shortcuts Settings"><ShortcutsSettings /></FormErrorBoundary>}

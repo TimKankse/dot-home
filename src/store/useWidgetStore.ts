@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Widget, NewWidgetInput } from '../types';
 import { getGridDimensions } from '@/constants/grid';
+import { getMinDimensions } from '@/constants/widget-definitions';
 
 interface WidgetState {
   widgets: Widget[];
@@ -106,6 +107,7 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
 
     set(state => {
       let hasChanges = false;
+      let rejectionHappened = false;
       const newWidgets = state.widgets.map(widget => {
         const layoutItem = layout.find((l) => {
           const cleanId = l.i.startsWith('.$') ? l.i.substring(2) : l.i;
@@ -113,6 +115,19 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
         });
 
         if (layoutItem) {
+          // Check minimum dimensions
+          const { w: minW, h: minH } = getMinDimensions(
+            (widget.type === 'widget' ? widget.widgetType : widget.type) || 'clock',
+            widget.config || {}
+          );
+
+          if (layoutItem.w < minW || layoutItem.h < minH) {
+            // New size is smaller than allowed minimum - ignore this update
+            // But mark rejection to force a state refresh (snap back)
+            rejectionHappened = true;
+            return widget;
+          }
+
           const newGrid = {
             x: Math.max(0, layoutItem.x),
             y: Math.max(0, layoutItem.y),
@@ -134,7 +149,7 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
         return widget;
       });
 
-      return hasChanges ? { widgets: newWidgets } : state;
+      return (hasChanges || rejectionHappened) ? { widgets: newWidgets } : state;
     });
   },
 

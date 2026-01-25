@@ -16,7 +16,7 @@ export const CurrentWeatherVariation: React.FC<CurrentWeatherVariationProps> = (
   
   // Determine unit: use config if set, otherwise app settings
   const appTempUnit = settings?.display?.temperatureUnit === 'F' ? 'imperial' : 'metric';
-  const effectiveUnit = config?.unit ?? appTempUnit;
+  const effectiveUnit = config?.unit === 'app' ? appTempUnit : (config?.unit ?? appTempUnit);
   const unitSymbol = effectiveUnit === 'imperial' ? '°F' : '°C';
   
   // Use config cityData, then legacy location, then app city

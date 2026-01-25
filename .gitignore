@@ -36,6 +36,8 @@ yarn-error.log*
 # info
 /info
 
+/config
+
 # User configuration (contains API keys)
 config.yml*
 

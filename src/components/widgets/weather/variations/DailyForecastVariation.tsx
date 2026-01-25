@@ -1,6 +1,7 @@
 import React from 'react';
 import { WeatherData, WeatherWidgetConfig } from '../types';
 import { getWeatherIcon, getWeatherDescription } from '../utils';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 interface DailyForecastVariationProps {
   weather: WeatherData;
@@ -8,7 +9,10 @@ interface DailyForecastVariationProps {
 }
 
 export const DailyForecastVariation: React.FC<DailyForecastVariationProps> = ({ weather, config }) => {
-  const unitSymbol = config?.unit === 'imperial' ? '°F' : '°C';
+  const { settings } = useSettingsStore();
+  const appTempUnit = settings?.display?.temperatureUnit === 'F' ? 'imperial' : 'metric';
+  const unit = config?.unit === 'app' ? appTempUnit : (config?.unit ?? appTempUnit);
+  const unitSymbol = unit === 'imperial' ? '°F' : '°C';
   const IconComponent = getWeatherIcon(weather.current.weather_code);
 
   if (!weather.hourly) return null;

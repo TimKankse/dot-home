@@ -33,6 +33,7 @@ const WIDGET_TYPES = [
   { value: 'sabnzbd', label: 'SABnzbd' },
   { value: 'twitch', label: 'Twitch' },
   { value: 'image', label: 'Image' },
+  { value: 'stock', label: 'Stock' },
 ];
 
 // Helper to compute initial type from props

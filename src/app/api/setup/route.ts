@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import { prisma } from '@/lib/db';
+import { getDefaultDashboardLayout } from '@/constants/default-dashboard';
 
 const SALT_ROUNDS = 12;
 
@@ -51,35 +52,7 @@ export async function POST(request: Request) {
       data: {
         userId: user.id,
         name: 'Main',
-        layout: JSON.stringify({
-          widgets: [],
-          pages: [{ id: 'default-page' }],
-          scrollDirection: 'vertical',
-          settings: {
-            behavior: {
-              confirmEdit: false,
-              autoSave: true,
-              refreshInterval: 10,
-              autoDetectLocation: true,
-            },
-            display: {
-              is24Hour: true,
-              temperatureUnit: 'C',
-              dateFormat: 'DD/MM',
-              language: 'en',
-              timezone: 'auto',
-              location: '',
-            },
-            shortcuts: {
-              toggleEdit: 'Alt+E',
-              openSettings: 'Alt+,',
-              addItem: 'Alt+N',
-              saveChanges: 'Alt+S',
-              prevPage: 'Alt+ArrowLeft',
-              nextPage: 'Alt+ArrowRight',
-            },
-          },
-        }),
+        layout: JSON.stringify(getDefaultDashboardLayout()),
         isDefault: true,
       },
     });

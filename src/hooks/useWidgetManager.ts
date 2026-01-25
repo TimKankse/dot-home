@@ -69,7 +69,8 @@ export function useWidgetManager() {
         isSelfHosted: updates.isSelfHosted,
         widgetType: updates.widgetType,
         config: updates.config,
-        syncConfig: updates.syncConfig
+        syncConfig: updates.syncConfig,
+        integrationId: updates.integrationId
       };
       updateWidget(id, widgetUpdates);
     }

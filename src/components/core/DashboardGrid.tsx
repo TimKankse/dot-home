@@ -7,7 +7,9 @@ import { GridStackProvider } from '@/gridstack-react/grid-stack-provider';
 import { GridStackRenderProvider } from '@/gridstack-react/grid-stack-render-provider';
 import { useGridStackContext } from '@/gridstack-react/grid-stack-context';
 import { Widget } from '@/types/widget';
+import { WIDGET_DEFINITIONS, getMinDimensions } from "@/constants/widget-definitions";
 import { GRID_BREAKPOINTS } from '@/constants/grid';
+
 interface ExtendedGridStack {
   _ignoreEvents?: boolean;
   engine?: {
@@ -28,8 +30,8 @@ interface ExtendedGridStack {
   makeWidget(el: HTMLElement, opts?: GridStackOptions): HTMLElement;
   removeWidget(el: HTMLElement, removeDOM?: boolean): void;
   update(el: HTMLElement, opts: GridStackOptions): void;
-  on(name: string, callback: (event: Event, items: GridStackNode[]) => void): void;
-  off(name: string, callback: (event: Event, items: GridStackNode[]) => void): void;
+  on(name: string, callback: (...args: any[]) => void): void;
+  off(name: string, callback: (...args: any[]) => void): void;
 }
 
 interface ExtendedGridStackElement extends HTMLElement {
@@ -126,7 +128,8 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
     gridStack.on('change', handleChange);
 
     return () => {
-      (gridStack as unknown as ExtendedGridStack).off('change', handleChange);
+      const grid = gridStack as unknown as ExtendedGridStack;
+      grid.off('change', handleChange);
     };
   }, [gridStack, onLayoutChange]);
 
@@ -151,12 +154,20 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
         
         const id = el.getAttribute('gs-id');
         const item = items.find(i => i.id === id);
+        
+        const { w: minW, h: minH } = item ? getMinDimensions(
+          (item.type === 'widget' ? item.widgetType : item.type) || 'clock',
+          item.config || {}
+        ) : { w: 1, h: 1 };
+
         const options = item ? {
            id: item.id,
            x: item.grid.x,
            y: item.grid.y,
            w: item.grid.w,
            h: item.grid.h,
+           minW,
+           minH,
            autoPosition: false
         } : undefined;
 
@@ -188,13 +199,56 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
           const w = item.grid.w;
           const h = item.grid.h;
           
-          if (node.x !== x || node.y !== y || node.w !== w || node.h !== h) {
-             if (!hasChanges) {
+          const { w: minW, h: minH } = getMinDimensions(
+            (item.type === 'widget' ? item.widgetType : item.type) || 'clock',
+            item.config || {}
+          );
+
+          // Simplified: Always enforce the definition's min dimensions
+          node.minW = minW;
+          node.minH = minH;
+          // @ts-ignore - Ensure legacy props are set too
+          node.minWidth = minW;
+          // @ts-ignore
+          node.minHeight = minH;
+
+          // Force update attributes on the DOM element to ensure consistency
+          el.setAttribute('gs-min-w', String(minW));
+          el.setAttribute('gs-min-h', String(minH));
+          el.setAttribute('data-gs-min-w', String(minW));
+          el.setAttribute('data-gs-min-h', String(minH)); // Also set data attribute manually
+
+          // Always update GridStack if we have the node, or if position changes.
+          // We include minW/minH in the update object regardless of whether they "changed"
+          // to ensure the engine is in sync.
+          
+          if (
+            node.x !== x || node.y !== y || node.w !== w || node.h !== h ||
+             // Even if position/size didn't change, we want to ensure min dimensions are enforced
+             // We can check if the internal state matches, or just force it. 
+             // Given the issue, forcing it is safer.
+             // However, forcing update() on every cycle might be heavy if thousands of widgets.
+             // But for ~50 widgets it's fine.
+             // Let's check strict equality on the internal node values we just set? No, that's tautological.
+             // Let's check against what the engine MIGHT have had before we overwrote it (too late).
+             // Let's just FORCE update of Min dimensions.
+             true 
+          ) {
+             const needsBatch = !hasChanges && (node.x !== x || node.y !== y || node.w !== w || node.h !== h);
+             
+             if (needsBatch) {
                 grid._ignoreEvents = true;
                 gridStack.batchUpdate();
                 hasChanges = true;
              }
-             gridStack.update(el as HTMLElement, { x, y, w, h });
+             
+             gridStack.update(el as HTMLElement, { 
+               x, y, w, h, 
+               minW, minH,
+               // @ts-ignore
+               minWidth: minW, 
+               minHeight: minH
+            });
           }
        }
     });

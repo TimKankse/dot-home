@@ -19,7 +19,7 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
       key: 'integrationId', 
       label: 'Connection',
       render: ({ config: c, onChange: onFieldChange, styles: s }) => (
-        <div key="integrationId" className={s.fieldGroup}>
+        <div key="integrationId" className={s.formGroup}>
           <label className={s.label}>Connection</label>
           <IntegrationSelect
             type="netdata"
@@ -37,8 +37,15 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
       placeholder: 'http://...',
       condition: (c) => !c.integrationId
     },
+    {
+      type: 'input',
+      key: 'refreshInterval',
+      label: 'Refresh Rate (ms)',
+      placeholder: '2000 (Default)',
+      inputType: 'number',
+    },
     { 
-      type: 'select', 
+      type: 'select',  
       key: 'metricType', 
       label: 'Metric Type', 
       options: [
@@ -47,6 +54,7 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
         { value: 'storage', label: 'Storage' },
         { value: 'network', label: 'Network' },
         { value: 'processes', label: 'Processes' },
+        { value: 'system', label: 'System' },
         { value: 'gpu', label: 'GPU' },
         { value: 'cpu-cores', label: 'CPU Cores' }
       ],

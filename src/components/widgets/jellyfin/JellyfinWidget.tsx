@@ -64,6 +64,10 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
     return <LibrariesVariation libraries={libraries} userId={config.userId} />;
   }
 
+  if (config?.viewMode === 'now-playing') {
+    return <NowPlayingVariation sessions={sessions} config={config} />;
+  }
+
   if (sessions.length === 0 && libraries.length > 0) {
     return <LibrariesVariation libraries={libraries} userId={config?.userId} />;
   }

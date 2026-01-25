@@ -25,11 +25,10 @@ export const IntegrationsSettings: React.FC = () => {
     removeIntegration
   } = useIntegrationStore();
 
-  const { saveConfig } = usePersistenceStore();
-
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<IntegrationType | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -42,6 +41,7 @@ export const IntegrationsSettings: React.FC = () => {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [endpointId, setEndpointId] = useState('');
+  const [refreshInterval, setRefreshInterval] = useState('');
 
   const resetForm = () => {
     setViewMode('list');
@@ -57,6 +57,8 @@ export const IntegrationsSettings: React.FC = () => {
     setClientId('');
     setClientSecret('');
     setEndpointId('');
+    setRefreshInterval('');
+    setIsSaving(false);
   };
 
   const handleSelectType = (type: IntegrationType) => {
@@ -81,6 +83,7 @@ export const IntegrationsSettings: React.FC = () => {
     setClientId(config.clientId || '');
     setClientSecret(config.clientSecret || '');
     setEndpointId(config.endpointId || '');
+    setRefreshInterval(config.refreshInterval || '');
     
     setViewMode('edit');
   };
@@ -106,6 +109,7 @@ export const IntegrationsSettings: React.FC = () => {
         break;
       case 'netdata':
         if (url) config.url = url;
+        if (refreshInterval) config.refreshInterval = refreshInterval;
         break;
       case 'portainer':
         if (url) config.url = url;
@@ -126,37 +130,86 @@ export const IntegrationsSettings: React.FC = () => {
     return config;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name || !selectedType) return;
 
+    setIsSaving(true);
     const config = buildConfig();
 
-    if (editingId) {
-      updateIntegration(editingId, {
-        name,
-        type: selectedType,
-        iconUrl: iconUrl || undefined,
-        config
-      });
-    } else {
-      const integration: Integration = {
-        id: uuidv4(),
-        name,
-        type: selectedType,
-        iconUrl: iconUrl || undefined,
-        config
-      };
-      addIntegration(integration);
-    }
+    try {
+      if (editingId) {
+        // Update existing
+        const res = await fetch('/api/integrations', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingId,
+            name,
+            type: selectedType,
+            iconUrl: iconUrl || undefined,
+            config
+          }),
+        });
 
-    saveConfig();
-    resetForm();
+        if (!res.ok) throw new Error('Failed to update integration');
+        
+        const updated = await res.json();
+        updateIntegration(editingId, {
+          name,
+          type: selectedType,
+          iconUrl: iconUrl || undefined,
+          config: updated.config // Use returned config (might contain masked secrets)
+        });
+      } else {
+        // Create new
+        const newId = uuidv4();
+        const res = await fetch('/api/integrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: newId,
+            name,
+            type: selectedType,
+            iconUrl: iconUrl || undefined, // Fix typing
+            config
+          }),
+        });
+
+        if (!res.ok) throw new Error('Failed to create integration');
+        
+        const created = await res.json();
+        addIntegration({
+          id: created.id,
+          name: created.name,
+          type: created.type,
+          iconUrl: iconUrl || undefined,
+          config: created.config
+        });
+      }
+
+      resetForm();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to save integration');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this integration?')) {
-      removeIntegration(id);
-      saveConfig();
+      try {
+        const res = await fetch(`/api/integrations?id=${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!res.ok) throw new Error('Failed to delete integration');
+
+        removeIntegration(id);
+      } catch (error) {
+        console.error(error);
+        alert('Failed to delete integration');
+      }
     }
   };
 
@@ -210,6 +263,18 @@ export const IntegrationsSettings: React.FC = () => {
               placeholder="http://192.168.1.100:8096"
             />
           </div>
+        )}
+
+        {selectedType === 'netdata' && (
+             <div className={styles.formGroup}>
+                <Input 
+                  label="Refresh Rate (ms)"
+                  type="number"
+                  value={refreshInterval}
+                  onChange={(e) => setRefreshInterval(e.target.value)}
+                  placeholder="2000"
+                />
+              </div>
         )}
 
         {hasApiKey && (
@@ -335,15 +400,17 @@ export const IntegrationsSettings: React.FC = () => {
           <Button 
             onClick={resetForm} 
             variant="secondary"
+            disabled={isSaving}
           >
             Cancel
           </Button>
           <Button 
             onClick={handleSave} 
             variant="primary"
-            leftIcon={<Check size={16} />}
+            leftIcon={isSaving ? undefined : <Check size={16} />}
+            disabled={isSaving}
           >
-            {editingId ? 'Update' : 'Save'}
+            {isSaving ? 'Saving...' : (editingId ? 'Update' : 'Save')}
           </Button>
         </div>
       </div>

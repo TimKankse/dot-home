@@ -10,22 +10,29 @@ interface PersistenceState {
   isLoaded: boolean;
   isEditing: boolean;
   canEditDashboard: boolean;
+  dashboardId: string | null;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   
-  fetchConfig: () => Promise<void>;
+  fetchConfig: (dashboardId?: string) => Promise<void>;
   saveConfig: () => Promise<void>;
   toggleEdit: () => void;
+  loadDashboard: (id: string) => Promise<void>;
 }
 
 export const usePersistenceStore = create<PersistenceState>((set, get) => ({
   isLoaded: false,
   isEditing: false,
   canEditDashboard: true, // Default to true, will be updated on config fetch
+  dashboardId: null,
   saveStatus: 'idle',
 
-  fetchConfig: async () => {
+  fetchConfig: async (targetDashboardId?: string) => {
     try {
-      const res = await fetch('/api/config', { cache: 'no-store' });
+      const url = targetDashboardId 
+        ? `/api/config?dashboardId=${targetDashboardId}`
+        : '/api/config';
+        
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       
       let pages: Page[] = [];
@@ -134,12 +141,17 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
       // Set edit permission from API response (default to true for owned dashboards)
       const canEditDashboard = data.canEditDashboard ?? true;
 
-      set({ isLoaded: true, canEditDashboard });
+      set({ isLoaded: true, canEditDashboard, dashboardId: data.dashboardId });
     } catch (err) {
       console.error('Failed to load config:', err);
-      usePageStore.getState().setPages([{ id: uuidv4() }]);
-      set({ isLoaded: true });
+      // Do NOT set isLoaded: true, to prevent auto-save from overwriting valid data with empty state
+      set({ saveStatus: 'error' });
+      alert('Failed to load dashboard configuration. Auto-save disabled to protect data. Please refresh.');
     }
+  },
+
+  loadDashboard: async (id: string) => {
+    return get().fetchConfig(id);
   },
 
   saveConfig: async () => {
@@ -198,7 +210,8 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
           pages, 
           integrations,
           settings,
-          defaultPageId 
+          defaultPageId,
+          dashboardId: get().dashboardId
         }),
       });
 

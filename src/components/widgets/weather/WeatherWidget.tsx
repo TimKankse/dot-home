@@ -17,7 +17,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ config }) => {
   useEffect(() => {
     const loadWeather = async () => {
       const appTempUnit = settings?.display?.temperatureUnit === 'F' ? 'imperial' : 'metric';
-      const unit = config?.unit ?? appTempUnit;
+      const unit = config?.unit === 'app' ? appTempUnit : (config?.unit ?? appTempUnit);
       const view = config?.view || 'current';
       
       // Prefer widget's cityData, then legacy location string, then app settings

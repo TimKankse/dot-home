@@ -26,7 +26,7 @@ import { SearchConfig } from '@/components/widgets/search/SearchConfig';
 import { ImageConfig } from '@/components/widgets/image/ImageConfig';
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const CONFIG_COMPONENTS: Record<string, React.ComponentType<any>> = {
   calendar: CalendarConfig,
   clock: ClockConfig,
@@ -41,7 +41,10 @@ const CONFIG_COMPONENTS: Record<string, React.ComponentType<any>> = {
   twitch: TwitchConfig,
   weather: WeatherConfig,
   image: ImageConfig,
+
 };
+
+import { WIDGET_DEFINITIONS, getMinDimensions } from '@/constants/widget-definitions';
 
 export const WidgetForm: React.FC<FormProps> = ({ 
   initialData, 
@@ -54,7 +57,17 @@ export const WidgetForm: React.FC<FormProps> = ({
   const [name, setName] = useState(initialData?.name || '');
   const [iconUrl, setIconUrl] = useState(initialData?.iconUrl || '');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [config, setConfig] = useState<Record<string, any>>(initialData?.config || {});
+  const [config, setConfig] = useState<Record<string, any>>(() => {
+    const baseConfig = initialData?.config || {};
+    // If we have a top-level integration ID, inject it into config so UI components see it immediately
+    if (initialData?.integrationId) {
+      return {
+        ...baseConfig,
+        integrationId: initialData.integrationId
+      };
+    }
+    return baseConfig;
+  });
   const [integrationId, setIntegrationId] = useState(initialData?.integrationId || '');
   const [syncConfig, setSyncConfig] = useState(initialData?.syncConfig ?? true);
 
@@ -65,13 +78,33 @@ export const WidgetForm: React.FC<FormProps> = ({
   const availableIntegrations = integrations;
 
   useEffect(() => {
-    if (integrationId) {
-      const integration = integrations.find(i => i.id === integrationId);
-      if (integration) {
-        //The store handles auto-linking usually, 
+    // Determine the active integration ID (prefer config-level, fallback to form-level)
+    // This handles both new widget-specific selectors and legacy/generic selections
+    const targetIntegrationId = config.integrationId || integrationId;
+
+    if (targetIntegrationId) {
+      const integration = integrations.find(i => i.id === targetIntegrationId);
+      if (integration && integration.config) {
+        // When integration changes, propagate its configuration to the widget config
+        // effectively pre-filling or syncing the connection details
+        setConfig(prev => {
+          // Check if we actually need to update to avoid infinite loops
+          const hasChanges = Object.entries(integration.config).some(
+            ([key, value]) => prev[key] !== value
+          );
+
+          if (!hasChanges) return prev;
+
+          return {
+            ...prev,
+            ...integration.config,
+            // Ensure we preserve the ID that triggered this
+            integrationId: targetIntegrationId 
+          };
+        });
       }
     }
-  }, [integrationId, integrations]);
+  }, [config.integrationId, integrationId, integrations]);
 
   useEffect(() => {
     onValidityChange?.(true);
@@ -79,16 +112,40 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Extract integrationId from config if present (e.g. from specific widget forms)
+    // This supports the new pattern where widgets manage their own integration selection
+    const configIntegrationId = config.integrationId; 
+    
+    // If we have an integrationId in the config, we want to lift it to the top level
+    // and remove it from the config blob to avoid duplication/confusion
+    const finalIntegrationId = configIntegrationId || integrationId;
+    
+    const finalConfig = { ...config };
+    if (configIntegrationId) {
+      delete finalConfig.integrationId;
+    }
+
+    // specific dimensions logic
+    let finalW = initialData?.w;
+    let finalH = initialData?.h;
+
+    // If no initial dimensions (new widget), use defaults from definition
+    if (!finalW || !finalH) {
+      const { w, h } = getMinDimensions(widgetType, finalConfig);
+      finalW = w;
+      finalH = h;
+    }
+
     onSubmit({
       name: name || widgetType, // Fallback name
       iconUrl,
       type: 'widget',
       widgetType,
-      config,
-      integrationId: integrationId || undefined,
+      config: finalConfig,
+      integrationId: finalIntegrationId || undefined,
       syncConfig,
-      w: initialData?.w || 1, 
-      h: initialData?.h || 1
+      w: finalW, 
+      h: finalH
     });
   };
 
@@ -131,26 +188,7 @@ export const WidgetForm: React.FC<FormProps> = ({
                 placeholder="Widget Name"
               />
             </div>
-            {availableIntegrations.length > 0 && (
-              <div className={styles.section}>
-                <h3 className={styles.sectionTitle}>Integration</h3>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>Select Integration</label>
-                  <Select
-                      options={[
-                        { value: '', label: 'None (Configure Manually)' },
-                        ...availableIntegrations.map(int => ({
-                          value: int.id,
-                          label: int.name || (int.config as { url?: string }).url || 'Unnamed Integration'
-                        }))
-                      ]}
-                      value={integrationId}
-                      onChange={(val) => setIntegrationId(val)}
-                      className={styles.fullWidthSelect}
-                    />
-                 </div>
-               </div>
-             )}
+            {/* Generic integration selector removed in favor of widget-specific selectors */}
 
              {ConfigComponent && (
               <div className={styles.section}>

@@ -12,22 +12,24 @@ export const processProcesses = (
 ): ProcessData[] => {
     let result: ProcessData[] = [];
 
-    // Strategy 1: 'processes' function data (already passed in 'processList')
     if (processList.length > 0) {
         result = processList;
     } 
-    // Strategy 2: Apps Plugin
     else if (appsCpuData && appsCpuData.data && appsCpuData.data.length > 0) {
         const cpuDims = appsCpuData.labels;
         const cpuVals = appsCpuData.data[0];
         const memDims = appsMemData?.labels || [];
         const memVals = appsMemData?.data?.[0] || [];
 
+        const memMap = new Map<string, number>();
+        memDims.forEach((dim, idx) => {
+            memMap.set(dim, memVals[idx] || 0);
+        });
+
         for (let i = 1; i < cpuDims.length; i++) {
             const appName = cpuDims[i];
             const cpuVal = cpuVals[i];
-            const memIndex = memDims.indexOf(appName);
-            const memVal = memIndex !== -1 ? memVals[memIndex] : 0;
+            const memVal = memMap.get(appName) || 0;
             const memPercentVal = memTotal > 0 ? (memVal * 1024 * 1024 / memTotal) * 100 : 0;
 
             result.push({
@@ -39,7 +41,7 @@ export const processProcesses = (
             });
         }
     } 
-    // Strategy 3: Container Charts
+    
     else if (containerCpuCharts.length > 0) {
         result = containerCpuCharts.map((chartName, index) => {
             const cpuD = containerCpuData[index];

@@ -14,6 +14,7 @@ import { SystemVariation } from './variations/SystemVariation';
 import { CpuCoresVariation } from './variations/CpuCoresVariation';
 import { GpuVariation } from './variations/GpuVariation';
 import type { NetdataWidgetConfig } from '@/types';
+import { useIntegrationStore } from '@/store/useIntegrationStore';
 
 interface NetdataWidgetProps {
   isEditing?: boolean;
@@ -22,6 +23,8 @@ interface NetdataWidgetProps {
 
 export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: string }> = ({ isEditing = false, config, integrationId }) => {
   const { instances, subscribe, unsubscribe } = useNetdataStore();
+  const { integrations } = useIntegrationStore();
+  
   const key = integrationId || config?.url;
   const instance = key ? instances[key] : null;
   const data = instance?.data || null;
@@ -31,12 +34,33 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
   const [history, setHistory] = useState<{ cpu: number[], ram: number[], netRx: number[], netTx: number[], cores: Record<number, number[]>, gpus: Record<string, number[]> }>({ cpu: [], ram: [], netRx: [], netTx: [], cores: {}, gpus: {} });
   const metricType = config?.metricType || 'cpu';
 
+  // Determine Refresh Interval
+  // Widget Config > Integration Config > Default (2000ms)
+  const integration = integrationId ? integrations.find(i => i.id === integrationId) : null;
+  const integrationConfig = integration?.config as { refreshInterval?: string } | undefined;
+  
+  const effectiveInterval = config?.refreshInterval 
+      ? parseInt(String(config.refreshInterval), 10) 
+      : (integrationConfig?.refreshInterval 
+          ? parseInt(integrationConfig.refreshInterval, 10) 
+          : 2000);
+
   useEffect(() => {
     if (key) {
-      subscribe({ url: config?.url, integrationId, scope: metricType }); // Pass metricType as scope
-      return () => unsubscribe({ url: config?.url, integrationId, scope: metricType });
+      subscribe({ 
+          url: config?.url, 
+          integrationId, 
+          scope: metricType, 
+          refreshInterval: effectiveInterval 
+      }); 
+      return () => unsubscribe({ 
+          url: config?.url, 
+          integrationId, 
+          scope: metricType,
+          refreshInterval: effectiveInterval
+      });
     }
-  }, [config?.url, integrationId, metricType, subscribe, unsubscribe, key]);
+  }, [config?.url, integrationId, metricType, subscribe, unsubscribe, key, effectiveInterval]);
 
   // Update history when data changes - accumulate time-series data in a rolling buffer
   useEffect(() => {
