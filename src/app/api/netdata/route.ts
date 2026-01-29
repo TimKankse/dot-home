@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { fetchNetdata, fetchInfo, fetchChartsList } from './utils/netdata-client';
+import { fetchInfo, fetchChartsList } from './utils/netdata-client';
 import { getRequestedScopes, createScopeChecker } from './utils/scope-manager';
 import { fetchFunctionsData } from './utils/function-fetcher';
+import { fetchAllMetrics, extractChartFromAllMetrics, getChartsByPrefix, getChartsByPattern, AllMetricsData } from './utils/allmetrics-fetcher';
 
 // Processors
 import { processCpu } from './processors/cpu-processor';
@@ -13,209 +14,196 @@ import { processGpu } from './processors/gpu-processor';
 import { processNetwork } from './processors/network-processor';
 import { processSensors } from './processors/sensor-processor';
 import { processSystemInfo, processCpuModel } from './processors/system-processor';
+import { NetdataChartResponse } from './types';
 
 import { prisma } from '@/lib/db';
 import { decryptSensitiveFields } from '@/utils/crypto';
 
-interface ChartCacheEntry {
-    names: string[];
-    error?: string;
-    timestamp: number;
-}
-
-const chartCache = new Map<string, ChartCacheEntry>();
-const activeRequests = new Map<string, Promise<{ names: string[], error?: string }>>();
-
-async function getCachedCharts(url: string): Promise<{ names: string[], error?: string }> {
-    const now = Date.now();
-    const entry = chartCache.get(url);
-
-    // Return valid cache if fresh (5 minutes)
-    if (entry && (now - entry.timestamp < 300000)) {
-        return { names: entry.names, error: entry.error };
-    }
-
-    // Deduplicate simultaneous fetches
-    if (activeRequests.has(url)) {
-        return activeRequests.get(url)!;
-    }
-
-    // Fetch fresh data
-    const fetchPromise = fetchChartsList(url).then(result => {
-        const names = result.charts || [];
-        // Update cache
-        chartCache.set(url, { 
-            names, 
-            error: result.error, 
-            timestamp: Date.now() 
-        });
-        activeRequests.delete(url); // Clear the promise tracker
-        return { names, error: result.error };
-    });
-
-    activeRequests.set(url, fetchPromise);
-    return fetchPromise;
-}
-
+// ========================================
+// Integration config cache
+// ========================================
 const integrationConfigCache = new Map<string, { url: string, timestamp: number }>();
 
-export async function POST(request: Request) {
-  try {
-    const { url: bodyUrl, processLimit = 10, scope } = await request.json();
-    const integrationId = request.headers.get('x-integration-id');
+async function getNetdataUrl(integrationId: string | null, bodyUrl: string | null): Promise<string | null> {
+    if (bodyUrl) return bodyUrl;
+    if (!integrationId) return null;
     
-    let url = bodyUrl;
-
-    if (integrationId) {
-        // Check cache first
-        const cached = integrationConfigCache.get(integrationId);
-        const now = Date.now();
-        if (cached && (now - cached.timestamp < 60000)) { // 60s TTL
-            url = cached.url;
-        } else {
-            const integration = await prisma.integration.findUnique({
-                where: { id: integrationId }
-            });
-            
-            if (integration) {
-                const config = decryptSensitiveFields(JSON.parse(integration.config));
-                url = config.url || config.externalUrl;
-                // Update cache
-                if (url) {
-                    integrationConfigCache.set(integrationId, { url, timestamp: now });
-                }
-            }
+    const cached = integrationConfigCache.get(integrationId);
+    const now = Date.now();
+    if (cached && (now - cached.timestamp < 60000)) {
+        return cached.url;
+    }
+    
+    const integration = await prisma.integration.findUnique({
+        where: { id: integrationId }
+    });
+    
+    if (integration) {
+        const config = decryptSensitiveFields(JSON.parse(integration.config)) as Record<string, unknown>;
+        const url = (config.url || config.externalUrl) as string | undefined;
+        if (url && typeof url === 'string') {
+            integrationConfigCache.set(integrationId, { url, timestamp: now });
+            return url;
         }
     }
+    
+    return null;
+}
 
-    if (!url) {
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
-    }
-
-    // Setup Scope
-    const requestedScopes = getRequestedScopes(scope);
+// ========================================
+// Build filter string for allmetrics based on scopes
+// ========================================
+function buildAllMetricsFilter(requestedScopes: string[]): string | undefined {
     const isScopeActive = createScopeChecker(requestedScopes);
+    
+    // If 'all' scope, don't filter
+    if (requestedScopes.includes('all')) {
+        return undefined;
+    }
+    
+    const patterns: string[] = [];
+    
+    // Each pattern is a glob - Netdata supports wildcards
+    if (isScopeActive('cpu')) {
+        patterns.push('system.cpu');
+    }
+    if (isScopeActive('ram') || isScopeActive('processes')) {
+        patterns.push('system.ram');
+    }
+    if (isScopeActive('processes')) {
+        patterns.push('apps.cpu');
+        patterns.push('apps.mem');
+        patterns.push('*_cpu_utilization');
+        patterns.push('*_mem_usage');
+    }
+    if (isScopeActive('system')) {
+        patterns.push('system.uptime');
+    }
+    if (isScopeActive('gpu')) {
+        patterns.push('nvidia_smi.*');
+        patterns.push('intelgpu.*');
+    }
+    if (isScopeActive('storage')) {
+        patterns.push('disk_space.*');
+    }
+    if (isScopeActive('network')) {
+        patterns.push('net.*');
+        patterns.push('system.net');
+    }
+    if (isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu')) {
+        patterns.push('sensors.*');
+    }
+    if (isScopeActive('cpu-cores')) {
+        patterns.push('cpu.*');
+    }
+    
+    // Return space-separated patterns (Netdata simple patterns)
+    return patterns.length > 0 ? patterns.join(' ') : undefined;
+}
 
-    // Setup URL
-    const baseUrl = url.startsWith('http') ? url : `http://${url}`;
-    const cleanUrl = baseUrl.replace(/\/$/, '');
-    const fetcher = (chart: string) => fetchNetdata(cleanUrl, chart);
+// ========================================
+// Allmetrics cache with short TTL
+// ========================================
+interface AllMetricsCacheEntry {
+    data: AllMetricsData;
+    timestamp: number;
+}
+const allMetricsCache = new Map<string, AllMetricsCacheEntry>();
+const ALLMETRICS_CACHE_TTL = 1500; // 1.5 seconds
 
-    // Dynamic Chart Discovery
-    const dynamicScopes = ['storage', 'network', 'sensors', 'processes', 'cpu-cores'];
-    const needsDynamicCharts = requestedScopes.includes('all') || requestedScopes.some(s => dynamicScopes.includes(s));
+// ========================================
+// Fetch Netdata data for given scopes using allmetrics
+// ========================================
+async function fetchNetdataData(cleanUrl: string, requestedScopes: string[], processLimit: number) {
+    const isScopeActive = createScopeChecker(requestedScopes);
+    
+    // Build filter for only needed charts
+    const filter = buildAllMetricsFilter(requestedScopes);
+    const cacheKey = filter ? `${cleanUrl}:${filter}` : cleanUrl;
+    
+    // Check cache
+    let allMetrics: AllMetricsData | null = null;
+    const cached = allMetricsCache.get(cacheKey);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp < ALLMETRICS_CACHE_TTL)) {
+        allMetrics = cached.data;
+    } else {
+        allMetrics = await fetchAllMetrics(cleanUrl, filter);
+        
+        if (allMetrics) {
+            allMetricsCache.set(cacheKey, { data: allMetrics, timestamp: now });
+        }
+    }
+    
+    // Extract data from allmetrics
+    const cpuData = isScopeActive('cpu') ? extractChartFromAllMetrics(allMetrics, 'system.cpu') : null;
+    const ramData = (isScopeActive('ram') || isScopeActive('processes')) ? extractChartFromAllMetrics(allMetrics, 'system.ram') : null;
+    const appsCpuData = isScopeActive('processes') ? extractChartFromAllMetrics(allMetrics, 'apps.cpu') : null;
+    const appsMemData = isScopeActive('processes') ? extractChartFromAllMetrics(allMetrics, 'apps.mem') : null;
+    const uptimeData = isScopeActive('system') ? extractChartFromAllMetrics(allMetrics, 'system.uptime') : null;
+    const cpuFreqData = isScopeActive('cpu-cores') ? extractChartFromAllMetrics(allMetrics, 'cpu.cpufreq') : null;
+    
+    // GPU data
+    const gpuScope = isScopeActive('gpu');
+    const nvidiaUtil = gpuScope ? extractChartFromAllMetrics(allMetrics, 'nvidia_smi.gpu_utilization') : null;
+    const nvidiaMem = gpuScope ? extractChartFromAllMetrics(allMetrics, 'nvidia_smi.memory_usage') : null;
+    const nvidiaTemp = gpuScope ? extractChartFromAllMetrics(allMetrics, 'nvidia_smi.temperature') : null;
+    const intelRender = gpuScope ? extractChartFromAllMetrics(allMetrics, 'intelgpu.igpu_engine_render_3d_busy_percentage') : null;
 
-    let chartNames: string[] = [];
-    let chartsError: string | undefined;
-    if (needsDynamicCharts) {
-        const result = await getCachedCharts(cleanUrl);
-        chartNames = result.names;
-        chartsError = result.error;
+    // Dynamic chart discovery from allmetrics response
+    let diskCharts: string[] = [];
+    let netCharts: string[] = [];
+    let sensorCharts: string[] = [];
+    let containerCpuCharts: string[] = [];
+    let containerMemCharts: string[] = [];
+    let cpuCoreCharts: string[] = [];
 
-        if (chartNames.length === 0) {
-             console.warn('Netdata: Failed to fetch charts list, proceeding with fallbacks');
+    if (allMetrics) {
+        if (isScopeActive('storage')) {
+            diskCharts = getChartsByPrefix(allMetrics, 'disk_space.');
+        }
+        if (isScopeActive('network')) {
+            netCharts = getChartsByPrefix(allMetrics, 'net.')
+                .filter(c => !c.includes('lo') && !c.startsWith('net.veth') && !c.startsWith('net.docker'));
+        }
+        if (isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu')) {
+            sensorCharts = getChartsByPrefix(allMetrics, 'sensors.');
+        }
+        if (isScopeActive('processes')) {
+            const appCharts = getChartsByPrefix(allMetrics, 'app.');
+            containerCpuCharts = appCharts.filter(c => c.endsWith('_cpu_utilization'));
+            containerMemCharts = appCharts.filter(c => c.endsWith('_mem_usage'));
+        }
+        if (isScopeActive('cpu-cores')) {
+            cpuCoreCharts = getChartsByPattern(allMetrics, /^cpu\.cpu\d+$/);
         }
     }
 
-    // Chart Filtering
-    const diskCharts: string[] = [];
-    const netCharts: string[] = [];
-    const sensorCharts: string[] = [];
-    const containerCpuCharts: string[] = [];
-    const containerMemCharts: string[] = [];
-    const cpuCoreCharts: string[] = [];
-
-    const scopeStorage = isScopeActive('storage');
-    const scopeNetwork = isScopeActive('network');
-    const scopeSensors = isScopeActive('sensors') || isScopeActive('cpu-cores') || isScopeActive('cpu');
-    const scopeProcesses = isScopeActive('processes');
-    const scopeCpuCores = isScopeActive('cpu-cores');
-
-    if (scopeStorage || scopeNetwork || scopeSensors || scopeProcesses || scopeCpuCores) {
-        for (const c of chartNames) {
-            if (scopeStorage && c.startsWith('disk_space.')) {
-                diskCharts.push(c);
-            }
-            if (scopeNetwork && c.startsWith('net.') && !c.includes('lo') && !c.startsWith('net.veth') && !c.startsWith('net.docker')) {
-                netCharts.push(c);
-            }
-            if (scopeSensors && c.startsWith('sensors.')) {
-                sensorCharts.push(c);
-            }
-            if (scopeProcesses && c.startsWith('app.')) {
-                if (c.endsWith('_cpu_utilization')) containerCpuCharts.push(c);
-                else if (c.endsWith('_mem_usage')) containerMemCharts.push(c);
-            }
-            if (scopeCpuCores && c.startsWith('cpu.cpu') && /^cpu\.cpu\d+$/.test(c)) {
-                cpuCoreCharts.push(c);
-            }
-        }
-    }
-
-    // Fallback for network if no charts found
-    if (scopeNetwork && netCharts.length === 0) {
+    // Fallback for network
+    if (isScopeActive('network') && netCharts.length === 0) {
         netCharts.push('system.net');
     }
 
-    // Promise Orchestration
-    const cpuPromise = isScopeActive('cpu') ? fetcher('system.cpu') : Promise.resolve(null);
-    const ramPromise = isScopeActive('ram') || isScopeActive('processes') ? fetcher('system.ram') : Promise.resolve(null);
-    const appsCpuPromise = isScopeActive('processes') ? fetcher('apps.cpu') : Promise.resolve(null);
-    const appsMemPromise = isScopeActive('processes') ? fetcher('apps.mem') : Promise.resolve(null);
-    const uptimePromise = isScopeActive('system') ? fetcher('system.uptime') : Promise.resolve(null);
-    const cpuFreqPromise = isScopeActive('cpu-cores') && cpuCoreCharts.length === 0 ? fetcher('cpu.cpufreq') : Promise.resolve(null);
+    // Extract array data from allmetrics
+    const diskData = diskCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
+    const netData = netCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
+    const sensorData = sensorCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
+    const containerCpuData = containerCpuCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
+    const containerMemData = containerMemCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
+    const cpuCoreData = cpuCoreCharts.map(c => extractChartFromAllMetrics(allMetrics, c));
 
-    // GPU Promises
-    const gpuScope = isScopeActive('gpu');
-    const nvidiaUtilPromise = gpuScope ? fetcher('nvidia_smi.gpu_utilization') : Promise.resolve(null);
-    const nvidiaMemPromise = gpuScope ? fetcher('nvidia_smi.memory_usage') : Promise.resolve(null);
-    const nvidiaTempPromise = gpuScope ? fetcher('nvidia_smi.temperature') : Promise.resolve(null);
-    const intelRenderPromise = gpuScope ? fetcher('intelgpu.igpu_engine_render_3d_busy_percentage') : Promise.resolve(null);
-
-    const infoPromise = (isScopeActive('system') || isScopeActive('cpu')) ? fetchInfo(cleanUrl) : Promise.resolve(null);
-    const functionsPromise = fetchFunctionsData(cleanUrl, isScopeActive, processLimit);
-
-    // Array Promises
-    const containerCpuPromises = containerCpuCharts.map(c => fetcher(c));
-    const containerMemPromises = containerMemCharts.map(c => fetcher(c));
-    const cpuCorePromises = cpuCoreCharts.map(c => fetcher(c));
-    const diskPromises = diskCharts.map(c => fetcher(c));
-    const netPromises = netCharts.map(c => fetcher(c));
-    const sensorPromises = sensorCharts.map(c => fetcher(c));
-
-    // Await All
-    // Await All
-    const [
-        cpuData, ramData, appsCpuData, appsMemData, uptimeData, infoData, functionsData, cpuFreqData,
-        nvidiaUtil, nvidiaMem, nvidiaTemp, intelRender,
-        ...rest
-    ] = await Promise.all([
-        cpuPromise, ramPromise, appsCpuPromise, appsMemPromise, uptimePromise, infoPromise, functionsPromise, cpuFreqPromise,
-        nvidiaUtilPromise, nvidiaMemPromise, nvidiaTempPromise, intelRenderPromise,
-        ...containerCpuPromises, 
-        ...containerMemPromises,
-        ...cpuCorePromises,
-        ...diskPromises,
-        ...netPromises,
-        ...sensorPromises
+    // Fetch info (cached 1 minute) and functions data in parallel
+    const [infoData, functionsData] = await Promise.all([
+        (isScopeActive('system') || isScopeActive('cpu')) ? fetchInfo(cleanUrl) : Promise.resolve(null),
+        fetchFunctionsData(cleanUrl, isScopeActive, processLimit)
     ]);
 
-    // Unpack Rest Array
-    let cursor = 0;
-    const containerCpuData = rest.slice(cursor, cursor + containerCpuCharts.length); cursor += containerCpuCharts.length;
-    const containerMemData = rest.slice(cursor, cursor + containerMemCharts.length); cursor += containerMemCharts.length;
-    const cpuCoreData = rest.slice(cursor, cursor + cpuCoreCharts.length); cursor += cpuCoreCharts.length;
-    const diskData = rest.slice(cursor, cursor + diskCharts.length); cursor += diskCharts.length;
-    const netData = rest.slice(cursor, cursor + netCharts.length); cursor += netCharts.length;
-    const sensorData = rest.slice(cursor, cursor + sensorCharts.length); cursor += sensorCharts.length;
-
-
-    // Execute Processors
-    const cpuTotal = processCpu(cpuData);
-    const memData = processMemory(ramData);
-    
-    // Process List needs memory total for percent calculation
+    // Process data
+    const cpuTotal = isScopeActive('cpu') ? processCpu(cpuData) : undefined;
+    const memData = (isScopeActive('ram') || isScopeActive('processes')) ? processMemory(ramData) : undefined;
     const memTotal = memData?.total || 0;
+    
     const processList = isScopeActive('processes') ? processProcesses(
         functionsData.processList, 
         appsCpuData, 
@@ -235,23 +223,111 @@ export async function POST(request: Request) {
     const systemInfo = processSystemInfo(infoData, uptimeData);
     const cpuModel = processCpuModel(infoData);
 
-    return NextResponse.json({
-      cpu: isScopeActive('cpu') ? cpuTotal : undefined,
-      cores: coresResult?.cores,
-      coresDataType: coresResult?.dataType,
-      gpus,
-      mem: (isScopeActive('ram') || isScopeActive('processes')) ? memData : undefined,
-      fs,
-      sensors,
-      processList,
-      network,
-      cpuModel,
-      systemInfo,
-      chartsError
-    });
 
-  } catch (error) {
-    console.error('Netdata API Error:', error);
-    return NextResponse.json({ error: 'Failed to connect to Netdata' }, { status: 500 });
-  }
+    return {
+        cpu: isScopeActive('cpu') ? cpuTotal : undefined,
+        cores: coresResult?.cores,
+        coresDataType: coresResult?.dataType,
+        gpus,
+        mem: (isScopeActive('ram') || isScopeActive('processes')) ? memData : undefined,
+        fs,
+        sensors,
+        processList,
+        network,
+        cpuModel,
+        systemInfo,
+        _strategy: 'allmetrics-filtered'
+    };
+}
+
+// ========================================
+// SSE Endpoint - GET /api/netdata/stream
+// ========================================
+export async function GET(request: Request) {
+    const url = new URL(request.url);
+    const integrationId = url.searchParams.get('integrationId');
+    const scopeParam = url.searchParams.get('scope');
+    const intervalParam = url.searchParams.get('interval');
+    const processLimitParam = url.searchParams.get('processLimit');
+    
+    const scopes = scopeParam ? scopeParam.split(',') : ['all'];
+    const interval = intervalParam ? parseInt(intervalParam, 10) : 2000;
+    const processLimit = processLimitParam ? parseInt(processLimitParam, 10) : 10;
+    
+    // Get Netdata URL
+    const netdataUrl = await getNetdataUrl(integrationId, null);
+    if (!netdataUrl) {
+        return new Response(JSON.stringify({ error: 'Integration not found' }), { 
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+    
+    const baseUrl = netdataUrl.startsWith('http') ? netdataUrl : `http://${netdataUrl}`;
+    const cleanUrl = baseUrl.replace(/\/$/, '');
+    
+    // Create SSE stream
+    const encoder = new TextEncoder();
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    const stream = new ReadableStream({
+        async start(controller) {
+            // Send initial data immediately
+            try {
+                const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+            } catch (e) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
+            }
+            
+            // Set up interval for subsequent updates
+            intervalId = setInterval(async () => {
+                try {
+                    const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+                } catch (e) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
+                }
+            }, interval);
+        },
+        cancel() {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        }
+    });
+    
+    return new Response(stream, {
+        headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+        },
+    });
+}
+
+// ========================================
+// POST Endpoint (legacy, for compatibility)
+// ========================================
+export async function POST(request: Request) {
+    try {
+        const { url: bodyUrl, processLimit = 10, scope } = await request.json();
+        const integrationId = request.headers.get('x-integration-id');
+        
+        const netdataUrl = await getNetdataUrl(integrationId, bodyUrl);
+        if (!netdataUrl) {
+            return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+        }
+        
+        const baseUrl = netdataUrl.startsWith('http') ? netdataUrl : `http://${netdataUrl}`;
+        const cleanUrl = baseUrl.replace(/\/$/, '');
+        
+        const requestedScopes = Array.isArray(scope) && scope.length > 0 ? scope : ['all'];
+        const data = await fetchNetdataData(cleanUrl, requestedScopes, processLimit);
+        
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Netdata API Error:', error);
+        return NextResponse.json({ error: 'Failed to connect to Netdata' }, { status: 500 });
+    }
 }
