@@ -54,39 +54,43 @@ export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Pr
   const data: RequestResponse = await res.json();
   const rawRequests = data.results || [];
 
-  if (!config?.url || !config?.apiKey) {
-    return rawRequests;
+  if (rawRequests.length === 0) {
+    return [];
   }
 
-  const detailsMap = new Map<string, MediaDetails>();
-  const fetchPromises: Promise<void>[] = [];
-  
+  // Extract unique movie and TV IDs
   const movieIds = [...new Set(rawRequests.filter(r => r.type === 'movie').map(r => r.media.tmdbId))];
   const tvIds = [...new Set(rawRequests.filter(r => r.type === 'tv').map(r => r.media.tmdbId))];
 
-  movieIds.forEach(id => {
-    fetchPromises.push(
-      fetch(`/api/jellyseerr?path=/movie/${id}`, {
-        headers: { 'x-jellyseerr-url': config.url!, 'x-jellyseerr-apikey': config.apiKey! }
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(details => { if (details) detailsMap.set(`movie-${id}`, details); })
-        .catch(() => {})
-    );
-  });
+  // Use batch endpoint to fetch all details at once
+  let detailsMap = new Map<string, MediaDetails>();
+  
+  if (movieIds.length > 0 || tvIds.length > 0) {
+    try {
+      const batchRes = await fetch('/api/jellyseerr/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify({ movies: movieIds, tvShows: tvIds })
+      });
 
-  tvIds.forEach(id => {
-    fetchPromises.push(
-      fetch(`/api/jellyseerr?path=/tv/${id}`, {
-        headers: { 'x-jellyseerr-url': config.url!, 'x-jellyseerr-apikey': config.apiKey! }
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(details => { if (details) detailsMap.set(`tv-${id}`, details); })
-        .catch(() => {})
-    );
-  });
-
-  await Promise.all(fetchPromises);
+      if (batchRes.ok) {
+        const batchData = await batchRes.json();
+        
+        // Populate details map from batch response
+        for (const [id, details] of Object.entries(batchData.movies || {})) {
+          detailsMap.set(`movie-${id}`, details as MediaDetails);
+        }
+        for (const [id, details] of Object.entries(batchData.tvShows || {})) {
+          detailsMap.set(`tv-${id}`, details as MediaDetails);
+        }
+      }
+    } catch (error) {
+      console.error('Batch fetch failed, falling back to no details:', error);
+    }
+  }
 
   return rawRequests.map(req => {
     const key = `${req.type}-${req.media.tmdbId}`;
@@ -94,6 +98,7 @@ export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Pr
     return details ? { ...req, details } : req;
   });
 }
+
 
 export async function manageJellyseerrRequest(
   requestId: number, 

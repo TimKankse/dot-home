@@ -67,7 +67,6 @@ export const PortainerWidget: React.FC<PortainerWidgetProps> = ({ isEditing = fa
       <div className={styles.widgetContainer}>
         <div className={styles.header}>
           <div className="flex items-center gap-2">
-            <Container size={20} color="var(--accent-blue)" />
             <span className="font-display">Portainer Config</span>
           </div>
         </div>

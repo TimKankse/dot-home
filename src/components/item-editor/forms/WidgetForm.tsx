@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FormProps } from '../types';
 import styles from '../ItemEditorDialog.module.css';
 import { IconSelector } from '../../ui/IconSelector';
@@ -56,10 +56,12 @@ export const WidgetForm: React.FC<FormProps> = ({
 }) => {
   const [name, setName] = useState(initialData?.name || '');
   const [iconUrl, setIconUrl] = useState(initialData?.iconUrl || '');
+  
+  // Single source of truth: config.integrationId
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [config, setConfig] = useState<Record<string, any>>(() => {
     const baseConfig = initialData?.config || {};
-    // If we have a top-level integration ID, inject it into config so UI components see it immediately
+    // Inject top-level integrationId into config for widget components
     if (initialData?.integrationId) {
       return {
         ...baseConfig,
@@ -68,43 +70,41 @@ export const WidgetForm: React.FC<FormProps> = ({
     }
     return baseConfig;
   });
-  const [integrationId, setIntegrationId] = useState(initialData?.integrationId || '');
+  
+  // Track last synced integration to avoid re-syncing on every render
+  const lastSyncedIntegrationId = useRef<string | null>(null);
   const [syncConfig, setSyncConfig] = useState(initialData?.syncConfig ?? true);
 
   const widgetType = selectedType || initialData?.widgetType || 'clock';
   const { integrations } = useIntegrationStore();
 
-
   const availableIntegrations = integrations;
 
+  // Sync integration config ONLY when integrationId changes to a NEW non-empty value
   useEffect(() => {
-    // Determine the active integration ID (prefer config-level, fallback to form-level)
-    // This handles both new widget-specific selectors and legacy/generic selections
-    const targetIntegrationId = config.integrationId || integrationId;
-
-    if (targetIntegrationId) {
-      const integration = integrations.find(i => i.id === targetIntegrationId);
-      if (integration && integration.config) {
-        // When integration changes, propagate its configuration to the widget config
-        // effectively pre-filling or syncing the connection details
-        setConfig(prev => {
-          // Check if we actually need to update to avoid infinite loops
-          const hasChanges = Object.entries(integration.config).some(
-            ([key, value]) => prev[key] !== value
-          );
-
-          if (!hasChanges) return prev;
-
-          return {
-            ...prev,
-            ...integration.config,
-            // Ensure we preserve the ID that triggered this
-            integrationId: targetIntegrationId 
-          };
-        });
+    const currentIntegrationId = config.integrationId || '';
+    
+    // Skip if: no integration selected, or we already synced this ID
+    if (!currentIntegrationId || lastSyncedIntegrationId.current === currentIntegrationId) {
+      // If cleared, update tracking but don't sync
+      if (!currentIntegrationId) {
+        lastSyncedIntegrationId.current = '';
       }
+      return;
     }
-  }, [config.integrationId, integrationId, integrations]);
+    
+    const integration = integrations.find(i => i.id === currentIntegrationId);
+    if (integration && integration.config) {
+      // Mark as synced BEFORE updating to prevent loops
+      lastSyncedIntegrationId.current = currentIntegrationId;
+      
+      setConfig(prev => ({
+        ...prev,
+        ...integration.config,
+        integrationId: currentIntegrationId
+      }));
+    }
+  }, [config.integrationId, integrations]);
 
   useEffect(() => {
     onValidityChange?.(true);
@@ -112,18 +112,12 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Extract integrationId from config if present (e.g. from specific widget forms)
-    // This supports the new pattern where widgets manage their own integration selection
-    const configIntegrationId = config.integrationId; 
+    // Extract integrationId from config (single source of truth)
+    const finalIntegrationId = config.integrationId || '';
     
-    // If we have an integrationId in the config, we want to lift it to the top level
-    // and remove it from the config blob to avoid duplication/confusion
-    const finalIntegrationId = configIntegrationId || integrationId;
-    
+    // Remove integrationId from config blob to avoid duplication
     const finalConfig = { ...config };
-    if (configIntegrationId) {
-      delete finalConfig.integrationId;
-    }
+    delete finalConfig.integrationId;
 
     // specific dimensions logic
     let finalW = initialData?.w;
@@ -159,17 +153,24 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const ConfigComponent = CONFIG_COMPONENTS[widgetType];
 
-  const getCurrentStateObject = () => ({
-    name,
-    type: 'widget',
-    widgetType,
-    iconUrl,
-    integrationId: integrationId || undefined,
-    syncConfig,
-    config,
-    w: initialData?.w || 1,
-    h: initialData?.h || 1
-  });
+  const getCurrentStateObject = () => {
+    // Create a clean config without integrationId (it goes at top level)
+    const cleanConfig = { ...config };
+    const effectiveIntegrationId = cleanConfig.integrationId || '';
+    delete cleanConfig.integrationId;
+    
+    return {
+      name,
+      type: 'widget',
+      widgetType,
+      iconUrl,
+      integrationId: effectiveIntegrationId || undefined,
+      syncConfig,
+      config: cleanConfig,
+      w: initialData?.w || 1,
+      h: initialData?.h || 1
+    };
+  };
 
 
 
@@ -231,8 +232,23 @@ export const WidgetForm: React.FC<FormProps> = ({
             onUpdate={(parsed) => {
               if (typeof parsed.name === 'string') setName(parsed.name);
               if (typeof parsed.iconUrl === 'string') setIconUrl(parsed.iconUrl);
-              if (typeof parsed.integrationId === 'string') setIntegrationId(parsed.integrationId);
-              if (parsed.config && typeof parsed.config === 'object') setConfig(parsed.config as Record<string, unknown>);
+              // Handle integrationId from YAML - update config.integrationId (single source of truth)
+              if ('integrationId' in parsed) {
+                const rawId = parsed.integrationId;
+                const newId = typeof rawId === 'string' ? rawId : '';
+                setConfig(prev => ({
+                  ...prev,
+                  integrationId: newId || undefined
+                }));
+              }
+              if (parsed.config && typeof parsed.config === 'object') {
+                // Merge YAML config
+                const yamlConfig = parsed.config as Record<string, unknown>;
+                setConfig(prev => ({
+                  ...prev,
+                  ...yamlConfig
+                }));
+              }
             }}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formStyles={styles as any}

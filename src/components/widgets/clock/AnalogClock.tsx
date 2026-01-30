@@ -239,65 +239,150 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
         // For dynamic mode, only show hour hand position
         const currentHour = Math.round((h % 12) + m / 60) || 12;
         
-        for (let i = 0; i < 60; i++) {
-            const isHour = i % 5 === 0;
-            const angle = (i * 6 - 90) * Math.PI / 180; // -90 to start at 12 o'clock
+        // All 12 hour positions (minute indices: 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+        const hourMinutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+        const cardinalMinutes = [0, 15, 30, 45];
+        
+        // Handle cardinal positions first (12, 3, 6, 9)
+        for (const cardinalMin of cardinalMinutes) {
+            const angle = (cardinalMin * 6 - 90) * Math.PI / 180;
+            const hourNum = cardinalMin === 0 ? 12 : cardinalMin / 5;
+            const x = centerX + Math.cos(angle) * (clockRadius - 8);
+            const y = centerY + Math.sin(angle) * (clockRadius - 8);
             
-            if (isHour) {
-                // Hour markers
-                const hourNum = i / 5 === 0 ? 12 : i / 5;
-                const isCardinal = i % 15 === 0;
+            // Determine if this position should show a number
+            let showNumber = false;
+            if (classicDigits === 'all' || classicDigits === 'cardinal') {
+                showNumber = true;
+            } else if (classicDigits === 'dynamic') {
+                showNumber = (hourNum === currentHour);
+            }
+            // 'none' mode: showNumber stays false
+            
+            if (showNumber) {
+                const fontSize = minDim * 0.11;
+                numbers.push(
+                    <text
+                        key={`num-${cardinalMin}`}
+                        x={x}
+                        y={y}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={fontSize}
+                        fontFamily="var(--font-display)"
+                        fill="var(--text-primary)"
+                        fontWeight="800"
+                    >
+                        {hourNum}
+                    </text>
+                );
+            } else {
+                // Show tick for cardinal positions
+                ticks.push(
+                    <circle
+                        key={`tick-${cardinalMin}`}
+                        cx={x}
+                        cy={y}
+                        r={5}
+                        fill="var(--text-primary)"
+                    />
+                );
+            }
+        }
+        
+        // For 'none' and 'cardinal' modes: 3 evenly spaced ticks between each cardinal
+        if (classicDigits === 'none' || classicDigits === 'cardinal') {
+            const tickPositions = [
+                3.75, 7.5, 11.25,    // Between 12 and 3
+                18.75, 22.5, 26.25,  // Between 3 and 6
+                33.75, 37.5, 41.25,  // Between 6 and 9
+                48.75, 52.5, 56.25   // Between 9 and 12
+            ];
+            
+            for (const pos of tickPositions) {
+                const angle = (pos * 6 - 90) * Math.PI / 180;
+                const x = centerX + Math.cos(angle) * (clockRadius - 8);
+                const y = centerY + Math.sin(angle) * (clockRadius - 8);
                 
-                // Determine if this position should show a number
-                let showNumber = false;
-                if (classicDigits === 'all') {
-                    showNumber = true;
-                } else if (classicDigits === 'cardinal') {
-                    showNumber = isCardinal;
-                } else if (classicDigits === 'dynamic') {
-                    // Show number only for hour hand position
-                    showNumber = (hourNum === currentHour);
-                }
+                ticks.push(
+                    <circle
+                        key={`tick-${pos}`}
+                        cx={x}
+                        cy={y}
+                        r={3}
+                        fill="var(--text-muted)"
+                    />
+                );
+            }
+        } else if (classicDigits === 'all') {
+            // Show non-cardinal hour numbers
+            for (const hourMin of hourMinutes) {
+                if (cardinalMinutes.includes(hourMin)) continue; // Cardinals already handled
                 
-                if (showNumber) {
-                    // Show number, no tick
-                    const numX = centerX + Math.cos(angle) * (clockRadius - 8);
-                    const numY = centerY + Math.sin(angle) * (clockRadius - 8);
-                    // Use larger font size for cardinal or dynamic digits
-                    const fontSize = (isCardinal || classicDigits === 'dynamic') 
-                        ? minDim * 0.11 
-                        : minDim * 0.08;
-                    // Use heavier weight for cardinal numbers
-                    const fontWeight = isCardinal ? '800' : '500';
+                const angle = (hourMin * 6 - 90) * Math.PI / 180;
+                const hourNum = hourMin / 5;
+                const x = centerX + Math.cos(angle) * (clockRadius - 8);
+                const y = centerY + Math.sin(angle) * (clockRadius - 8);
+                
+                numbers.push(
+                    <text
+                        key={`num-${hourMin}`}
+                        x={x}
+                        y={y}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={minDim * 0.08}
+                        fontFamily="var(--font-display)"
+                        fill="var(--text-primary)"
+                        fontWeight="500"
+                    >
+                        {hourNum}
+                    </text>
+                );
+            }
+        } else if (classicDigits === 'dynamic') {
+            // Show ticks at non-current, non-cardinal hour positions
+            for (const hourMin of hourMinutes) {
+                const hourNum = hourMin === 0 ? 12 : hourMin / 5;
+                const isCardinal = cardinalMinutes.includes(hourMin);
+                
+                // Skip cardinals (already handled) and current hour (showing number if it's there)
+                if (isCardinal) continue;
+                
+                // If this is the current hour, show number instead of tick
+                if (hourNum === currentHour) {
+                    const angle = (hourMin * 6 - 90) * Math.PI / 180;
+                    const x = centerX + Math.cos(angle) * (clockRadius - 8);
+                    const y = centerY + Math.sin(angle) * (clockRadius - 8);
                     
                     numbers.push(
                         <text
-                            key={`num-${i}`}
-                            x={numX}
-                            y={numY}
+                            key={`num-${hourMin}`}
+                            x={x}
+                            y={y}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            fontSize={fontSize}
+                            fontSize={minDim * 0.11}
                             fontFamily="var(--font-display)"
                             fill="var(--text-primary)"
-                            fontWeight={fontWeight}
+                            fontWeight="500"
                         >
                             {hourNum}
                         </text>
                     );
                 } else {
-                    // Show tick (no number)
+                    // Show tick
+                    const angle = (hourMin * 6 - 90) * Math.PI / 180;
                     const x = centerX + Math.cos(angle) * (clockRadius - 8);
                     const y = centerY + Math.sin(angle) * (clockRadius - 8);
-                    const tickRadius = (i % 15 === 0) ? 5 : 3; // Quarterly ticks larger
                     
                     ticks.push(
                         <circle
-                            key={`tick-${i}`}
+                            key={`tick-hour-${hourMin}`}
                             cx={x}
                             cy={y}
-                            r={tickRadius}
-                            fill="var(--text-primary)"
+                            r={3}
+                            fill="var(--text-muted)"
                         />
                     );
                 }

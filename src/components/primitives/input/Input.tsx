@@ -1,5 +1,6 @@
 import React, { InputHTMLAttributes } from 'react';
 import styles from './Input.module.css';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   leftIcon?: React.ReactNode;
@@ -10,6 +11,11 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, leftIcon, rightIcon, error, label, ...props }, ref) => {
+    const [showPassword, setShowPassword] = React.useState(false);
+    const isPassword = props.type === 'password';
+    const inputType = isPassword ? (showPassword ? 'text' : 'password') : props.type;
+    const hasRightElement = rightIcon || isPassword;
+
     return (
       <div className={styles.container}>
         {label && <label className={styles.label}>{label}</label>}
@@ -24,13 +30,25 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className={`
               ${styles.input} 
               ${leftIcon ? styles.hasLeftIcon : ''} 
-              ${rightIcon ? styles.hasRightIcon : ''}
+              ${hasRightElement ? styles.hasRightIcon : ''}
               ${error ? styles.errorInput : ''}
               ${className || ''}
             `}
             {...props}
+            type={inputType}
           />
-          {rightIcon && <div className={styles.rightIcon}>{rightIcon}</div>}
+          {isPassword ? (
+            <button
+              type="button"
+              className={styles.passwordToggle}
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          ) : (
+            rightIcon && <div className={styles.rightIcon}>{rightIcon}</div>
+          )}
         </div>
         {error && <span className={styles.errorText}>{error}</span>}
       </div>

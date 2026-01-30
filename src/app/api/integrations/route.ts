@@ -156,9 +156,24 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Encrypt sensitive fields in config
-    const encryptedConfig = config
-      ? encryptSensitiveFields(config)
+    // Check for masked values ('********') and restore them from existing config
+    // The GET endpoint masks sensitive values with '********'
+    // If the user didn't change them, they come back as '********'
+    const processedConfig = { ...config };
+    const existingConfigEncrypted = JSON.parse(existing.config);
+
+    if (processedConfig) {
+      Object.keys(processedConfig).forEach((key) => {
+        // If value is masked, try to restore from existing encrypted config
+        if (processedConfig[key] === '********' && existingConfigEncrypted[key]) {
+          processedConfig[key] = existingConfigEncrypted[key];
+        }
+      });
+    }
+
+    // Encrypt sensitive fields (will skip already encrypted values starting with enc:)
+    const encryptedConfig = processedConfig
+      ? encryptSensitiveFields(processedConfig)
       : JSON.parse(existing.config);
 
     const updated = await prisma.integration.update({

@@ -67,8 +67,11 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const initializedRef = useRef(false);
-  // Capture initial state on first render to avoid reinitializing on every change
-  const initialStateRef = useRef(currentState);
+  // Track current state for syncing - always use latest value
+  const currentStateRef = useRef(currentState);
+  currentStateRef.current = currentState;
+  // Track last synced content to avoid unnecessary updates
+  const lastSyncedRef = useRef<string>('');
 
   // Use a ref for the change handler to avoid recreating the editor
   const handleChangeRef = useRef<((val: string) => void) | undefined>(undefined);
@@ -85,13 +88,34 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
     }
   };
 
-  // Initialize CodeMirror when tab becomes active
+  // Stable string representation of current state for comparison
+  const currentStateJson = JSON.stringify(currentState);
+  const currentStateJsonRef = useRef(currentStateJson);
+
+  // Initialize CodeMirror when tab becomes active, sync when state changes
   useEffect(() => {
-    if (!isActive || !editorRef.current || initializedRef.current) return;
+    if (!isActive || !editorRef.current) return;
 
     try {
-      const yamlContent = dump(initialStateRef.current);
+      const yamlContent = dump(currentStateRef.current);
       
+      // If editor exists, sync content with current form state
+      if (viewRef.current && initializedRef.current) {
+        const currentDoc = viewRef.current.state.doc.toString();
+        // Only update if content actually differs and form state changed (avoid cursor jump)
+        if (currentStateJsonRef.current !== currentStateJson) {
+          currentStateJsonRef.current = currentStateJson;
+          if (currentDoc !== yamlContent) {
+            viewRef.current.dispatch({
+              changes: { from: 0, to: currentDoc.length, insert: yamlContent }
+            });
+            lastSyncedRef.current = yamlContent;
+          }
+        }
+        return;
+      }
+
+      // First-time initialization
       const state = EditorState.create({
         doc: yamlContent,
         extensions: [
@@ -101,7 +125,10 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
           syntaxHighlighting(customHighlight),
           EditorView.updateListener.of((update: { docChanged: boolean; state: EditorState }) => {
             if (update.docChanged) {
-              handleChangeRef.current?.(update.state.doc.toString());
+              const newContent = update.state.doc.toString();
+              lastSyncedRef.current = newContent;
+              currentStateJsonRef.current = ''; // Mark as needing sync from editor
+              handleChangeRef.current?.(newContent);
             }
           }),
         ]
@@ -112,6 +139,8 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
         parent: editorRef.current
       });
       
+      lastSyncedRef.current = yamlContent;
+      currentStateJsonRef.current = currentStateJson;
       initializedRef.current = true;
     } catch {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -123,10 +152,11 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
         viewRef.current.destroy();
         viewRef.current = null;
         initializedRef.current = false;
+        lastSyncedRef.current = '';
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]); // Only reinitialize when tab activation changes
+  }, [isActive, currentStateJson]); // Sync when tab becomes active OR state changes
 
   if (!isActive) return null;
 

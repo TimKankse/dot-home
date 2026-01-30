@@ -66,6 +66,27 @@
   right: 0;
 }
 
+.passwordToggle {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  height: 100%;
+  width: 36px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: color 0.2s ease;
+  z-index: 2;
+}
+
+.passwordToggle:hover {
+  color: var(--text-main);
+}
+
 .errorText {
   color: var(--accent-red);
   font-size: 0.8rem;

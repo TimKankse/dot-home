@@ -118,7 +118,6 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
       <div className={styles.widgetContainer}>
         <div className={styles.header}>
           <div className={styles.headerTitle}>
-            <Activity size={20} color="var(--accent-blue)" />
             <span className="font-display">Netdata Config</span>
           </div>
         </div>

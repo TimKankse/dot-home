@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import styles from './SabnzbdWidget.module.css';
-import { Download, Clock, CheckCircle, Pause, Play } from 'lucide-react';
+import { Download, Clock, CheckCircle, Pause, Play, AlertCircle } from 'lucide-react';
 import { List } from '@/components/primitives/list/List';
 import { 
   fetchSabnzbdQueue, 
@@ -55,6 +55,17 @@ export function SabnzbdWidget({ config, integrationId }: SabnzbdWidgetProps) {
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
   }, [loadData]);
+
+  if ((!config?.url || !config?.apiKey) && !integrationId) {
+    return (
+      <div className={styles.widgetContainer}>
+        <div className={styles.emptyState}>
+          <AlertCircle size={24} color="var(--accent-red)" />
+          <span>Configure Widget</span>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !data) {
     return <div className={styles.emptyState}>Loading...</div>;

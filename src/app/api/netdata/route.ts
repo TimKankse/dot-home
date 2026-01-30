@@ -244,21 +244,22 @@ async function fetchNetdataData(cleanUrl: string, requestedScopes: string[], pro
 // SSE Endpoint - GET /api/netdata/stream
 // ========================================
 export async function GET(request: Request) {
-    const url = new URL(request.url);
-    const integrationId = url.searchParams.get('integrationId');
-    const scopeParam = url.searchParams.get('scope');
-    const intervalParam = url.searchParams.get('interval');
-    const processLimitParam = url.searchParams.get('processLimit');
+    const reqUrl = new URL(request.url);
+    const integrationId = reqUrl.searchParams.get('integrationId');
+    const directUrl = reqUrl.searchParams.get('url');
+    const scopeParam = reqUrl.searchParams.get('scope');
+    const intervalParam = reqUrl.searchParams.get('interval');
+    const processLimitParam = reqUrl.searchParams.get('processLimit');
     
     const scopes = scopeParam ? scopeParam.split(',') : ['all'];
     const interval = intervalParam ? parseInt(intervalParam, 10) : 2000;
     const processLimit = processLimitParam ? parseInt(processLimitParam, 10) : 10;
     
-    // Get Netdata URL
-    const netdataUrl = await getNetdataUrl(integrationId, null);
+    // Get Netdata URL (direct URL takes precedence over integration lookup)
+    const netdataUrl = await getNetdataUrl(integrationId, directUrl);
     if (!netdataUrl) {
-        return new Response(JSON.stringify({ error: 'Integration not found' }), { 
-            status: 404,
+        return new Response(JSON.stringify({ error: 'URL or integration required' }), { 
+            status: 400,
             headers: { 'Content-Type': 'application/json' }
         });
     }
