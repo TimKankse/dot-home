@@ -18,20 +18,18 @@ export const useAutoSave = () => {
   useEffect(() => {
     if (!isLoaded) return;
     
-    // Skip the first render to avoid saving immediately on load
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
 
-    // Always auto-save since autoSave setting was removed
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
     timeoutRef.current = setTimeout(() => {
       saveConfig();
-    }, 1000); // 1 second debounce
+    }, 1000);
 
     return () => {
       if (timeoutRef.current) {

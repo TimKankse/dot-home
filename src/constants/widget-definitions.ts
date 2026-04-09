@@ -64,6 +64,15 @@ export const WIDGET_DEFINITIONS: Record<string, WidgetDefinition> = {
   search: {
     minW: 2,
     minH: 1
+  },
+  section: {
+    minW: 1,
+    minH: 1,
+    variantKey: 'variant',
+    variations: {
+      default: { minW: 4, minH: 2 },
+      folder:  { minW: 2, minH: 2 }
+    }
   }
 };
 

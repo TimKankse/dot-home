@@ -3,8 +3,8 @@ import type { CityData } from '@/types';
 import { mapOwmCodeToWmo } from '@/components/widgets/weather/utils';
 
 export interface WeatherFetchParams {
-  location?: string; // Legacy string location
-  cityData?: CityData; // New structured city data
+  location?: string; 
+  cityData?: CityData;
   apiKey?: string;
   unit: 'metric' | 'imperial';
   view: 'current' | 'daily' | 'weekly';
@@ -52,21 +52,14 @@ async function geocodeLocation(location: string): Promise<{ lat: number; lon: nu
   return { lat: 59.3293, lon: 18.0686 }; // Default: Stockholm
 }
 
-/**
- * Resolve coordinates from params - uses CityData if available, falls back to geocoding
- */
 async function resolveCoordinates(params: WeatherFetchParams): Promise<{ lat: number; lon: number }> {
-  // Prefer structured CityData with coordinates
   if (params.cityData?.latitude && params.cityData?.longitude) {
     return { lat: params.cityData.latitude, lon: params.cityData.longitude };
   }
   
-  // Fall back to geocoding legacy string location
   if (params.location) {
     return geocodeLocation(params.location);
   }
-  
-  // Default to Stockholm
   return { lat: 59.3293, lon: 18.0686 };
 }
 

@@ -26,13 +26,9 @@ export const ShortcutsSettings: React.FC = () => {
       e.preventDefault();
       e.stopPropagation();
 
-      // Detect modifiers
       const parts = [];
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
-      // Normalize modifiers based on platform
-      // Mac: Cmd -> Mod, Ctrl -> Ctrl
-      // PC: Ctrl -> Mod, Meta -> Meta (Win key)
       if (isMac) {
         if (e.metaKey) parts.push('Mod');
         if (e.ctrlKey) parts.push('Ctrl');
@@ -44,17 +40,14 @@ export const ShortcutsSettings: React.FC = () => {
       if (e.altKey) parts.push('Alt');
       if (e.shiftKey) parts.push('Shift');
 
-      // Get key
       let key = e.key;
       
-      // Normalize arrow keys
-      if (key === 'ArrowLeft') key = 'ArrowLeft'; // Hook expects ArrowLeft
+      if (key === 'ArrowLeft') key = 'ArrowLeft';
       if (key === 'ArrowRight') key = 'ArrowRight';
       if (key === 'ArrowUp') key = 'ArrowUp';
       if (key === 'ArrowDown') key = 'ArrowDown';
       if (key === ' ') key = 'Space';
       
-      // Don't bind just modifiers
       if (['Control', 'Alt', 'Shift', 'Meta'].includes(key)) return;
 
       key = getNormalizedKey(e);

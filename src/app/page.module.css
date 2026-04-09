@@ -6,6 +6,7 @@
   max-width: 1200px;
   margin: 0 auto;
   box-sizing: border-box;
+  position: relative;
   /* padding-top handled dynamically via JS */
 }
 
@@ -60,6 +61,7 @@
 
 /* Individual page container */
 .pageContainer {
+  position: relative;
   width: 100%;
   height: 100dvh;
   overflow-x: hidden;

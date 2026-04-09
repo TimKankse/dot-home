@@ -7,9 +7,10 @@ import { NetdataApiResponse } from '@/app/api/netdata/types';
 interface RamVariationProps {
     data: NetdataApiResponse;
     history: number[];
+    title?: string;
 }
 
-export const RamVariation: React.FC<RamVariationProps> = ({ data, history }) => {
+export const RamVariation: React.FC<RamVariationProps> = ({ data, history, title }) => {
     if (!data.mem) {
         return (
             <div className={styles.widgetContainer}>
@@ -23,7 +24,7 @@ export const RamVariation: React.FC<RamVariationProps> = ({ data, history }) => 
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>RAM USAGE</span>
+                <span className={styles.widgetTitle}>{title || 'RAM USAGE'}</span>
             </div>
             <div className={styles.ramContent}>
                 <div className={styles.ramGraphContainer}>

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
+import { CustomDragGhost } from "@/components/core/CustomDragGhost";
 import { UIControls } from "@/components/ui/UIControls";
 import { ItemEditorDialog } from "@/components/item-editor/ItemEditorDialog";
 import { SettingsModal } from '@/components/settings/SettingsModal';
@@ -14,6 +15,7 @@ import { usePageStore } from "@/store/usePageStore";
 import { PageIndicators } from "@/components/ui/PageIndicators";
 import { useScrollNavigation } from "@/hooks/useScrollNavigation";
 import { useResponsiveState } from "@/hooks/useResponsiveState";
+import { useShortcutDragController } from "@/hooks/useShortcutDragController";
 import { useWidgetManager } from "@/hooks/useWidgetManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { getResponsiveLayout } from "@/utils/gridUtils";
@@ -21,7 +23,7 @@ import { NewWidgetInput } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
 
 import { Widget } from "@/types/widget";
-import { WIDGET_DEFINITIONS, getMinDimensions } from "@/constants/widget-definitions";
+import { getMinDimensions } from "@/constants/widget-definitions";
 import { getGridDimensions } from "@/constants/grid";
 
 interface DashboardPageContentProps {
@@ -32,8 +34,9 @@ interface DashboardPageContentProps {
   className: string;
   isEditing: boolean;
   canEditDashboard: boolean;
-  handleLayoutChange: (layout: any) => void;
+  handleLayoutChange: (layout: { i?: string; x?: number; y?: number; w?: number; h?: number }[]) => void;
   handleBreakpointChange: (bp: string, cols: number) => void;
+  handleWidgetDragStop: (widgetId: string, mouseX: number, mouseY: number) => void;
   handleEditWidget: (w: Widget) => void;
   showWidgetNames: boolean;
   rowHeight: number;
@@ -52,6 +55,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   canEditDashboard,
   handleLayoutChange,
   handleBreakpointChange,
+  handleWidgetDragStop,
   handleEditWidget,
   showWidgetNames,
   rowHeight,
@@ -85,10 +89,12 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
         style={{ paddingTop: `${paddingTop}px` }}
     >
       <DashboardGrid 
+        pageId={pageId}
         items={widgets}
         isEditing={isEditing && canEditDashboard} 
         onLayoutChange={handleLayoutChange} 
         onBreakpointChange={handleBreakpointChange}
+        onWidgetDragStop={handleWidgetDragStop}
         rowHeight={rowHeight}
         gap={gapSize}
         gs-no-move={(!isEditing || !canEditDashboard) ? "true" : "false"}
@@ -115,6 +121,8 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
             gs-min-h={minH}
             data-gs-min-w={minW}
             data-gs-min-h={minH}
+            data-widget-type={widget.type}
+            data-widget-id={widget.id}
           >
             <div className="grid-stack-item-content">
               <WidgetRenderer 
@@ -122,13 +130,13 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
                 isEditing={isEditing}
                 canEditDashboard={canEditDashboard}
                 onEdit={handleEditWidget}
-                showTitle={showWidgetNames}
+                showWidgetNames={showWidgetNames}
               />
             </div>
           </div>
         );
       })}
-      </DashboardGrid>
+    </DashboardGrid>
     </div>
   );
 };
@@ -146,7 +154,7 @@ export default function Home() {
   } = usePersistenceStore();
 
   // Widget store
-  const { widgets, updateLayout, updateWidget } = useWidgetStore();
+  const { widgets, updateLayout, moveShortcut } = useWidgetStore();
 
   // Page store
   const {
@@ -157,7 +165,6 @@ export default function Home() {
     setPageIndex
   } = usePageStore();
 
-  // Custom hooks - Moved up to fix ReferenceError
   const {
     isMobile,
     isMedium,
@@ -198,8 +205,18 @@ export default function Home() {
     };
     
     window.addEventListener('grid-appearance-change', handleChange as EventListener);
-    return () => window.removeEventListener('grid-appearance-change', handleChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('grid-appearance-change', handleChange as EventListener);
+    };
   }, []);
+
+  // Sync grid settings to CSS variables on root so Portals (Modals) inherit them
+  useEffect(() => {
+    document.documentElement.style.setProperty('--widget-radius', `${borderRadius}px`);
+    document.documentElement.style.setProperty('--row-height', `${rowHeight}px`);
+    document.documentElement.style.setProperty('--gap-size', `${gapSize}px`);
+  }, [borderRadius, rowHeight, gapSize]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -227,7 +244,29 @@ export default function Home() {
     isModalOpen: isAddModalOpen || isSettingsOpen
   });
 
+  // Listen for widget edit requests (e.g. from shortcuts inside sections)
+  useEffect(() => {
+    const handleWidgetEdit = (e: Event) => {
+      const customEvent = e as CustomEvent<{ widget?: Widget; widgetId?: string }>;
+      const eventWidget = customEvent.detail?.widget;
+      const widgetId = customEvent.detail?.widgetId;
+      const resolvedWidget = eventWidget ?? (widgetId
+        ? widgets.find(widget => widget.id === widgetId)
+        : undefined);
+
+      if (resolvedWidget) {
+        handleEditWidget(resolvedWidget);
+      }
+    };
+
+    window.addEventListener('widget-edit', handleWidgetEdit);
+    return () => {
+      window.removeEventListener('widget-edit', handleWidgetEdit);
+    };
+  }, [handleEditWidget, widgets]);
+
   useAutoSave();
+  useShortcutDragController(isEditing);
 
   const effectiveScrollDirection = (isMedium || isMobile) ? 'horizontal' : scrollDirection;
 
@@ -261,10 +300,63 @@ export default function Home() {
     }
   };
 
+  // When a widget drag ends, check if a shortcut was dropped over a section
+  const handleWidgetDragStop = (widgetId: string, mouseX: number, mouseY: number) => {
+    if (!isEditing) return;
 
+    const draggedWidget = widgets.find(w => w.id === widgetId);
+    if (!draggedWidget || draggedWidget.type !== 'shortcut') return;
+
+    const elementsUnderMouse = document.elementsFromPoint(mouseX, mouseY);
+    
+    for (const el of elementsUnderMouse) {
+      const sectionEl = (el as HTMLElement).closest('[data-widget-type="section"]');
+      if (sectionEl && sectionEl !== el.closest(`[data-widget-id="${widgetId}"]`)) {
+        const sectionId = sectionEl.getAttribute('data-widget-id');
+        if (!sectionId) continue;
+
+        const section = widgets.find(w => w.id === sectionId);
+        if (!section) continue;
+
+        const sectionConfig = (section.config || {}) as Record<string, unknown>;
+        const existingShortcutIds = (sectionConfig.shortcutIds as string[]) || [];
+
+        if (existingShortcutIds.includes(widgetId)) return;
+
+        // Read the placeholder index set by useSectionDrag on the section grid
+        const gridEl = sectionEl.querySelector('[data-placeholder-index]');
+        const placeholderIdx = gridEl ? parseInt((gridEl as HTMLElement).dataset.placeholderIndex!, 10) : null;
+
+        let insertIdx = placeholderIdx ?? existingShortcutIds.length;
+        insertIdx = Math.max(0, Math.min(insertIdx, existingShortcutIds.length));
+        
+        moveShortcut(widgetId, {
+          container: {
+            type: 'section',
+            sectionId,
+          },
+          index: insertIdx,
+        });
+
+        return;
+      }
+    }
+  };
 
   const getWidgetsForPage = (pageId: string) => {
-    const pageWidgets = widgets.filter(w => w.pageId === pageId);
+    // Collect IDs of shortcuts that are inside sections
+    const hiddenShortcutIds = new Set<string>();
+    widgets.forEach(w => {
+      if (w.type === 'section' && w.config?.shortcutIds) {
+        (w.config.shortcutIds as string[]).forEach(id => hiddenShortcutIds.add(id));
+      }
+    });
+
+    // Filter widgets: match pageId AND not in hidden set
+    const pageWidgets = widgets.filter(w => 
+      w.pageId === pageId && !hiddenShortcutIds.has(w.id)
+    );
+
     if (isMobile) {
       return getResponsiveLayout(pageWidgets, 2);
     }
@@ -318,6 +410,7 @@ export default function Home() {
                 canEditDashboard={canEditDashboard}
                 handleLayoutChange={handleLayoutChange}
                 handleBreakpointChange={handleBreakpointChange}
+                handleWidgetDragStop={handleWidgetDragStop}
                 handleEditWidget={handleEditWidget}
                 showWidgetNames={showWidgetNames}
                 rowHeight={rowHeight}
@@ -358,6 +451,7 @@ export default function Home() {
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
       />
+      <CustomDragGhost />
     </main>
   );
 }

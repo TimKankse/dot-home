@@ -147,45 +147,19 @@ export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: 
     return () => clearInterval(intervalId);
   }, [url, internalUrl, isSelfHosted, name]);
 
-  return (
-    <Link 
-      href={url} 
-      target="_blank" 
-      rel="noopener noreferrer" 
-      className={styles.widgetContainer}
-      draggable={false}
-      onDragStart={(e) => e.preventDefault()}
-      onClick={(e) => {
-        if (isEditing) {
-          e.preventDefault();
-        }
-      }}
-      style={{ cursor: isEditing ? 'default' : 'pointer', position: 'relative' }}
-    >
+  const content = (
+    <>
       {isEditing && <DragHandles />}
       {isEditing && onEdit && (
         <button 
-          className="nodrag"
+          type="button"
+          className={`${styles.settingsButton} nodrag`}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onEdit();
           }}
-          style={{
-            position: 'absolute',
-            top: '4px',
-            left: '4px',
-            zIndex: 20,
-            background: 'rgba(0,0,0,0.6)',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '4px',
-            cursor: 'pointer',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          aria-label={`Edit ${name}`}
         >
           <Settings size={14} />
         </button>
@@ -207,6 +181,33 @@ export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: 
       </div>
       
       <span className={styles.label}>{name}</span>
+    </>
+  );
+
+  if (isEditing) {
+    return (
+      <div
+        className={styles.widgetContainer}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+        style={{ cursor: 'default', position: 'relative' }}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link 
+      href={url} 
+      target="_blank" 
+      rel="noopener noreferrer" 
+      className={styles.widgetContainer}
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      style={{ cursor: 'pointer', position: 'relative' }}
+    >
+      {content}
     </Link>
   );
 };

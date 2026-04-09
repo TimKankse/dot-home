@@ -166,6 +166,15 @@ export interface ShortcutWidgetConfig {
 }
 
 // ============================================================================
+// Section Widget
+// ============================================================================
+export interface SectionWidgetConfig {
+  variant?: 'default' | 'folder';
+  title?: string;
+  shortcutIds?: string[];
+}
+
+// ============================================================================
 // Union type of all widget configs for generic use
 // ============================================================================
 export type AnyWidgetConfig =
@@ -182,4 +191,5 @@ export type AnyWidgetConfig =
   | RssWidgetConfig
   | SearchWidgetConfig
   | ImageWidgetConfig
-  | ShortcutWidgetConfig;
+  | ShortcutWidgetConfig
+  | SectionWidgetConfig;

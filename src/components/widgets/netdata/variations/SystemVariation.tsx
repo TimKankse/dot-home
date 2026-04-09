@@ -6,9 +6,10 @@ import { List } from '@/components/primitives';
 
 interface SystemVariationProps {
     data: NetdataApiResponse;
+    title?: string;
 }
 
-export const SystemVariation: React.FC<SystemVariationProps> = ({ data }) => {
+export const SystemVariation: React.FC<SystemVariationProps> = ({ data, title }) => {
     if (!data.systemInfo) {
         return (
             <div className={styles.widgetContainer}>
@@ -39,7 +40,7 @@ export const SystemVariation: React.FC<SystemVariationProps> = ({ data }) => {
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>{hostname.toUpperCase()}</span>
+                <span className={styles.widgetTitle}>{title || 'SYSTEM'}</span>
             </div>
             <List variant="compact" className={styles.systemInfoList}>
                 <div className={styles.systemInfoItem}>

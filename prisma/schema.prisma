@@ -157,13 +157,6 @@ model WidgetPermission {
 // CACHE MODELS
 // ============================================================================
 
-// Jellyfin library size cache (recalculated when item count changes)
-model LibraryCache {
-  id        String   @id // libraryId
-  itemCount Int      // current item count  
-  totalSize BigInt   // cached size in bytes
-  updatedAt DateTime @updatedAt
-}
 
 // Jellyseerr media details cache (24h TTL)
 model MediaCache {

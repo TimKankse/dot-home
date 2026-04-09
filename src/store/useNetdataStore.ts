@@ -57,45 +57,69 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
         
         const eventSource = new EventSource(`/api/netdata?${params.toString()}`);
         
+        // Save it to state immediately so that `currentInstance.eventSource` tracks it
+        set((state) => ({
+            instances: {
+                ...state.instances,
+                [instanceKey]: {
+                    ...state.instances[instanceKey],
+                    eventSource
+                }
+            }
+        }));
+
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                set((state) => ({
-                    instances: {
-                        ...state.instances,
-                        [instanceKey]: {
-                            ...state.instances[instanceKey],
-                            data,
-                            loading: false,
-                            error: data.error || null,
+                set((state) => {
+                    const inst = state.instances[instanceKey];
+                    if (!inst) return state; // If deleted by unsubscribe, ignore
+
+                    return {
+                        instances: {
+                            ...state.instances,
+                            [instanceKey]: {
+                                ...inst,
+                                data,
+                                loading: false,
+                                error: data.error || null,
+                            }
                         }
-                    }
-                }));
+                    };
+                });
             } catch (e) {
                 console.error('Failed to parse SSE data:', e);
             }
         };
         
-        eventSource.onerror = () => {
-            set((state) => ({
-                instances: {
-                    ...state.instances,
-                    [instanceKey]: {
-                        ...state.instances[instanceKey],
-                        error: 'Connection lost',
-                        loading: false
+        eventSource.onerror = (event) => {
+            const target = event.target as EventSource;
+            // Only flag as disconnected if actually closed or reconnecting
+            set((state) => {
+                const inst = state.instances[instanceKey];
+                if (!inst) return state;
+
+                // If EventSource.CLOSED (2), we could theoretically manual reconnect,
+                // but standard EventSource auto-reconnects indefinitely.
+                // If it's EventSource.CONNECTING (0), it is currently trying to reconnect
+                const isReconnecting = target.readyState === EventSource.CONNECTING;
+                
+                return {
+                    instances: {
+                        ...state.instances,
+                        [instanceKey]: {
+                            ...inst,
+                            error: isReconnecting ? 'Reconnecting...' : 'Connection error',
+                            loading: true
+                        }
                     }
-                }
-            }));
+                };
+            });
             
-            // Attempt to reconnect after 5 seconds
-            setTimeout(() => {
-                const instance = get().instances[instanceKey];
-                if (instance && instance.subscribers > 0) {
-                    const minInterval = Math.min(...instance.intervals);
-                    startSSE(instanceKey, minInterval);
-                }
-            }, 5000);
+            // Note: We deliberately remove the old setTimeout manual reconnect here.
+            // Spawning a new EventSource on error causes exponential duplication 
+            // when the browser tab goes to sleep or the server goes down,
+            // as standard EventSource already auto-reconnects.
         };
 
         return eventSource;
@@ -123,17 +147,7 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
       }));
 
       // Start SSE after state is set
-      const eventSource = startSSE(key, refreshInterval);
-      
-      set((state) => ({
-        instances: {
-          ...state.instances,
-          [key]: {
-            ...state.instances[key],
-            eventSource
-          }
-        }
-      }));
+      startSSE(key, refreshInterval);
     } else {
       // Already exists
       set((state) => {
@@ -174,15 +188,6 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
               instance.eventSource.close();
           }
           const eventSource = startSSE(key, newMinInterval);
-          set((state) => ({
-            instances: {
-              ...state.instances,
-              [key]: {
-                ...state.instances[key],
-                eventSource
-              }
-            }
-          }));
       }
     }
   },

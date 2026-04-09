@@ -15,9 +15,10 @@ interface NetworkVariationProps {
     data: NetdataApiResponse;
     history: NetworkHistory;
     config?: NetdataWidgetConfig;
+    title?: string;
 }
 
-export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, history, config }) => {
+export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, history, config, title }) => {
     // Find target interface
     const targetInterface = config?.interfaceName 
         ? data.network?.find((n: NetworkInterfaceData) => n.interface_name === config.interfaceName)
@@ -37,7 +38,7 @@ export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, histor
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>NETWORK ({targetInterface.interface_name})</span>
+                <span className={styles.widgetTitle}>{title || `NETWORK (${targetInterface.interface_name})`}</span>
             </div>
             <div className={styles.networkSingle}>
                 <div className={styles.networkGraphContainer}>

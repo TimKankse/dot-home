@@ -19,8 +19,6 @@ export function useResponsiveState() {
         const height = window.innerHeight;
         
         const newIsMobile = width < 768;
-        // isMedium triggers if width is between 768 and 975 (tablet landscape) 
-        // OR if height > width (portrait tablet/desktop)
         const newIsMedium = (width >= 768 && width <= 975) || (height > width && !newIsMobile);
         
         setIsMobile(newIsMobile);

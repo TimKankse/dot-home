@@ -2,7 +2,6 @@ import React from 'react';
 import { Film, Tv, HardDrive } from 'lucide-react';
 import styles from '../JellyfinWidget.module.css';
 import { LibraryStats } from '../types';
-import { formatSize } from '../utils';
 
 interface LibrariesVariationProps {
   libraries: LibraryStats[];
@@ -60,8 +59,6 @@ export const LibrariesVariation: React.FC<LibrariesVariationProps> = ({ librarie
                     <span>{lib.Counts.Episodes || 0} Eps</span>
                   </>
                 )}
-                <span className={styles.statSeparator} />
-                <span>{formatSize(lib.TotalSize)}</span>
               </div>
             </div>
           </div>

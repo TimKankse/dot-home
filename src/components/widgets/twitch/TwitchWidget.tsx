@@ -14,7 +14,7 @@ export interface TwitchWidgetProps {
   config?: TwitchWidgetConfig;
 }
 
-export const TwitchWidget: React.FC<TwitchWidgetProps & { integrationId?: string }> = ({ config, integrationId }) => {
+export const TwitchWidget: React.FC<TwitchWidgetProps & { integrationId?: string; title?: string }> = ({ config, integrationId, title }) => {
   const [channels, setChannels] = useState<string[]>([]);
   const [channelData, setChannelData] = useState<TwitchChannelData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,7 @@ export const TwitchWidget: React.FC<TwitchWidgetProps & { integrationId?: string
       <div className={styles.header}>
         <div className={styles.headerTitle}>
           <Twitch size={20} color="#e6e3ebff" />
-          <span className="font-display">Twitch</span>
+          <span className="font-display">{title || 'Twitch'}</span>
         </div>
       </div>
 

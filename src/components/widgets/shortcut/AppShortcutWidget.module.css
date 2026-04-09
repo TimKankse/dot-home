@@ -75,11 +75,38 @@
   color: var(--text-main);
 }
 
-/* Status Indicator */
+.settingsButton {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settingsButton:hover {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.settingsButton:focus-visible {
+  outline: 2px solid var(--accent-blue, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* Status Indicator – offset dynamically so it stays inside the rounded corner.
+   For a corner radius r the diagonal safe-inset ≈ r × 0.293 (= r(1 − cos 45°)).
+   We add a small base gap (4px) and clamp with max() so small radii still look fine. */
 .statusIndicator {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: max(6px, calc(var(--widget-radius, 0px) * 0.293 + 4px));
+  right: max(6px, calc(var(--widget-radius, 0px) * 0.293 + 4px));
   width: 8px;
   height: 8px;
   border-radius: 50%;

@@ -18,13 +18,10 @@ const THEMES = [
   { id: 'everforest', name: 'Everforest', icon: Moon, colors: ['#272E33', '#374145', '#D3C6AA'] },
 ];
 
-// LocalStorage keys for grid appearance settings
 const LS_ROW_HEIGHT = 'grid-row-height';
 const LS_GAP_SIZE = 'grid-gap-size';
 const LS_BORDER_RADIUS = 'grid-border-radius';
 const LS_SHOW_WIDGET_NAMES = 'show-widget-names';
-
-// Default values
 const DEFAULT_ROW_HEIGHT = 100;
 const DEFAULT_GAP_SIZE = 8;
 const DEFAULT_BORDER_RADIUS = 32;
@@ -34,13 +31,12 @@ export const AppearanceSettings: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
-  // Grid appearance state
   const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
   const [gapSize, setGapSize] = useState(DEFAULT_GAP_SIZE);
   const [borderRadius, setBorderRadius] = useState(DEFAULT_BORDER_RADIUS);
   const [showWidgetNames, setShowWidgetNames] = useState(DEFAULT_SHOW_WIDGET_NAMES);
 
-  // Load from localStorage on mount
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Needed for SSR hydration detection
     setMounted(true);
@@ -56,7 +52,6 @@ export const AppearanceSettings: React.FC = () => {
     if (storedShowWidgetNames !== null) setShowWidgetNames(storedShowWidgetNames === 'true');
   }, []);
 
-  // Save to localStorage and dispatch event for other components
   const updateRowHeight = (value: number) => {
     setRowHeight(value);
     localStorage.setItem(LS_ROW_HEIGHT, value.toString());
@@ -163,7 +158,7 @@ export const AppearanceSettings: React.FC = () => {
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
             <span className={styles.settingLabel}>Show Widget Names</span>
-            <span className={styles.settingDesc}>Display titles above widgets</span>
+            <span className={styles.settingDesc}>Display widget type names above widgets</span>
           </div>
           <Switch 
             checked={showWidgetNames}

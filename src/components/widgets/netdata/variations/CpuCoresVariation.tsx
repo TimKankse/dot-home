@@ -22,9 +22,10 @@ interface CpuCoresVariationProps {
         cores: Record<number, number[]>;
     };
     config?: NetdataWidgetConfig;
+    title?: string;
 }
 
-export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, history, config }) => {
+export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, history, config, title }) => {
     const { settings } = useSettingsStore();
     
     // Determine temperature unit: use config if set, otherwise app settings
@@ -56,7 +57,7 @@ export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, hist
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
                 <span className={styles.widgetTitle}>
-                    {data.coresDataType === 'frequency' ? 'CPU FREQ' : 'CPU CORES'}
+                    {title || (data.coresDataType === 'frequency' ? 'CPU FREQ' : 'CPU CORES')}
                 </span>
             </div>
             <div className={styles.coresGrid}>

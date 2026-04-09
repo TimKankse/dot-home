@@ -17,79 +17,95 @@ import { SearchWidget } from '@/components/widgets/search/SearchWidget';
 import { ImageWidget } from '@/components/widgets/image/ImageWidget';
 import { AppShortcutWidget } from '@/components/widgets/shortcut/AppShortcutWidget';
 import { SpacerWidget } from '@/components/widgets/spacer/SpacerWidget';
+import { SectionWidget } from '@/components/widgets/section/SectionWidget';
 
 
 export const WIDGET_REGISTRY: Record<WidgetTypeKey, WidgetDefinition> = {
   clock: {
     component: ClockWidget as WidgetDefinition['component'],
+    displayName: 'Clock',
     defaultSize: { w: 2, h: 2 },
   },
   weather: {
     component: WeatherWidget as WidgetDefinition['component'],
+    displayName: 'Weather',
     defaultSize: { w: 2, h: 2 },
   },
   calendar: {
     component: CalendarWidget as WidgetDefinition['component'],
+    displayName: 'Calendar',
     defaultSize: { w: 3, h: 3 },
   },
   jellyfin: {
     component: JellyfinWidget as WidgetDefinition['component'],
-    defaultTitle: 'Jellyfin',
+    displayName: 'Jellyfin',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   jellyseerr: {
     component: JellyseerrWidget as WidgetDefinition['component'],
-    defaultTitle: 'Media Requests',
+    displayName: 'Jellyseerr',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   netdata: {
     component: NetdataWidget as WidgetDefinition['component'],
+    displayName: 'Netdata',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   twitch: {
     component: TwitchWidget as WidgetDefinition['component'],
+    displayName: 'Twitch',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   portainer: {
     component: PortainerWidget as WidgetDefinition['component'],
-    defaultTitle: 'Portainer',
+    displayName: 'Portainer',
     defaultSize: { w: 2, h: 2 },
   },
   sabnzbd: {
     component: SabnzbdWidget as WidgetDefinition['component'],
-    defaultTitle: 'SABnzbd',
+    displayName: 'SABnzbd',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   qbittorrent: {
     component: QBittorrentWidget as WidgetDefinition['component'],
-    defaultTitle: 'qBittorrent',
+    displayName: 'qBittorrent',
     defaultSize: { w: 2, h: 2 },
     requiresIntegration: true,
   },
   rss: {
     component: RssWidget as WidgetDefinition['component'],
+    displayName: 'RSS',
     defaultSize: { w: 2, h: 3 },
   },
   search: {
     component: SearchWidget as WidgetDefinition['component'],
+    displayName: 'Search',
     defaultSize: { w: 3, h: 1 },
   },
   image: {
     component: ImageWidget as WidgetDefinition['component'],
+    displayName: 'Image',
     defaultSize: { w: 2, h: 2 },
   },
   shortcut: {
     component: AppShortcutWidget as WidgetDefinition['component'],
+    displayName: 'Shortcut',
     defaultSize: { w: 1, h: 1 },
   },
   spacer: {
     component: SpacerWidget as WidgetDefinition['component'],
+    displayName: 'Spacer',
     defaultSize: { w: 1, h: 1 },
+  },
+  section: {
+    component: SectionWidget as WidgetDefinition['component'],
+    displayName: 'Section',
+    defaultSize: { w: 4, h: 2 },
   },
 };
 

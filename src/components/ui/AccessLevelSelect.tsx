@@ -1,9 +1,3 @@
-/**
- * AccessLevelSelect - Dropdown for selecting access level
- *
- * Used in Dashboard, Page, and Integration settings to set visibility.
- */
-
 import React from 'react';
 import { Lock, Eye, Globe } from 'lucide-react';
 import styles from './AccessLevelSelect.module.css';

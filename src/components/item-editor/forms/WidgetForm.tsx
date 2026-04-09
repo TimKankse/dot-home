@@ -24,6 +24,7 @@ import { WeatherConfig } from '@/components/widgets/weather/WeatherConfig';
 
 import { SearchConfig } from '@/components/widgets/search/SearchConfig';
 import { ImageConfig } from '@/components/widgets/image/ImageConfig';
+import { SectionConfig } from '@/components/widgets/section/SectionConfig';
 
 
 
@@ -41,7 +42,7 @@ const CONFIG_COMPONENTS: Record<string, React.ComponentType<any>> = {
   twitch: TwitchConfig,
   weather: WeatherConfig,
   image: ImageConfig,
-
+  section: SectionConfig,
 };
 
 import { WIDGET_DEFINITIONS, getMinDimensions } from '@/constants/widget-definitions';

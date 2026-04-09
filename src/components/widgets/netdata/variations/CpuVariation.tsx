@@ -10,9 +10,10 @@ interface CpuVariationProps {
     data: NetdataApiResponse;
     history: number[];
     config?: NetdataWidgetConfig;
+    title?: string;
 }
 
-export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history, config }) => {
+export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history, config, title }) => {
     const { settings } = useSettingsStore();
     
     // Determine temperature unit: use config if set, otherwise app settings
@@ -39,7 +40,7 @@ export const CpuVariation: React.FC<CpuVariationProps> = ({ data, history, confi
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>CPU LOAD</span>
+                <span className={styles.widgetTitle}>{title || 'CPU LOAD'}</span>
             </div>
             <div className={styles.cpuContent}>
                 <CircularProgress value={data.cpu.total} color="var(--accent-green)" label="CPU" />

@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 
 interface JellyfinLibrary {
   Id: string;
   Name: string;
   CollectionType: string;
   Counts: { Series?: number; Episodes?: number; Movies?: number };
-  TotalSize: number;
 }
 
 async function getItemCount(baseUrl: string, apiKey: string, viewId: string, includeItemTypes: string[]): Promise<number> {
@@ -21,31 +19,7 @@ async function getItemCount(baseUrl: string, apiKey: string, viewId: string, inc
   return (data.MovieCount || 0) + (data.SeriesCount || 0) + (data.EpisodeCount || 0);
 }
 
-async function calculateTotalSize(baseUrl: string, apiKey: string, viewId: string, includeItemTypes: string[]): Promise<number> {
-  const itemsUrl = `${baseUrl}/Items?ParentId=${viewId}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}&Fields=MediaSources`;
-  
-  const response = await fetch(itemsUrl, {
-    headers: { 'X-Emby-Token': apiKey }
-  });
-  
-  if (!response.ok) return 0;
-  
-  const data = await response.json();
-  let totalSize = 0;
-  
-  interface MediaSource { Size: number; }
-  data.Items.forEach((item: { MediaSources?: MediaSource[] }) => {
-    if (item.MediaSources) {
-      item.MediaSources.forEach((source: MediaSource) => {
-        if (source.Size) {
-          totalSize += source.Size;
-        }
-      });
-    }
-  });
-  
-  return totalSize;
-}
+
 
 export async function GET(request: NextRequest) {
   const url = request.headers.get('x-jellyfin-url');
@@ -78,7 +52,6 @@ export async function GET(request: NextRequest) {
         Name: view.Name,
         CollectionType: view.CollectionType,
         Counts: {},
-        TotalSize: 0,
       };
 
       const includeItemTypes = view.CollectionType === 'tvshows' 
@@ -109,51 +82,6 @@ export async function GET(request: NextRequest) {
         }
       } catch (err) {
         console.error(`[Jellyfin] Error fetching counts for ${view.Name}:`, err);
-      }
-
-      // If mode is counts-only, skip size calculation
-      if (mode === 'counts') {
-        return libraryInfo;
-      }
-
-      // Calculate current item count for cache key
-      const currentItemCount = (libraryInfo.Counts.Movies || 0) 
-        + (libraryInfo.Counts.Series || 0) 
-        + (libraryInfo.Counts.Episodes || 0);
-
-      // Check cache
-      try {
-        const cached = await prisma.libraryCache.findUnique({
-          where: { id: view.Id }
-        });
-
-        if (cached && cached.itemCount === currentItemCount) {
-          // Cache hit - use cached size
-          libraryInfo.TotalSize = Number(cached.totalSize);
-          return libraryInfo;
-        }
-
-        // Cache miss or stale - calculate size
-        const totalSize = await calculateTotalSize(baseUrl, apiKey, view.Id, includeItemTypes);
-        libraryInfo.TotalSize = totalSize;
-
-        // Update cache
-        await prisma.libraryCache.upsert({
-          where: { id: view.Id },
-          update: {
-            itemCount: currentItemCount,
-            totalSize: BigInt(totalSize),
-          },
-          create: {
-            id: view.Id,
-            itemCount: currentItemCount,
-            totalSize: BigInt(totalSize),
-          }
-        });
-      } catch (cacheError) {
-        console.error(`[Jellyfin] Cache error for ${view.Name}:`, cacheError);
-        // Fallback: calculate size without caching
-        libraryInfo.TotalSize = await calculateTotalSize(baseUrl, apiKey, view.Id, includeItemTypes);
       }
 
       return libraryInfo;

@@ -8,7 +8,7 @@ interface WidgetWrapperProps {
   className?: string;
   contentClassName?: string;
   style?: React.CSSProperties;
-  title?: string;
+  widgetName?: string;
   icon?: React.ReactNode;
   footer?: React.ReactNode;
   isEditing?: boolean;
@@ -20,7 +20,7 @@ export const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
   className = '',
   contentClassName = '',
   style,
-  title,
+  widgetName,
   icon,
   footer,
   isEditing = false,
@@ -54,10 +54,10 @@ export const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
           <Settings size={16} />
         </button>
       )}
-      {(title || icon) && (
+      {(widgetName || icon) && (
         <div className={styles.header}>
           {icon && <div className={styles.icon}>{icon}</div>}
-          {title && <h2 className={styles.title}>{title}</h2>}
+          {widgetName && <span className={styles.widgetName}>{widgetName}</span>}
         </div>
       )}
       

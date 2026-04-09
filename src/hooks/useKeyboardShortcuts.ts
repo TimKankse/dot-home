@@ -28,10 +28,8 @@ export const useKeyboardShortcuts = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if modal is open (unless it's a dedicated modal closing key, but these are action shortcuts)
       if (isModalOpen) return;
 
-      // Ignore if focused on input/textarea/select/contenteditable
       const target = e.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
@@ -42,7 +40,6 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      // Helper to match key combo
       const match = (binding: string) => {
         if (!binding) return false;
         const parts = binding.split('+');
@@ -51,14 +48,8 @@ export const useKeyboardShortcuts = ({
 
         const eventKey = e.key.toLowerCase();
         
-        // Check modifiers
-        // On Mac, Mod is Cmd. On others, Mod is Ctrl.
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
         
-        // Exact modifier match required? 
-        // For simplicity: if binding says Mod, we require Mod. 
-        
-        // Let's normalize parsing:
         let requiredCtrl = modifiers.includes('Ctrl');
         let requiredMeta = modifiers.includes('Cmd');
         const requiredAlt = modifiers.includes('Alt');
@@ -74,23 +65,18 @@ export const useKeyboardShortcuts = ({
         if (e.altKey !== requiredAlt) return false;
         if (e.shiftKey !== requiredShift) return false;
 
-        // Check key
         const normalizedEventKey = getNormalizedKey(e).toLowerCase();
         
-        // Match against specialized keys or normalized keys
         if (key === 'arrowleft') return normalizedEventKey === 'arrowleft';
         if (key === 'arrowright') return normalizedEventKey === 'arrowright';
         if (key === 'arrowup') return normalizedEventKey === 'arrowup';
         if (key === 'arrowdown') return normalizedEventKey === 'arrowdown';
          
-        // Try to match normalized key first (handles Alt+E vs Alt+É)
         if (normalizedEventKey === key) return true;
 
-        // Fallback to eventKey for backwards compatibility or non-normalized keys
         return eventKey === key;
       };
 
-      // Check actions
       if (match(shortcuts.toggleEdit) && onToggleEdit) {
         e.preventDefault();
         onToggleEdit();
@@ -110,16 +96,12 @@ export const useKeyboardShortcuts = ({
         e.preventDefault();
         onNextPage();
       } else if (onPageNavigate) {
-         // Direct page navigation (Alt+1..9)
-         // We'll hardcode this for now or make it configurable if requested.
-         // Current plan said Alt+1-9
          if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-            // Use e.code to handle layouts where Alt+Number produces special chars (e.g. Mac)
             if (e.code.startsWith('Digit')) {
                const num = parseInt(e.code.replace('Digit', ''));
                if (!isNaN(num) && num >= 1 && num <= 9) {
                   e.preventDefault();
-                  onPageNavigate(num - 1); // 0-indexed
+                  onPageNavigate(num - 1);
                }
             }
          }

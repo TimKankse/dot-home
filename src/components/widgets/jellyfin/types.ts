@@ -68,7 +68,6 @@ export interface LibraryStats {
     Series?: number;
     Episodes?: number;
   };
-  TotalSize: number;
 }
 
 // Re-export from centralized types for convenience

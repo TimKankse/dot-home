@@ -4,6 +4,7 @@ import { usePersistenceStore } from "@/store/usePersistenceStore";
 import { Widget, NewWidgetInput, WidgetConfig } from "@/types/widget";
 import { usePageStore } from "@/store/usePageStore";
 import { NewItem } from "@/components/item-editor/types";
+import { getMinDimensions } from '@/constants/widget-definitions';
 
 export function useWidgetManager() {
   const { 
@@ -21,6 +22,10 @@ export function useWidgetManager() {
   const [editingItem, setEditingItem] = useState<NewItem | undefined>(undefined);
 
   const handleEditWidget = (widget: Widget) => {
+    const fallbackDimensions = widget.type === 'shortcut'
+      ? { w: 1, h: 1 }
+      : getMinDimensions(widget.widgetType || widget.type || 'clock', widget.config || {});
+
     // Map Widget to NewItem format for the modal
     const itemToEdit: NewItem = {
       id: widget.id,
@@ -31,8 +36,8 @@ export function useWidgetManager() {
       internalUrl: widget.internalUrl,
       isSelfHosted: widget.isSelfHosted,
       widgetType: widget.type === 'shortcut' ? undefined : widget.type,
-      w: widget.grid.w,
-      h: widget.grid.h,
+      w: widget.grid?.w ?? fallbackDimensions.w,
+      h: widget.grid?.h ?? fallbackDimensions.h,
       config: widget.config,
       integrationId: widget.integrationId,
       syncConfig: widget.syncConfig

@@ -7,9 +7,10 @@ import { List } from '@/components/primitives';
 interface ProcessesVariationProps {
     data: NetdataApiResponse;
     config?: NetdataWidgetConfig;
+    title?: string;
 }
 
-export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, config }) => {
+export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, config, title }) => {
     // Sort by CPU usage desc
     const processes = [...(data.processList || [])]
         .sort((a: ProcessData, b: ProcessData) => b.cpu_percent - a.cpu_percent)
@@ -19,7 +20,7 @@ export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, co
         return (
             <div className={styles.widgetContainer}>
                 <div className={styles.header}>
-                    <span className={styles.widgetTitle}>TOP APPS</span>
+                    <span className={styles.widgetTitle}>{title || 'TOP APPS'}</span>
                 </div>
                 <div className={styles.offlineState}>
                     <p style={{ fontSize: '0.8rem' }}>No process data</p>
@@ -32,7 +33,7 @@ export const ProcessesVariation: React.FC<ProcessesVariationProps> = ({ data, co
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>TOP APPS</span>
+                <span className={styles.widgetTitle}>{title || 'TOP APPS'}</span>
             </div>
             <div className={styles.processListWrapper}>
                 <div className={styles.processHeader}>

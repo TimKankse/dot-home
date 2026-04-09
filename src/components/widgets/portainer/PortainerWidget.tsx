@@ -17,7 +17,7 @@ interface PortainerWidgetProps {
   config?: PortainerWidgetConfig;
 }
 
-export const PortainerWidget: React.FC<PortainerWidgetProps> = ({ isEditing = false, config }) => {
+export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }> = ({ isEditing = false, config, title }) => {
   const [containers, setContainers] = useState<PortainerContainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export const PortainerWidget: React.FC<PortainerWidgetProps> = ({ isEditing = fa
     <>
       <div className={styles.widgetContainer}>
         <div className={styles.header}>
-          <span className={styles.widgetTitle}>CONTAINERS</span>
+          <span className={styles.widgetTitle}>{title || 'CONTAINERS'}</span>
           <span className="text-xs font-mono text-muted">{containers.length}</span>
         </div>
         <div className={styles.containerList}>

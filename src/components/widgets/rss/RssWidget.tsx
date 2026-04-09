@@ -11,7 +11,7 @@ interface RssWidgetProps {
   config?: RssWidgetConfig;
 }
 
-export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
+export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({ config, title: widgetTitle }) => {
   const [data, setData] = useState<RssData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,13 +92,13 @@ export const RssWidget: React.FC<RssWidgetProps> = ({ config }) => {
   }
 
   const displayItems = data.items.slice(0, maxItems);
-  const widgetTitle = customTitle || data.title || 'RSS Feed';
+  const displayTitle = widgetTitle || customTitle || data.title || 'RSS Feed';
 
   return (
     <div className={styles.widgetContainer}>
       <div className={styles.header}>
-        <h3 className={styles.title} title={widgetTitle}>
-          {widgetTitle}
+        <h3 className={styles.title} title={displayTitle}>
+          {displayTitle}
         </h3>
         <div className={styles.headerControls}>
           <button 

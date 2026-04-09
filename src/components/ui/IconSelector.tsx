@@ -15,7 +15,6 @@ export const IconSelector: React.FC<IconSelectorProps> = ({ iconUrl, onIconSelec
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Clear searchTerm when iconUrl is cleared externally
   useEffect(() => {
     if (!iconUrl) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Clearing dependent UI state
@@ -30,7 +29,6 @@ export const IconSelector: React.FC<IconSelectorProps> = ({ iconUrl, onIconSelec
     inputRef.current?.focus();
   };
 
-  // Check if there's content to show (either a search term or selected icon)
   const hasContent = searchTerm !== '' || iconUrl !== '';
 
   return (

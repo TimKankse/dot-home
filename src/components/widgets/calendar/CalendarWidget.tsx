@@ -7,7 +7,7 @@ import { MonthlyView } from './variations/MonthlyView';
 import { IconButton } from '@/components/primitives/icon-button/IconButton';
 import { fetchCalendarEvents } from '@/services/calendar';
 
-export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: string }> = ({ config, integrationId }) => {
+export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: string; title?: string }> = ({ config, integrationId, title }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: st
     return (
       <div className={styles.container}>
         <div className={styles.header}>
-          <div className={styles.title}>Calendar</div>
+          <div className={styles.title}>{title || 'Calendar'}</div>
           {ViewToggle}
         </div>
         <div className={styles.emptyState}>Loading events...</div>
@@ -75,7 +75,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: st
     return (
       <div className={styles.container}>
         <div className={styles.header}>
-          <div className={styles.title}>Calendar</div>
+          <div className={styles.title}>{title || 'Calendar'}</div>
           {ViewToggle}
         </div>
         <div className={styles.emptyState}>{error}</div>
@@ -86,7 +86,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: st
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <div className={styles.title}>Calendar</div>
+        <div className={styles.title}>{title || 'Calendar'}</div>
         {ViewToggle}
       </div>
 

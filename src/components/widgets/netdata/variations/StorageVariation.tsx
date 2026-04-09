@@ -9,15 +9,16 @@ import type { NetdataData } from '@/types/netdata';
 interface StorageVariationProps {
     data: NetdataData;
     config: NetdataWidgetConfig | undefined;
+    title?: string;
 }
 
-export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config }) => {
+export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config, title }) => {
     // Guard for optional fs - parent already checks but TypeScript needs this
     if (!data.fs || data.fs.length === 0) {
         return (
             <div className={styles.widgetContainer}>
                 <div className={styles.header}>
-                    <span className={styles.widgetTitle}>STORAGE</span>
+                    <span className={styles.widgetTitle}>{title || 'STORAGE'}</span>
                 </div>
                 <div className={styles.offlineState}>
                     <AlertCircle size={24} color="var(--accent-red)" />
@@ -46,7 +47,7 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
             return (
             <div className={styles.widgetContainer}>
                 <div className={styles.header}>
-                    <span className={styles.widgetTitle}>STORAGE</span>
+                    <span className={styles.widgetTitle}>{title || 'STORAGE'}</span>
                 </div>
                 <div className={styles.offlineState}>
                     <AlertCircle size={24} color="var(--accent-red)" />
@@ -64,7 +65,7 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
         return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>STORAGE</span>
+                <span className={styles.widgetTitle}>{title || 'STORAGE'}</span>
             </div>
             <div className={styles.storageCircularList}>
                 {storageItems.map((fs) => (
@@ -84,7 +85,7 @@ export const StorageVariation: React.FC<StorageVariationProps> = ({ data, config
     return (
     <div className={styles.widgetContainer}>
         <div className={styles.header}>
-            <span className={styles.widgetTitle}>STORAGE</span>
+            <span className={styles.widgetTitle}>{title || 'STORAGE'}</span>
         </div>
         <div className={styles.storageList}>
             {storageItems.map((fs) => (

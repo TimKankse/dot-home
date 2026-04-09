@@ -21,7 +21,7 @@ interface NetdataWidgetProps {
   config?: NetdataWidgetConfig;
 }
 
-export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: string }> = ({ isEditing = false, config, integrationId }) => {
+export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: string; title?: string }> = ({ isEditing = false, config, integrationId, title }) => {
   const { instances, subscribe, unsubscribe } = useNetdataStore();
   const { integrations } = useIntegrationStore();
   
@@ -179,7 +179,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <CpuVariation data={data} history={history.cpu} config={config} />;
+        return <CpuVariation data={data} history={history.cpu} config={config} title={title} />;
     case 'ram':
         if (!data.mem) {
             return (
@@ -196,7 +196,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <RamVariation data={data} history={history.ram} />;
+        return <RamVariation data={data} history={history.ram} title={title} />;
     case 'storage':
         if (!data.fs) {
             return (
@@ -213,7 +213,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <StorageVariation data={data} config={config} />;
+        return <StorageVariation data={data} config={config} title={title} />;
     case 'processes':
         if (!data.processList) {
             return (
@@ -230,7 +230,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <ProcessesVariation data={data} config={config} />;
+        return <ProcessesVariation data={data} config={config} title={title} />;
     case 'network':
         if (!data.network) {
             return (
@@ -247,7 +247,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <NetworkVariation data={data} history={history} config={config} />;
+        return <NetworkVariation data={data} history={history} config={config} title={title} />;
     case 'system':
         if (!data.systemInfo) {
             return (
@@ -264,7 +264,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <SystemVariation data={data} />;
+        return <SystemVariation data={data} title={title} />;
     case 'cpu-cores':
         if (!data.cores) {
             return (
@@ -281,7 +281,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <CpuCoresVariation data={data} history={history} config={config} />;
+        return <CpuCoresVariation data={data} history={history} config={config} title={title} />;
     case 'gpu':
         if (!data.gpus) {
             return (
@@ -298,7 +298,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 </div>
             );
         }
-        return <GpuVariation data={data} history={history} config={config} />;
+        return <GpuVariation data={data} history={history} config={config} title={title} />;
     default:
         return null;
   }

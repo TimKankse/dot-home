@@ -36,6 +36,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0; /* Prevent flex overflow */
+  width: 600px;
   max-height: 100%;
   position: relative;
 }

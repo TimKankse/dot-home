@@ -24,14 +24,18 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   }, [libraries]);
 
   useEffect(() => {
+    let isSubscribed = true;
+
     const loadData = async () => {
       if ((!config?.url || !config?.apiKey) && !integrationId) {
-        setLoading(false);
+        if (isSubscribed) setLoading(false);
         return;
       }
 
       try {
         const data = await fetchJellyfinData({ config, integrationId });
+        if (!isSubscribed) return;
+
         setSessions(data.sessions);
         setLibraries(data.libraries);
         setLoading(false);
@@ -42,6 +46,7 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
            pollIntervalRef.current = setInterval(async () => {
                try {
                    const newCounts = await fetchJellyfinLibraryCounts({ config, integrationId });
+                   if (!isSubscribed) return;
                    
                    const currentState = librariesRef.current.map(l => ({ Id: l.Id, Counts: l.Counts }));
                    const newState = newCounts.map(l => ({ Id: l.Id, Counts: l.Counts }));
@@ -54,28 +59,42 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
                }
            }, 60000);
         } else if (config?.url && config?.apiKey) {
+          if (wsRef.current) {
+            wsRef.current.onclose = null; // Remove listener so we don't trigger reconnect loop
+            wsRef.current.close();
+            wsRef.current = null;
+          }
+
           const ws = createJellyfinWebSocket(config, (newSessions) => {
-            setSessions(newSessions);
+            if (isSubscribed) setSessions(newSessions);
           });
           
           if (ws) {
             wsRef.current = ws;
             ws.onclose = () => {
-              reconnectTimeoutRef.current = setTimeout(loadData, 5000);
+              if (isSubscribed) {
+                reconnectTimeoutRef.current = setTimeout(loadData, 5000);
+              }
             };
           }
         }
       } catch (error) {
         console.error('Failed to initialize Jellyfin:', error);
-        setLoading(false);
-        reconnectTimeoutRef.current = setTimeout(loadData, 10000);
+        if (isSubscribed) {
+          setLoading(false);
+          reconnectTimeoutRef.current = setTimeout(loadData, 10000);
+        }
       }
     };
 
     loadData();
 
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      isSubscribed = false;
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // Important to avoid triggering reconnects on unmount
+        wsRef.current.close();
+      }
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };

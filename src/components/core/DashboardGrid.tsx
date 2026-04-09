@@ -1,14 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { GridStackNode, GridStackOptions } from 'gridstack';
 import 'gridstack/dist/gridstack.min.css';
 import { GridStackProvider } from '@/gridstack-react/grid-stack-provider';
 import { GridStackRenderProvider } from '@/gridstack-react/grid-stack-render-provider';
 import { useGridStackContext } from '@/gridstack-react/grid-stack-context';
 import { Widget } from '@/types/widget';
-import { WIDGET_DEFINITIONS, getMinDimensions } from "@/constants/widget-definitions";
+import { getMinDimensions } from "@/constants/widget-definitions";
 import { GRID_BREAKPOINTS } from '@/constants/grid';
+import { useShortcutDragStore } from '@/store/useShortcutDragStore';
+import {
+  getDashboardCellRect,
+  resolveDashboardDropPosition,
+} from '@/utils/dragUtils';
+import { getDashboardInteractiveRect } from '@/utils/shortcutGridStackHandoff';
 
 interface ExtendedGridStack {
   _ignoreEvents?: boolean;
@@ -31,8 +37,9 @@ interface ExtendedGridStack {
   makeWidget(el: HTMLElement, opts?: GridStackOptions): HTMLElement;
   removeWidget(el: HTMLElement, removeDOM?: boolean): void;
   update(el: HTMLElement, opts: GridStackOptions): void;
-  on(name: string, callback: (...args: any[]) => void): void;
-  off(name: string, callback: (...args: any[]) => void): void;
+  cancelDrag(): void;
+  on(name: string, callback: (...args: unknown[]) => void): void;
+  off(name: string, callback: (...args: unknown[]) => void): void;
 }
 
 interface ExtendedGridStackElement extends HTMLElement {
@@ -41,10 +48,12 @@ interface ExtendedGridStackElement extends HTMLElement {
 
 interface DashboardGridProps {
   children: React.ReactNode;
+  pageId: string;
   items: Widget[];
   isEditing?: boolean;
   onLayoutChange?: (layout: GridStackNode[], allLayouts: { [key: string]: GridStackNode[] }) => void;
   onBreakpointChange?: (newBreakpoint: string, newCols: number) => void;
+  onWidgetDragStop?: (widgetId: string, mouseX: number, mouseY: number) => void;
   rowHeight?: number;
   gap?: number;
   isMedium?: boolean;
@@ -53,9 +62,11 @@ interface DashboardGridProps {
 
 const DashboardGridContent: React.FC<DashboardGridProps> = ({ 
   children, 
+  pageId,
   items,
   isEditing = false, 
-  onLayoutChange, 
+  onLayoutChange,
+  onWidgetDragStop,
   rowHeight = 100, 
   gap = 8,
   isMedium = false,
@@ -63,6 +74,101 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
 }) => {
   const { gridStack } = useGridStackContext();
   const layoutCache = useRef<string>("");
+  const dragPointer = useShortcutDragStore(state => state.activeDrag?.pointer ?? null);
+  const draggedShortcutId = useShortcutDragStore(state => state.activeDrag?.shortcutId ?? null);
+  const draggedShortcutSource = useShortcutDragStore(state => state.activeDrag?.source ?? null);
+  const dashboardTarget = useShortcutDragStore((state) => {
+    const target = state.activeDrag?.target;
+    if (target?.kind !== 'dashboard' || target.pageId !== pageId) {
+      return null;
+    }
+
+    return target;
+  });
+  const setDragTarget = useShortcutDragStore(state => state.setTarget);
+  const clearDragTarget = useShortcutDragStore(state => state.clearTarget);
+  const startShortcutDrag = useShortcutDragStore(state => state.startDrag);
+
+  const externalShortcutTarget = dashboardTarget
+    ? dashboardTarget.grid
+    : null;
+  const externalShortcutRect = useMemo(() => {
+    if (!gridStack || !externalShortcutTarget) return null;
+
+    const containerRect = gridStack.el.getBoundingClientRect();
+    const targetRect = dashboardTarget?.rect ?? getDashboardCellRect(
+      containerRect,
+      gridStack.getColumn(),
+      rowHeight,
+      externalShortcutTarget,
+    );
+
+    return {
+      left: targetRect.left - containerRect.left,
+      top: targetRect.top - containerRect.top,
+      width: targetRect.width,
+      height: targetRect.height,
+    };
+  }, [dashboardTarget, externalShortcutTarget, gridStack, rowHeight]);
+
+  const resolveExternalShortcutTarget = useCallback((clientX: number, clientY: number) => {
+    if (!gridStack || !draggedShortcutId) return null;
+
+    const grid = gridStack as unknown as ExtendedGridStack;
+    const gridRect = getDashboardInteractiveRect(gridStack, rowHeight);
+    const isInside =
+      clientX >= gridRect.left && clientX <= gridRect.right &&
+      clientY >= gridRect.top && clientY <= gridRect.bottom;
+
+    if (!isInside) return null;
+
+    const elements = document.elementsFromPoint(clientX, clientY);
+    const sourceSectionId = draggedShortcutSource?.type === 'section'
+      ? draggedShortcutSource.sectionId
+      : null;
+    const isOverShortcutDropzone = elements.some((el) =>
+      !el.classList.contains('ui-draggable-dragging') &&
+      !el.classList.contains('grid-stack-item-dragging') &&
+      Boolean(el.closest('[data-shortcut-dropzone]'))
+    );
+    const isOverDialog = elements.some((el) =>
+      !el.classList.contains('ui-draggable-dragging') &&
+      !el.classList.contains('grid-stack-item-dragging') &&
+      Boolean(el.closest('[role="dialog"]'))
+    );
+    const isOverBlockedSection = elements.some((el) => {
+      if (el.classList.contains('ui-draggable-dragging') || el.classList.contains('grid-stack-item-dragging')) {
+        return false;
+      }
+
+      const sectionEl = el.closest('[data-widget-type="section"]') as HTMLElement | null;
+      if (!sectionEl) return false;
+
+      const hoveredSectionId = sectionEl.getAttribute('data-widget-id');
+      return hoveredSectionId !== sourceSectionId;
+    });
+
+    if (isOverShortcutDropzone || isOverDialog || isOverBlockedSection) return null;
+
+    const cols = gridStack.getColumn();
+    const rawX = Math.max(0, Math.min(cols - 1, Math.floor((clientX - gridRect.left) / (gridRect.width / cols))));
+    const rawY = Math.max(0, Math.floor((clientY - gridRect.top) / rowHeight));
+    const maxRows = grid.opts.maxRow ?? GRID_BREAKPOINTS.desktop.rows;
+    const visibleItems = items.filter(item => item.id !== draggedShortcutId);
+    const resolved = resolveDashboardDropPosition(visibleItems, {
+      x: rawX,
+      y: rawY,
+      w: 1,
+      h: 1,
+    }, cols, maxRows);
+
+    if (!resolved) return null;
+
+    return {
+      pageId,
+      ...resolved,
+    };
+  }, [draggedShortcutId, draggedShortcutSource, gridStack, items, pageId, rowHeight]);
 
   useEffect(() => {
     if (!gridStack) return;
@@ -126,13 +232,203 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
       onLayoutChange(layout, { lg: layout });
     };
 
-    gridStack.on('change', handleChange);
+    gridStack.on('change', handleChange as (...args: unknown[]) => void);
 
     return () => {
       const grid = gridStack as unknown as ExtendedGridStack;
-      grid.off('change', handleChange);
+      grid.off('change', handleChange as (...args: unknown[]) => void);
     };
   }, [gridStack, onLayoutChange]);
+
+  // Listen for dragstop to detect drops onto section widgets
+  // Track mouse position during drag since gridstack event may not carry coordinates
+  useEffect(() => {
+    if (!gridStack || !onWidgetDragStop) return;
+
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let activeGridStackDrag: {
+      widgetId: string;
+      widgetType: string | null;
+      element: HTMLElement;
+      transferred: boolean;
+    } | null = null;
+
+    let lastEventTime = 0;
+    const trackMouse = (e: MouseEvent) => {
+      if (!activeGridStackDrag) return;
+
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+
+      const elements = document.elementsFromPoint(lastMouseX, lastMouseY);
+      const isOverShortcutDropzone = elements.some(el =>
+        !el.classList.contains('ui-draggable-dragging') &&
+        !el.classList.contains('grid-stack-item-dragging') &&
+        Boolean(el.closest('[data-shortcut-dropzone]') || el.closest('[role="dialog"]'))
+      );
+
+      if (
+        isOverShortcutDropzone &&
+        activeGridStackDrag.widgetType === 'shortcut' &&
+        !activeGridStackDrag.transferred &&
+        !useShortcutDragStore.getState().activeDrag
+      ) {
+        const grid = gridStack as unknown as ExtendedGridStack;
+        const sourceRect = activeGridStackDrag.element.getBoundingClientRect();
+        startShortcutDrag({
+          shortcutId: activeGridStackDrag.widgetId,
+          source: {
+            type: 'dashboard',
+            pageId,
+          },
+          pointer: {
+            x: lastMouseX,
+            y: lastMouseY,
+          },
+          sourceRect: {
+            left: sourceRect.left,
+            top: sourceRect.top,
+            width: sourceRect.width,
+            height: sourceRect.height,
+          },
+        });
+
+        activeGridStackDrag.transferred = true;
+        grid.cancelDrag();
+        document.dispatchEvent(new MouseEvent('mouseup', {
+          bubbles: true,
+          cancelable: true,
+          clientX: lastMouseX,
+          clientY: lastMouseY,
+          button: 0,
+        }));
+        return;
+      }
+      
+      const now = Date.now();
+      if (now - lastEventTime > 50) {
+        lastEventTime = now;
+        window.dispatchEvent(new CustomEvent('global-drag-move', { 
+          detail: {
+            x: lastMouseX,
+            y: lastMouseY,
+            widgetId: activeGridStackDrag.widgetId,
+            widgetType: activeGridStackDrag.widgetType,
+          },
+        }));
+        
+        // Surface detection for GridStack dragged items
+        const isOverSection = elements.some(el => 
+            !el.classList.contains('ui-draggable-dragging') && 
+            !el.classList.contains('grid-stack-item-dragging') &&
+            (el.closest('[data-widget-type="section"]') || el.closest('[role="dialog"]'))
+        );
+
+        if (isOverSection) {
+           document.body.classList.add('gs-over-section');
+        } else {
+           document.body.classList.remove('gs-over-section');
+        }
+      }
+    };
+
+    const handleDragStart = (_event: Event, el: HTMLElement) => {
+      const node = (el as ExtendedGridStackElement).gridstackNode;
+      const widgetId = node?.id || el.getAttribute('gs-id');
+
+      activeGridStackDrag = widgetId
+        ? {
+            widgetId: String(widgetId),
+            widgetType: el.getAttribute('data-widget-type'),
+            element: el,
+            transferred: false,
+          }
+        : null;
+
+      document.addEventListener('mousemove', trackMouse);
+    };
+
+    const handleDragStop = (_event: Event, el: HTMLElement) => {
+      document.removeEventListener('mousemove', trackMouse);
+      document.body.classList.remove('gs-over-section');
+      const didTransfer = activeGridStackDrag?.transferred ?? false;
+      activeGridStackDrag = null;
+
+      const node = (el as ExtendedGridStackElement).gridstackNode;
+      const widgetId = node?.id || el.getAttribute('gs-id');
+      if (!widgetId || !lastMouseX || !lastMouseY) {
+        window.dispatchEvent(new CustomEvent('global-drag-stop'));
+        return;
+      }
+
+      if (didTransfer) {
+        window.dispatchEvent(new CustomEvent('global-drag-stop'));
+        return;
+      }
+
+      // Temporarily hide the dragged element so elementsFromPoint can see through it
+      const originalPointerEvents = el.style.pointerEvents;
+      const originalVisibility = el.style.visibility;
+      el.style.pointerEvents = 'none';
+      el.style.visibility = 'hidden';
+
+      // Call the drop handler BEFORE dispatching global-drag-stop so that
+      // page.tsx can read data-placeholder-index from section grids before
+      // the sections clear it.
+      onWidgetDragStop(String(widgetId), lastMouseX, lastMouseY);
+
+      // Restore
+      el.style.pointerEvents = originalPointerEvents;
+      el.style.visibility = originalVisibility;
+
+      // Now clean up section placeholder state
+      window.dispatchEvent(new CustomEvent('global-drag-stop'));
+    };
+
+    gridStack.on('dragstart', handleDragStart as (...args: unknown[]) => void);
+    gridStack.on('dragstop', handleDragStop as (...args: unknown[]) => void);
+
+    return () => {
+      document.removeEventListener('mousemove', trackMouse);
+      activeGridStackDrag = null;
+      const grid = gridStack as unknown as ExtendedGridStack;
+      grid.off('dragstart', handleDragStart as (...args: unknown[]) => void);
+      grid.off('dragstop', handleDragStop as (...args: unknown[]) => void);
+    };
+  }, [gridStack, onWidgetDragStop, pageId, startShortcutDrag]);
+
+  useEffect(() => {
+    if (!isEditing || !gridStack || !dragPointer || !draggedShortcutId) return;
+
+    const target = resolveExternalShortcutTarget(dragPointer.x, dragPointer.y);
+    if (!target) {
+      const activeTarget = useShortcutDragStore.getState().activeDrag?.target;
+      if (activeTarget?.kind === 'dashboard' && activeTarget.pageId === pageId) {
+        clearDragTarget();
+      }
+      return;
+    }
+    const { pageId: _targetPageId, ...gridTarget } = target;
+
+    setDragTarget({
+      kind: 'dashboard',
+      pageId,
+      grid: gridTarget,
+      rect: getDashboardCellRect(gridStack.el.getBoundingClientRect(), gridStack.getColumn(), rowHeight, gridTarget),
+    });
+  }, [
+    clearDragTarget,
+    dashboardTarget,
+    dragPointer,
+    draggedShortcutId,
+    gridStack,
+    isEditing,
+    pageId,
+    resolveExternalShortcutTarget,
+    rowHeight,
+    setDragTarget,
+  ]);
 
   useEffect(() => {
     if (!gridStack) return;
@@ -153,7 +449,6 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
         item.config || {}
       );
 
-      // @ts-ignore - engine exists on GridStack instance
       const node = grid.engine?.nodes.find((n) => n.id === item.id);
 
       if (node) {
@@ -183,10 +478,6 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
            gridStack.update(node.el!, {
              x, y, w, h,
              minW, minH,
-             // @ts-ignore
-             minWidth: minW, 
-             // @ts-ignore
-             minHeight: minH
            });
         }
       } else {
@@ -213,7 +504,6 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
       }
     });
 
-    // @ts-ignore
     const nodes = grid.engine?.nodes || [];
     nodes.forEach((node: GridStackNode) => {
       if (node.id && !processedIds.has(String(node.id))) {
@@ -245,7 +535,31 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
 
   }, [gridStack, children, items]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {externalShortcutTarget && externalShortcutRect && (
+        <div
+          key={`shortcut-placeholder-${externalShortcutTarget.x}-${externalShortcutTarget.y}`}
+          className="shortcut-external-placeholder"
+          style={{
+            position: 'absolute',
+            left: `${externalShortcutRect.left}px`,
+            top: `${externalShortcutRect.top}px`,
+            width: `${externalShortcutRect.width}px`,
+            height: `${externalShortcutRect.height}px`,
+            pointerEvents: 'none',
+            zIndex: 90,
+            border: '2px dashed var(--border-highlight)',
+            borderRadius: 'var(--widget-radius, 24px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            opacity: 0.8,
+            backdropFilter: 'blur(4px)',
+          }}
+        />
+      )}
+    </>
+  );
 };
 
 export const DashboardGrid: React.FC<DashboardGridProps> = (props) => {
@@ -264,6 +578,16 @@ export const DashboardGrid: React.FC<DashboardGridProps> = (props) => {
 
   return (
     <GridStackProvider initialOptions={initialOptions}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .grid-stack-item.ui-draggable-dragging,
+        .grid-stack-item-dragging {
+           z-index: 9999999 !important;
+           pointer-events: none !important;
+        }
+        body.gs-over-section .grid-stack-placeholder {
+           display: none !important;
+        }
+      `}} />
       <GridStackRenderProvider className="grid-stack">
         <DashboardGridContent {...props} />
       </GridStackRenderProvider>

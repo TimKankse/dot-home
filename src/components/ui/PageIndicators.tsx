@@ -21,7 +21,6 @@ export const PageIndicators: React.FC = () => {
 
   if (pages.length <= 1 && !isEditing) return null;
 
-  // Auto-detect direction: vertical on PC, horizontal on mobile/tablet
   const isVertical = !isMobile && !isMedium;
   const currentPage = pages[currentPageIndex];
   const isDefault = currentPage?.id === defaultPageId;
@@ -30,7 +29,6 @@ export const PageIndicators: React.FC = () => {
     <div 
       className={`${styles.wrapper} ${isVertical ? styles.vertical : styles.horizontal}`}
     >
-      {/* Set Default - at top in edit mode */}
       {isEditing && canEditDashboard && (
         <div className={styles.topControl}>
           <button
@@ -49,9 +47,7 @@ export const PageIndicators: React.FC = () => {
         </div>
       )}
 
-      {/* Center section: nav buttons and indicators */}
       <div className={styles.centerControls}>
-        {/* Move Previous (Left/Up) */}
         {isEditing && canEditDashboard && (
           <button
             className={styles.actionButton}
@@ -78,7 +74,6 @@ export const PageIndicators: React.FC = () => {
           ))}
         </div>
 
-        {/* Move Next (Right/Down) */}
         {isEditing && canEditDashboard && (
           <button
             className={styles.actionButton}
@@ -95,7 +90,6 @@ export const PageIndicators: React.FC = () => {
         )}
       </div>
 
-      {/* Remove Page - at bottom in edit mode */}
       {isEditing && canEditDashboard && pages.length > 1 && (
         <div className={styles.bottomControl}>
           <button

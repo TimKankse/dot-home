@@ -139,7 +139,6 @@ export const UsersSettings: React.FC = () => {
     );
   }
 
-  // Render the form view
   if (formMode === 'create') {
     return (
       <div className={styles.form}>
@@ -223,7 +222,6 @@ export const UsersSettings: React.FC = () => {
     );
   }
 
-  // Render the list view
   return (
     <div className={styles.section}>
       <div className={styles.sectionTitle}>

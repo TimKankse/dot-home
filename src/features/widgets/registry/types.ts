@@ -3,7 +3,7 @@ import type { Widget } from '@/types/widget';
 
 export interface WidgetDefinition {
   component: React.ComponentType<WidgetComponentProps>;
-  defaultTitle?: string;
+  displayName: string;
   defaultSize: { w: number; h: number };
   minSize?: { w: number; h: number };
   maxSize?: { w: number; h: number };
@@ -14,6 +14,8 @@ export interface WidgetComponentProps {
   config?: Record<string, unknown>;
   integrationId?: string;
   isEditing?: boolean;
+  id?: string;
+  title?: string;
 }
 
 export type WidgetTypeKey = 
@@ -31,13 +33,14 @@ export type WidgetTypeKey =
   | 'search'
   | 'image'
   | 'shortcut'
-  | 'spacer';
+  | 'spacer'
+  | 'section';
 
 export const isValidWidgetType = (type: string): type is WidgetTypeKey => {
   return [
     'clock', 'weather', 'calendar', 'jellyfin', 'jellyseerr',
     'netdata', 'twitch', 'portainer', 'sabnzbd', 'qbittorrent',
-    'rss', 'search', 'image', 'shortcut', 'spacer'
+    'rss', 'search', 'image', 'shortcut', 'spacer', 'section'
   ].includes(type);
 };
 

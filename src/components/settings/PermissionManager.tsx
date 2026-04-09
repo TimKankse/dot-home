@@ -1,9 +1,3 @@
-/**
- * PermissionManager - Manage user-specific permission overrides
- *
- * Shows current access level and allows adding/removing user overrides.
- */
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -79,7 +73,6 @@ export function PermissionManager({
 
     setAddingUser(true);
     try {
-      // First, find user by email
       const userRes = await fetch(`/api/users?email=${encodeURIComponent(newUserEmail)}`);
       if (!userRes.ok) throw new Error('User not found');
       const userData = await userRes.json();
@@ -89,7 +82,6 @@ export function PermissionManager({
         return;
       }
 
-      // Add permission
       const res = await fetch('/api/permissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

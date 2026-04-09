@@ -6,13 +6,14 @@ import { WidgetWrapper } from '@/components/core/WidgetWrapper';
 import { WIDGET_REGISTRY, getWidgetTypeFromWidget } from '@/features/widgets';
 import { AppShortcutWidget } from '@/components/widgets/shortcut/AppShortcutWidget';
 import { SpacerWidget } from '@/components/widgets/spacer/SpacerWidget';
+import { useShortcutDragStore } from '@/store/useShortcutDragStore';
 
 interface WidgetRendererProps {
   widget: Widget;
   isEditing: boolean;
   canEditDashboard?: boolean;
   onEdit: (widget: Widget) => void;
-  showTitle?: boolean;
+  showWidgetNames?: boolean;
 }
 
 export const WidgetRenderer: React.FC<WidgetRendererProps> = ({ 
@@ -20,9 +21,10 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
   isEditing, 
   canEditDashboard = true, 
   onEdit, 
-  showTitle = true 
+  showWidgetNames = true 
 }) => {
   const widgetType = getWidgetTypeFromWidget(widget);
+  const activeShortcutDragId = useShortcutDragStore(state => state.activeDrag?.shortcutId ?? null);
   
   if (!widgetType) {
     return null;
@@ -39,13 +41,15 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
     />
   ) : undefined;
 
-  const getTitle = (defaultTitle?: string) => 
-    showTitle ? (widget.name || defaultTitle) : undefined;
+  const widgetName = showWidgetNames ? definition.displayName : undefined;
 
   const handleEdit = canConfigureWidget ? () => onEdit(widget) : undefined;
 
-  // Special case: Shortcut widget has its own wrapper
   if (widgetType === 'shortcut') {
+    if (activeShortcutDragId === widget.id) {
+      return <div style={{ height: '100%', visibility: 'hidden' }} />;
+    }
+
     return (
       <AppShortcutWidget 
         name={widget.name || ''} 
@@ -60,7 +64,6 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
     );
   }
 
-  // Special case: Spacer has transparent styling when not editing
   if (widgetType === 'spacer') {
     return (
       <WidgetWrapper 
@@ -82,7 +85,7 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
 
   return (
     <WidgetWrapper 
-      title={getTitle(definition.defaultTitle)} 
+      widgetName={widgetName}
       icon={icon}
       isEditing={isEditing} 
       onEdit={handleEdit}
@@ -91,6 +94,8 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
         config={widget.config} 
         integrationId={widget.integrationId}
         isEditing={isEditing}
+        id={widget.id}
+        title={widget.name}
       />
     </WidgetWrapper>
   );

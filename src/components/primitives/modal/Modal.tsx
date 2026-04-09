@@ -12,6 +12,10 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   className?: string;
+  style?: React.CSSProperties;
+  onOverlayDrop?: (e: React.DragEvent) => void;
+  onOverlayDragOver?: (e: React.DragEvent) => void;
+  lockScroll?: boolean;
 }
 
 // --- Components ---
@@ -21,7 +25,11 @@ export const Modal: React.FC<ModalProps> = ({
   onClose, 
   children, 
   size = 'md',
-  className = ''
+  className = '',
+  style,
+  onOverlayDrop,
+  onOverlayDragOver,
+  lockScroll = true
 }) => {
   const [mounted, setMounted] = useState(false);
 
@@ -38,7 +46,9 @@ export const Modal: React.FC<ModalProps> = ({
     };
 
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
+      if (lockScroll) {
+        document.body.style.overflow = 'hidden';
+      }
       document.addEventListener('keydown', handleKeyDown);
     } else {
       document.body.style.overflow = 'unset';
@@ -47,13 +57,20 @@ export const Modal: React.FC<ModalProps> = ({
       document.body.style.overflow = 'unset';
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, lockScroll]);
 
   if (!mounted || !isOpen) return null;
 
   return createPortal(
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`${styles.modal} ${styles[size]} ${className}`}>
+    <div 
+      className={styles.overlay} 
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onDrop={onOverlayDrop}
+      onDragOver={onOverlayDragOver}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className={`${styles.modal} ${styles[size]} ${className}`} style={style}>
         {children}
       </div>
     </div>,
@@ -61,11 +78,12 @@ export const Modal: React.FC<ModalProps> = ({
   );
 };
 
-export const ModalContent: React.FC<{ children: React.ReactNode; className?: string }> = ({ 
+export const ModalContent: React.FC<{ children: React.ReactNode; className?: string; style?: React.CSSProperties }> = ({ 
   children, 
-  className = '' 
+  className = '',
+  style
 }) => {
-  return <div className={`${styles.content} ${className}`}>{children}</div>;
+  return <div className={`${styles.content} ${className}`} style={style}>{children}</div>;
 };
 
 interface ModalHeaderProps {

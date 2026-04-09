@@ -292,11 +292,20 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
         
         // For 'none' and 'cardinal' modes: 3 evenly spaced ticks between each cardinal
         if (classicDigits === 'none' || classicDigits === 'cardinal') {
-            const tickPositions = [
+            // 3 evenly spaced ticks between each cardinal
+            /*const tickPositions = [
                 3.75, 7.5, 11.25,    // Between 12 and 3
                 18.75, 22.5, 26.25,  // Between 3 and 6
                 33.75, 37.5, 41.25,  // Between 6 and 9
                 48.75, 52.5, 56.25   // Between 9 and 12
+            ];*/
+
+            // 2 evenly spaced ticks between each cardinal  
+            const tickPositions = [
+                5, 10,       // Between 12 and 3 (0 and 15)
+                20, 25,      // Between 3 and 6 (15 and 30)
+                35, 40,      // Between 6 and 9 (30 and 45)
+                50, 55       // Between 9 and 12 (45 and 60)
             ];
             
             for (const pos of tickPositions) {

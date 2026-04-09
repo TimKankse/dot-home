@@ -15,9 +15,10 @@ interface GpuVariationProps {
     data: NetdataApiResponse;
     history: GpuHistory;
     config?: NetdataWidgetConfig;
+    title?: string;
 }
 
-export const GpuVariation: React.FC<GpuVariationProps> = ({ data, history, config }) => {
+export const GpuVariation: React.FC<GpuVariationProps> = ({ data, history, config, title }) => {
     const { settings } = useSettingsStore();
     
     // Determine temperature unit: use config if set, otherwise app settings
@@ -53,7 +54,7 @@ export const GpuVariation: React.FC<GpuVariationProps> = ({ data, history, confi
     return (
         <div className={styles.widgetContainer}>
             <div className={styles.header}>
-                <span className={styles.widgetTitle}>GPU LOAD</span>
+                <span className={styles.widgetTitle}>{title || 'GPU LOAD'}</span>
             </div>
             <div className={styles.cpuContent}>
                 <CircularProgress value={targetGpu.utilization} color="var(--accent-purple)" label="GPU" />
