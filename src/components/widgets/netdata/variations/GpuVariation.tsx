@@ -2,13 +2,13 @@ import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
 import { CircularProgress } from '../components/CircularProgress';
-import { Sparkline } from '../components/Sparkline';
+import { Sparkline, type SparklinePoint } from '../components/Sparkline';
 import { NetdataApiResponse, GpuData } from '@/app/api/netdata/types';
 import type { NetdataWidgetConfig } from '@/types';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
 interface GpuHistory {
-    gpus: Record<string, number[]>;
+    gpus: Record<string, SparklinePoint[]>;
 }
 
 interface GpuVariationProps {
@@ -31,6 +31,8 @@ export const GpuVariation: React.FC<GpuVariationProps> = ({ data, history, confi
         }
         return `${Math.round(tempC)}°C`;
     };
+
+    const formatPercent = (value: number) => `${Math.round(value * 10) / 10}%`;
 
     if (!data.gpus || data.gpus.length === 0) {
         return (
@@ -59,7 +61,13 @@ export const GpuVariation: React.FC<GpuVariationProps> = ({ data, history, confi
             <div className={styles.cpuContent}>
                 <CircularProgress value={targetGpu.utilization} color="var(--accent-purple)" label="GPU" />
                 <div className={styles.graphContainer}>
-                    <Sparkline dataPoints={history.gpus[targetGpu.id] || []} color="var(--accent-purple)" maxLimit={100} />
+                    <Sparkline
+                        dataPoints={history.gpus[targetGpu.id] || []}
+                        color="var(--accent-purple)"
+                        maxLimit={100}
+                        formatY={formatPercent}
+                        tooltipLabel="GPU load"
+                    />
                     <div className={styles.cpuFooter}>
                         <div className={styles.cpuModel} style={{ fontSize: '0.65rem', color: 'var(--text-muted)', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {targetGpu.name.replace('NVIDIA ', '').replace('Intel ', '')}

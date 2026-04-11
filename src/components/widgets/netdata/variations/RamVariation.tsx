@@ -1,16 +1,18 @@
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
-import { Sparkline } from '../components/Sparkline';
+import { Sparkline, type SparklinePoint } from '../components/Sparkline';
 import { formatBytes } from '../utils';
 import { NetdataApiResponse } from '@/app/api/netdata/types';
 
 interface RamVariationProps {
     data: NetdataApiResponse;
-    history: number[];
+    history: SparklinePoint[];
     title?: string;
 }
 
 export const RamVariation: React.FC<RamVariationProps> = ({ data, history, title }) => {
+    const formatPercent = (value: number) => `${Math.round(value * 10) / 10}%`;
+
     if (!data.mem) {
         return (
             <div className={styles.widgetContainer}>
@@ -28,7 +30,13 @@ export const RamVariation: React.FC<RamVariationProps> = ({ data, history, title
             </div>
             <div className={styles.ramContent}>
                 <div className={styles.ramGraphContainer}>
-                    <Sparkline dataPoints={history} color="var(--accent-green)" maxLimit={100} />
+                    <Sparkline
+                        dataPoints={history}
+                        color="var(--accent-green)"
+                        maxLimit={100}
+                        formatY={formatPercent}
+                        tooltipLabel="RAM usage"
+                    />
                 </div>
                 <div className={styles.progressBarContainer}>
                     <div className={styles.progressBar}>

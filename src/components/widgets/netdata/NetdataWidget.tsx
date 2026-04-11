@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNetdataStore } from '@/store/useNetdataStore';
-import { Activity, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import styles from './NetdataWidget.module.css';
 
 import { CpuVariation } from './variations/CpuVariation';
@@ -13,6 +13,7 @@ import { NetworkVariation } from './variations/NetworkVariation';
 import { SystemVariation } from './variations/SystemVariation';
 import { CpuCoresVariation } from './variations/CpuCoresVariation';
 import { GpuVariation } from './variations/GpuVariation';
+import type { SparklinePoint } from './components/Sparkline';
 import type { NetdataWidgetConfig } from '@/types';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 
@@ -20,6 +21,19 @@ interface NetdataWidgetProps {
   isEditing?: boolean;
   config?: NetdataWidgetConfig;
 }
+
+interface NetdataHistory {
+  cpu: SparklinePoint[];
+  ram: SparklinePoint[];
+  netRx: SparklinePoint[];
+  netTx: SparklinePoint[];
+  cores: Record<number, SparklinePoint[]>;
+  gpus: Record<string, SparklinePoint[]>;
+}
+
+const appendHistoryPoint = (history: SparklinePoint[], point: SparklinePoint) => (
+  [...history, point].slice(-30)
+);
 
 export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: string; title?: string }> = ({ isEditing = false, config, integrationId, title }) => {
   const { instances, subscribe, unsubscribe } = useNetdataStore();
@@ -31,7 +45,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
   const loading = instance?.loading || false;
   const error = instance?.error || null;
 
-  const [history, setHistory] = useState<{ cpu: number[], ram: number[], netRx: number[], netTx: number[], cores: Record<number, number[]>, gpus: Record<string, number[]> }>({ cpu: [], ram: [], netRx: [], netTx: [], cores: {}, gpus: {} });
+  const [history, setHistory] = useState<NetdataHistory>({ cpu: [], ram: [], netRx: [], netTx: [], cores: {}, gpus: {} });
   const metricType = config?.metricType || 'cpu';
 
   // Determine Refresh Interval
@@ -68,12 +82,13 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid pattern for accumulating streaming time-series data
     setHistory(prev => {
+        const timestamp = Date.now();
         const newCpu = data.cpu && typeof data.cpu.total === 'number' 
-            ? [...prev.cpu, data.cpu.total].slice(-30) 
+            ? appendHistoryPoint(prev.cpu, { x: timestamp, y: data.cpu.total })
             : prev.cpu;
         
         const newRam = data.mem && typeof data.mem.percent === 'number'
-            ? [...prev.ram, data.mem.percent].slice(-30)
+            ? appendHistoryPoint(prev.ram, { x: timestamp, y: data.mem.percent })
             : prev.ram;
         
         let newNetRx = prev.netRx;
@@ -86,8 +101,8 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
                 : data.network.find((n: { interface_name: string }) => n.interface_name !== 'lo');
             
             if (targetInterface) {
-                newNetRx = [...prev.netRx, targetInterface.rx].slice(-30);
-                newNetTx = [...prev.netTx, targetInterface.tx].slice(-30);
+                newNetRx = appendHistoryPoint(prev.netRx, { x: timestamp, y: targetInterface.rx });
+                newNetTx = appendHistoryPoint(prev.netTx, { x: timestamp, y: targetInterface.tx });
             }
         }
 
@@ -96,7 +111,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
             newCores = { ...prev.cores };
             data.cores.forEach((core: { id: number; load: number }) => {
                 const currentHistory = newCores[core.id] || [];
-                newCores[core.id] = [...currentHistory, core.load].slice(-30);
+                newCores[core.id] = appendHistoryPoint(currentHistory, { x: timestamp, y: core.load });
             });
         }
 
@@ -105,7 +120,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
             newGpus = { ...prev.gpus };
             data.gpus.forEach((gpu: { id: string; utilization: number }) => {
                 const currentHistory = newGpus[gpu.id] || [];
-                newGpus[gpu.id] = [...currentHistory, gpu.utilization].slice(-30);
+                newGpus[gpu.id] = appendHistoryPoint(currentHistory, { x: timestamp, y: gpu.utilization });
             });
         }
 

@@ -44,6 +44,7 @@
   padding: 8px;
   border-radius: 8px;
   background: var(--surface-overlay);
+  border: 1px solid var(--surface-overlay);
   transition: background 0.2s ease;
   text-decoration: none;
   color: inherit;
@@ -60,8 +61,8 @@
 }
 
 .streamItem.offline:hover {
-    background: var(--surface-overlay);
-    opacity: 0.8;
+  background: var(--surface-overlay);
+  opacity: 0.8;
 }
 
 .avatarContainer {
@@ -80,14 +81,14 @@
 }
 
 .avatarPlaceholder {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: var(--surface-overlay-active);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--surface-overlay-active);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
 }
 
 .liveIndicator {
@@ -111,9 +112,9 @@
 }
 
 .rowTop {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .streamerName {
@@ -142,12 +143,12 @@
 }
 
 .offlineLabel {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    border: 1px solid var(--border-color);
-    padding: 1px 4px;
-    border-radius: 3px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  border: 1px solid var(--border-color);
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .offlineState {

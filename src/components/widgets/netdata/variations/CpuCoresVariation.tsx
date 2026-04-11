@@ -1,7 +1,7 @@
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
-import { Sparkline } from '../components/Sparkline';
+import { Sparkline, type SparklinePoint } from '../components/Sparkline';
 import type { NetdataWidgetConfig } from '@/types';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
@@ -19,7 +19,7 @@ interface NetdataData {
 interface CpuCoresVariationProps {
     data: NetdataData;
     history: {
-        cores: Record<number, number[]>;
+        cores: Record<number, SparklinePoint[]>;
     };
     config?: NetdataWidgetConfig;
     title?: string;
@@ -38,6 +38,12 @@ export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, hist
         }
         return `${Math.round(tempC)}°C`;
     };
+
+    const formatCoreValue = (value: number) => (
+        data.coresDataType === 'frequency'
+            ? `${Math.round(value)} MHz`
+            : `${Math.round(value * 10) / 10}%`
+    );
 
     if (!data.cores || data.cores.length === 0) {
         return (
@@ -68,6 +74,8 @@ export const CpuCoresVariation: React.FC<CpuCoresVariationProps> = ({ data, hist
                                 dataPoints={history.cores[core.id] || []} 
                                 color="var(--accent-green)" 
                                 maxLimit={data.coresDataType === 'frequency' ? undefined : 100} 
+                                formatY={formatCoreValue}
+                                tooltipLabel={`Core ${core.id}`}
                             />
                             <div className={styles.coreOverlay}>
                                 {Math.round(core.load)}{data.coresDataType === 'frequency' ? ' MHz' : '%'}

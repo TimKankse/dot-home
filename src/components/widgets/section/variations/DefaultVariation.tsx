@@ -32,6 +32,7 @@ export const DefaultVariation: React.FC<DefaultVariationProps> = ({
         pageId={pageId}
         shortcuts={shortcuts}
         isEditing={isEditing}
+        shortcutWidgetClassName={styles.sectionShortcutCard}
         emptyState={isEditing ? 'Drag shortcuts here' : 'No shortcuts'}
       />
     </div>

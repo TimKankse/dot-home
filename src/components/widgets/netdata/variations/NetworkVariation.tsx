@@ -1,14 +1,14 @@
 import React from 'react';
 import styles from '../NetdataWidget.module.css';
 import { AlertCircle } from 'lucide-react';
-import { Sparkline } from '../components/Sparkline';
+import { Sparkline, type SparklinePoint } from '../components/Sparkline';
 import { formatBytes } from '../utils';
 import { NetdataApiResponse, NetworkInterfaceData } from '@/app/api/netdata/types';
 import type { NetdataWidgetConfig } from '@/types';
 
 interface NetworkHistory {
-    netRx: number[];
-    netTx: number[];
+    netRx: SparklinePoint[];
+    netTx: SparklinePoint[];
 }
 
 interface NetworkVariationProps {
@@ -19,6 +19,8 @@ interface NetworkVariationProps {
 }
 
 export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, history, config, title }) => {
+    const formatRate = (value: number) => `${formatBytes(value)}/s`;
+
     // Find target interface
     const targetInterface = config?.interfaceName 
         ? data.network?.find((n: NetworkInterfaceData) => n.interface_name === config.interfaceName)
@@ -46,13 +48,23 @@ export const NetworkVariation: React.FC<NetworkVariationProps> = ({ data, histor
                     <div className={styles.netGraphRow}>
                         <span className={styles.netGraphLabel}>↓</span>
                         <div className={styles.netGraph}>
-                             <Sparkline dataPoints={history.netRx} color="var(--accent-blue)" />
+                             <Sparkline
+                                dataPoints={history.netRx}
+                                color="var(--accent-blue)"
+                                formatY={formatRate}
+                                tooltipLabel="Download"
+                            />
                         </div>
                     </div>
                     <div className={styles.netGraphRow}>
                         <span className={styles.netGraphLabel}>↑</span>
                         <div className={styles.netGraph}>
-                             <Sparkline dataPoints={history.netTx} color="var(--accent-green)" />
+                             <Sparkline
+                                dataPoints={history.netTx}
+                                color="var(--accent-green)"
+                                formatY={formatRate}
+                                tooltipLabel="Upload"
+                            />
                         </div>
                     </div>
                 </div>

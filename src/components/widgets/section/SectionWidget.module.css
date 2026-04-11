@@ -9,9 +9,9 @@
 
 .sectionTitle {
   font-family: var(--font-gloock-serif);
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 400;
-  margin-bottom: 0.5rem;
+  margin-bottom: 16px;
   color: var(--color-fg-primary);
   opacity: 0.9;
   padding-left: 4px;
@@ -26,19 +26,29 @@
   align-content: start;
   flex: 1;
   overflow-y: auto;
-  min-height: 0; 
+  min-height: 0;
   padding-right: 4px;
 }
 
 /* Individual shortcut wrapper */
 .shortcutSlot {
   position: relative;
-  aspect-ratio: 1 / 1; 
+  aspect-ratio: 1 / 1;
   transition: transform 0.2s;
 }
 
 .shortcutSlot:active {
   transform: scale(0.98);
+}
+
+.sectionShortcutCard {
+  background: var(--surface-overlay);
+  border: 1px solid var(--surface-overlay);
+}
+
+.sectionShortcutCard:hover {
+  background: var(--surface-overlay-hover);
+  border-color: var(--surface-overlay-active);
 }
 
 .shortcutPlaceholder {
@@ -50,8 +60,14 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Custom drag image style (applied to the element being dragged) */
@@ -85,40 +101,77 @@
 .folderContainer {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   height: 100%;
   width: 100%;
   cursor: pointer;
   transition: transform 0.1s ease;
   position: relative; /* For edit overlay */
+  min-height: 0;
 }
 
 .folderContainer:active {
   transform: scale(0.98);
 }
 
+.folderHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.folderHeaderTitle {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--color-fg-primary);
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folderPreviewStage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Grid for folder preview icons */
 .folderPreview {
+  --folder-preview-columns: 2;
+  --folder-preview-rows: 2;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 8px;
+  grid-template-columns: repeat(var(--folder-preview-columns), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--folder-preview-rows), minmax(0, 1fr));
+  gap: 4px;
   border-radius: 16px; /* A bit rounder */
-  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  max-width: 200px;
+  max-height: 200px;
 }
 
 .folderPreviewIcon {
   width: 100%;
   height: 100%;
-  max-width: 32px;
-  max-height: 32px;
-  object-fit: cover; /* Fill the cell */
-  border-radius: 6px;
-  background: rgba(0,0,0,0.2);
+  max-width: 64px;
+  max-height: 64px;
+  justify-self: center;
+  align-self: center;
+  object-fit: contain;
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--surface-overlay);
+  border: 1px solid var(--surface-overlay);
+  border-radius: 0.75rem;
 }
 
 .folderPreviewFallback {
@@ -127,7 +180,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: bold;
@@ -136,20 +189,6 @@
 
 .folderPreviewEmpty {
   /* Placeholder */
-  background: rgba(255,255,255,0.03);
-  border-radius: 6px;
-}
-
-.folderName {
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--color-fg-primary);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 90%;
-  margin-top: 4px;
 }
 
 /* Edit Mode Overlay */
@@ -247,7 +286,7 @@
 }
 
 .paginationArrow:hover:not(:disabled) {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--color-fg-primary);
 }
 

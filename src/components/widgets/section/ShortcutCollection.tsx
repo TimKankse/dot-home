@@ -14,6 +14,7 @@ interface ShortcutCollectionProps {
   dashboardHandoff?: 'immediate' | 'disabled';
   gridClassName?: string;
   slotClassName?: string;
+  shortcutWidgetClassName?: string;
   emptyState?: React.ReactNode;
 }
 
@@ -26,6 +27,7 @@ export const ShortcutCollection: React.FC<ShortcutCollectionProps> = ({
   dashboardHandoff = 'disabled',
   gridClassName = styles.shortcutGrid,
   slotClassName = styles.shortcutSlot,
+  shortcutWidgetClassName,
   emptyState,
 }) => {
   const gridRef = React.useRef<HTMLDivElement>(null);
@@ -75,6 +77,7 @@ export const ShortcutCollection: React.FC<ShortcutCollectionProps> = ({
                     name={shortcut.name || ''}
                     url={shortcut.url || ''}
                     iconUrl={shortcut.iconUrl}
+                    className={shortcutWidgetClassName}
                     isSelfHosted={shortcut.isSelfHosted}
                     internalUrl={shortcut.internalUrl}
                     config={shortcut.config}

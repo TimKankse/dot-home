@@ -10,8 +10,9 @@
   position: relative;
   text-decoration: none;
   color: var(--text-main);
-  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.2s ease, background-color 0.2s ease;
-  
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1),
+    border-color 0.2s ease, background-color 0.2s ease;
+
   /* Mini Card Styling */
   background-color: var(--bg-card);
   border: 1px solid var(--border-dim);
@@ -130,7 +131,13 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
