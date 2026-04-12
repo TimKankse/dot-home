@@ -103,6 +103,8 @@ function createDefaultDashboardLayout() {
         language: 'en',
         timezone: 'auto',
         location: '',
+        mobileBreakpointMaxWidth: 767,
+        tabletBreakpointMaxWidth: 975,
       },
       shortcuts: {
         toggleEdit: 'Alt+E',

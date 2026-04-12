@@ -12,6 +12,7 @@ import { SettingsModal } from '@/components/settings/SettingsModal';
 import { usePersistenceStore } from "@/store/usePersistenceStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { usePageStore } from "@/store/usePageStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { PageIndicators } from "@/components/ui/PageIndicators";
 import { useScrollNavigation } from "@/hooks/useScrollNavigation";
 import { useResponsiveState } from "@/hooks/useResponsiveState";
@@ -23,6 +24,7 @@ import { NewWidgetInput, Widget } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { getMinDimensions } from "@/constants/widget-definitions";
 import {
+  getResponsivePreviewWidth,
   getGridDimensions,
   type BreakpointKey,
   type ResponsiveBreakpointKey,
@@ -45,9 +47,9 @@ interface DashboardPageContentProps {
   gapSize: number;
 }
 
-const PREVIEW_WIDTHS: Record<ResponsiveBreakpointKey, string> = {
-  tablet: 'min(820px, calc(100vw - 120px))',
-  mobile: 'min(430px, calc(100vw - 48px))',
+const PREVIEW_VIEWPORT_OFFSETS: Record<ResponsiveBreakpointKey, number> = {
+  tablet: 120,
+  mobile: 48,
 };
 
 const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
@@ -176,8 +178,10 @@ export default function Home() {
   const {
     breakpoint: viewportBreakpoint,
     isDesktop,
+    breakpointThresholds,
     mainRef,
   } = useResponsiveState();
+  const updateDisplaySettings = useSettingsStore((state) => state.updateDisplay);
 
   const [rowHeight, setRowHeight] = useState(100);
   const [gapSize, setGapSize] = useState(8);
@@ -233,7 +237,8 @@ export default function Home() {
     openAddModal,
   } = useWidgetManager();
 
-  const canEditFromDesktopPreview = isEditing && canEditDashboard && isDesktop;
+  const canOpenLayoutControls = isEditing && canEditDashboard;
+  const canEditFromDesktopPreview = canOpenLayoutControls && isDesktop;
   const renderedBreakpoint = canEditFromDesktopPreview ? layoutTargetBreakpoint : viewportBreakpoint;
   const isPreviewingResponsiveLayout = canEditFromDesktopPreview && renderedBreakpoint !== 'desktop';
   const currentPageId = pages[currentPageIndex]?.id;
@@ -273,7 +278,7 @@ export default function Home() {
   }, [handleEditWidget, widgets]);
 
   useAutoSave();
-  useShortcutDragController(isEditing && renderedBreakpoint === 'desktop');
+  useShortcutDragController(isEditing);
 
   const effectiveScrollDirection = renderedBreakpoint === 'desktop' ? scrollDirection : 'horizontal';
 
@@ -371,8 +376,21 @@ export default function Home() {
     resetResponsiveLayout(currentPageId, renderedBreakpoint as ResponsiveBreakpointKey);
   };
 
+  const handleBreakpointWidthChange = (breakpoint: ResponsiveBreakpointKey, value: number) => {
+    if (breakpoint === 'mobile') {
+      updateDisplaySettings({ mobileBreakpointMaxWidth: value });
+      return;
+    }
+
+    updateDisplaySettings({ tabletBreakpointMaxWidth: value });
+  };
+
+  const previewWidth = isPreviewingResponsiveLayout
+    ? getResponsivePreviewWidth(renderedBreakpoint as ResponsiveBreakpointKey, breakpointThresholds)
+    : null;
+
   const dashboardShellWidth = isPreviewingResponsiveLayout
-    ? PREVIEW_WIDTHS[renderedBreakpoint as ResponsiveBreakpointKey]
+    ? `min(${previewWidth}px, calc(100vw - ${PREVIEW_VIEWPORT_OFFSETS[renderedBreakpoint as ResponsiveBreakpointKey]}px))`
     : '100%';
   const dashboardShellHeight = isPreviewingResponsiveLayout
     ? 'calc(100dvh - 80px)'
@@ -394,14 +412,17 @@ export default function Home() {
         ['--dashboard-shell-height' as string]: dashboardShellHeight,
       } as React.CSSProperties}
     >
-      {canEditFromDesktopPreview && (
+      {canOpenLayoutControls && (
         <LayoutTargetControls
           isOpen={isLayoutControlsOpen}
-          target={layoutTargetBreakpoint}
+          target={renderedBreakpoint}
           isCustom={currentLayoutState.isCustom}
           sourceBreakpoint={currentLayoutState.sourceBreakpoint}
+          canSelectTarget={canEditFromDesktopPreview}
+          breakpointThresholds={breakpointThresholds}
           onClose={() => setIsLayoutControlsOpen(false)}
           onTargetChange={setLayoutTargetBreakpoint}
+          onBreakpointWidthChange={handleBreakpointWidthChange}
           onMakeCustom={handleMakeCurrentPageCustom}
           onResetToAuto={handleResetCurrentPageLayout}
         />
@@ -439,7 +460,7 @@ export default function Home() {
                   safeAreaTop={32}
                   className={styles.dashboard}
                   isEditing={isEditing}
-                  canEditDashboard={canEditDashboard && isDesktop}
+                  canEditDashboard={canEditDashboard}
                   breakpoint={renderedBreakpoint}
                   onLayoutChange={handleLayoutChange}
                   onWidgetDragStop={handleWidgetDragStop}
@@ -457,7 +478,7 @@ export default function Home() {
       <UIControls
         isEditing={isEditing}
         canEdit={canEditDashboard}
-        showLayoutControlsToggle={canEditFromDesktopPreview}
+        showLayoutControlsToggle={canOpenLayoutControls}
         isLayoutControlsOpen={isLayoutControlsOpen}
         onToggleEdit={handleToggleEdit}
         onToggleLayoutControls={() => setIsLayoutControlsOpen((current) => !current)}

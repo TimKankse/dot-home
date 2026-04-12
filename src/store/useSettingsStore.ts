@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { GeneralSettings } from '../types';
+import { DEFAULT_BREAKPOINT_THRESHOLDS } from '@/constants/grid';
 
 interface SettingsState {
   settings: GeneralSettings;
@@ -21,7 +22,9 @@ const defaultSettings: GeneralSettings = {
     is24Hour: true,
     temperatureUnit: 'C',
     timezone: 'UTC',
-    city: undefined
+    city: undefined,
+    mobileBreakpointMaxWidth: DEFAULT_BREAKPOINT_THRESHOLDS.mobileMaxWidth,
+    tabletBreakpointMaxWidth: DEFAULT_BREAKPOINT_THRESHOLDS.tabletMaxWidth,
   },
   shortcuts: {
     toggleEdit: 'Mod+E',

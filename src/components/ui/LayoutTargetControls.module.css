@@ -143,9 +143,50 @@
   line-height: 1.4;
 }
 
+.sliderBlock {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-dim);
+}
+
+.sliderHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sliderLabel {
+  color: var(--text-main);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sliderHint {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.sliderValue {
+  color: var(--text-main);
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    top: 16px;
+    width: min(640px, calc(100vw - 32px));
+  }
 }

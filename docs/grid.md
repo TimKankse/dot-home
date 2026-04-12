@@ -49,6 +49,11 @@ Defined in `src/constants/grid.ts`:
 | `tablet` | 4 | 16 | Tablets / smaller screens |
 | `mobile` | 2 | 32 | Mobile devices |
 
+Default responsive max widths:
+- `mobile`: `767px` and below
+- `tablet`: `975px` and below
+- These can be adjusted live from `LayoutTargetControls`
+
 ---
 
 ## Widget Positioning
@@ -98,5 +103,6 @@ Widgets are organized into pages:
 When editing is enabled:
 - Widgets become draggable and resizable
 - Grid shows visual guides
-- Layout variants are currently edited from desktop, with desktop preview targets for tablet and mobile
+- Desktop can preview and edit desktop, tablet, and mobile layouts
+- Tablet and mobile only edit their current responsive layout, with custom/auto inheritance controls for that breakpoint
 - Changes auto-save on toggle off

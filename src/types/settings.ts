@@ -21,6 +21,8 @@ export interface DisplaySettings {
   rowHeight?: number;
   gapSize?: number;
   borderRadius?: number;
+  mobileBreakpointMaxWidth?: number;
+  tabletBreakpointMaxWidth?: number;
 }
 
 export interface ShortcutBindings {
