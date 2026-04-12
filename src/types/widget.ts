@@ -1,9 +1,17 @@
+import type { ResponsiveBreakpointKey } from '@/constants/grid';
+
 export interface GridPosition {
   x: number;
   y: number;
   w: number;
   h: number;
 }
+
+export interface LayoutItem extends GridPosition {
+  i: string;
+}
+
+export type ResponsiveLayouts = Partial<Record<ResponsiveBreakpointKey, Record<string, LayoutItem[]>>>;
 
 export type WidgetType = 'widget' | 'shortcut';
 

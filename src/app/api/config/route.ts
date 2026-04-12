@@ -85,6 +85,7 @@ function createDefaultDashboardLayout() {
   const defaultPageId = uuidv4();
   return {
     widgets: [],
+    responsiveLayouts: {},
     scrollDirection: 'vertical',
     pages: [{ id: defaultPageId }],
     defaultPageId: defaultPageId,
@@ -240,6 +241,7 @@ export async function GET(request: Request) {
 
     // Parse the dashboard layout
     const dashboardData = JSON.parse(dashboard.layout);
+    dashboardData.responsiveLayouts = dashboardData.responsiveLayouts ?? dashboardData.mediumLayouts ?? {};
 
     // Decrypt sensitive fields in widget configs
     if (dashboardData.widgets && Array.isArray(dashboardData.widgets)) {
@@ -346,6 +348,7 @@ export async function POST(request: Request) {
     // Extract dashboard-specific data (not global config)
     const dashboardData = {
       widgets: body.widgets,
+      responsiveLayouts: body.responsiveLayouts || {},
       pages: body.pages,
       scrollDirection: body.scrollDirection,
       defaultPageId: body.defaultPageId,

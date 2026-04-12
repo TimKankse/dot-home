@@ -5,6 +5,7 @@ import { Widget, NewWidgetInput, WidgetConfig } from "@/types/widget";
 import { usePageStore } from "@/store/usePageStore";
 import { NewItem } from "@/components/item-editor/types";
 import { getMinDimensions } from '@/constants/widget-definitions';
+import type { BreakpointKey } from '@/constants/grid';
 
 export function useWidgetManager() {
   const { 
@@ -90,7 +91,7 @@ export function useWidgetManager() {
     setEditingItem(undefined);
   };
 
-  const handleAdd = (newItem: NewItem, isMedium: boolean, isMobile: boolean) => {
+  const handleAdd = (newItem: NewItem, breakpoint: BreakpointKey) => {
     const currentPageId = pages[currentPageIndex]?.id;
     if (!currentPageId) return;
 
@@ -98,7 +99,7 @@ export function useWidgetManager() {
     // Default to 1x1 if not specified (e.g. for shortcuts)
     const w = newItem.w || 1;
     const h = newItem.h || 1;
-    const position = findAvailablePosition(currentPageId, w, h, isMedium, isMobile);
+    const position = findAvailablePosition(currentPageId, w, h, breakpoint);
     
     if (!position) {
       alert('No space available on this page for a widget of this size. Please remove some widgets or try a smaller size.');

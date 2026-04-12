@@ -1,11 +1,16 @@
 import React from 'react';
+import type { BreakpointKey } from '@/constants/grid';
 import { usePageStore } from '@/store/usePageStore';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import { useResponsiveState } from '@/hooks/useResponsiveState';
 import { X, House, ArrowLeft, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react';
 import styles from './PageIndicators.module.css';
 
-export const PageIndicators: React.FC = () => {
+interface PageIndicatorsProps {
+  breakpoint?: BreakpointKey;
+}
+
+export const PageIndicators: React.FC<PageIndicatorsProps> = ({ breakpoint }) => {
   const { 
     pages, 
     currentPageIndex, 
@@ -17,11 +22,12 @@ export const PageIndicators: React.FC = () => {
   } = usePageStore();
 
   const { isEditing, canEditDashboard } = usePersistenceStore();
-  const { isMobile, isMedium } = useResponsiveState();
+  const { breakpoint: viewportBreakpoint } = useResponsiveState();
 
   if (pages.length <= 1 && !isEditing) return null;
 
-  const isVertical = !isMobile && !isMedium;
+  const activeBreakpoint = breakpoint || viewportBreakpoint;
+  const isVertical = activeBreakpoint === 'desktop';
   const currentPage = pages[currentPageIndex];
   const isDefault = currentPage?.id === defaultPageId;
 

@@ -8,7 +8,7 @@ import { GridStackRenderProvider } from '@/gridstack-react/grid-stack-render-pro
 import { useGridStackContext } from '@/gridstack-react/grid-stack-context';
 import { Widget } from '@/types/widget';
 import { getMinDimensions } from "@/constants/widget-definitions";
-import { GRID_BREAKPOINTS } from '@/constants/grid';
+import { GRID_BREAKPOINTS, type BreakpointKey } from '@/constants/grid';
 import { useShortcutDragStore } from '@/store/useShortcutDragStore';
 import {
   getDashboardCellRect,
@@ -52,12 +52,10 @@ interface DashboardGridProps {
   items: Widget[];
   isEditing?: boolean;
   onLayoutChange?: (layout: GridStackNode[], allLayouts: { [key: string]: GridStackNode[] }) => void;
-  onBreakpointChange?: (newBreakpoint: string, newCols: number) => void;
   onWidgetDragStop?: (widgetId: string, mouseX: number, mouseY: number) => void;
   rowHeight?: number;
   gap?: number;
-  isMedium?: boolean;
-  isMobile?: boolean;
+  breakpoint?: BreakpointKey;
 }
 
 const DashboardGridContent: React.FC<DashboardGridProps> = ({ 
@@ -69,8 +67,7 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
   onWidgetDragStop,
   rowHeight = 100, 
   gap = 8,
-  isMedium = false,
-  isMobile = false
+  breakpoint = 'desktop',
 }) => {
   const { gridStack } = useGridStackContext();
   const layoutCache = useRef<string>("");
@@ -178,10 +175,9 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
     // eslint-disable-next-line react-hooks/immutability
     grid._ignoreEvents = true;
 
-    if (isEditing && !isMedium && !isMobile) gridStack.enable();
+    if (isEditing) gridStack.enable();
     else gridStack.disable();
 
-    const breakpoint = isMobile ? 'mobile' : isMedium ? 'medium' : 'desktop';
     const { cols: newCol, rows: newMaxRow } = GRID_BREAKPOINTS[breakpoint];
 
     if (gridStack.opts.maxRow !== newMaxRow) {
@@ -204,7 +200,7 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
         if(grid) grid._ignoreEvents = false;
     }, 100);
 
-  }, [gridStack, isEditing, isMedium, isMobile, rowHeight, gap]);
+  }, [breakpoint, gap, gridStack, isEditing, rowHeight]);
 
 
   useEffect(() => {
@@ -564,8 +560,8 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
 
 export const DashboardGrid: React.FC<DashboardGridProps> = (props) => {
   const initialOptions = useMemo<GridStackOptions>(() => ({
-    column: props.isMedium ? GRID_BREAKPOINTS.medium.cols : GRID_BREAKPOINTS.desktop.cols,
-    maxRow: props.isMedium ? GRID_BREAKPOINTS.medium.rows : GRID_BREAKPOINTS.desktop.rows, 
+    column: GRID_BREAKPOINTS[props.breakpoint || 'desktop'].cols,
+    maxRow: GRID_BREAKPOINTS[props.breakpoint || 'desktop'].rows,
     cellHeight: props.rowHeight,
     margin: `${props.gap}px`,
     disableResize: !props.isEditing,

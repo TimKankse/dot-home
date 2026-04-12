@@ -32,6 +32,7 @@ function createDefaultDashboardLayout() {
   const defaultPageId = uuidv4();
   return {
     widgets: [],
+    responsiveLayouts: {},
     scrollDirection: 'vertical',
     pages: [{ id: defaultPageId }],
     defaultPageId: defaultPageId,

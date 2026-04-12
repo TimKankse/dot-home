@@ -1,32 +1,47 @@
 import { create } from 'zustand';
-import { Widget, NewWidgetInput } from '../types';
-import { getGridDimensions } from '@/constants/grid';
+import { getGridDimensions, type BreakpointKey, type ResponsiveBreakpointKey } from '@/constants/grid';
 import { getMinDimensions } from '@/constants/widget-definitions';
+import type { LayoutItem, NewWidgetInput, ResponsiveLayouts, Widget } from '@/types';
 import type {
   ShortcutContainer,
   ShortcutMoveTarget,
   ShortcutMoveToDashboardTarget,
   ShortcutMoveToSectionTarget,
 } from '@/types';
+import {
+  getLayoutItemsFromWidgets,
+  getPageLayoutState,
+  normalizeResponsiveLayouts,
+  resolveResponsivePageLayout,
+  sanitizeResponsiveLayoutsForWidgets,
+} from '@/utils/gridUtils';
 
 interface WidgetState {
   widgets: Widget[];
+  responsiveLayouts: ResponsiveLayouts;
   setWidgets: (widgets: Widget[]) => void;
+  setResponsiveLayouts: (responsiveLayouts: ResponsiveLayouts) => void;
+  setDashboardState: (widgets: Widget[], responsiveLayouts: ResponsiveLayouts) => void;
   addWidget: (newItem: NewWidgetInput) => void;
   updateWidget: (id: string, updates: Partial<Widget>) => void;
   removeWidget: (id: string) => void;
   moveShortcut: (shortcutId: string, target: ShortcutMoveTarget) => void;
   findShortcutContainer: (shortcutId: string) => ShortcutContainer | null;
-  updateLayout: (layout: { i: string; x: number; y: number; w: number; h: number }[], isMedium?: boolean, isMobile?: boolean) => void;
-  checkSpaceAvailable: (pageId: string, w: number, h: number, isMedium: boolean, isMobile: boolean) => boolean;
-  findAvailablePosition: (pageId: string, w: number, h: number, isMedium: boolean, isMobile: boolean) => { x: number, y: number } | null;
+  updateLayout: (pageId: string, breakpoint: BreakpointKey, layout: LayoutItem[]) => void;
+  materializeResponsiveLayout: (pageId: string, breakpoint: ResponsiveBreakpointKey) => void;
+  resetResponsiveLayout: (pageId: string, breakpoint: ResponsiveBreakpointKey) => void;
+  getResponsiveLayoutState: (pageId: string, breakpoint: BreakpointKey) => { isCustom: boolean; sourceBreakpoint: BreakpointKey };
+  checkSpaceAvailable: (pageId: string, w: number, h: number, breakpoint: BreakpointKey) => boolean;
+  findAvailablePosition: (pageId: string, w: number, h: number, breakpoint: BreakpointKey) => { x: number, y: number } | null;
   getWidgetsByPage: (pageId: string) => Widget[];
+  getRenderableWidgetsByPage: (pageId: string) => Widget[];
   removeWidgetsByPage: (pageId: string) => void;
+  removeResponsiveLayoutsByPage: (pageId: string) => void;
 }
 
 const hasOverlap = (
   x1: number, y1: number, w1: number, h1: number,
-  x2: number, y2: number, w2: number, h2: number
+  x2: number, y2: number, w2: number, h2: number,
 ): boolean => {
   return !(x1 + w1 <= x2 || x1 >= x2 + w2 || y1 + h1 <= y2 || y1 >= y2 + h2);
 };
@@ -46,7 +61,7 @@ const updateSectionShortcutIds = (section: Widget, shortcutIds: string[]): Widge
 const findContainingSection = (widgets: Widget[], shortcutId: string): Widget | undefined => {
   return widgets.find(widget =>
     widget.type === 'section' &&
-    getSectionShortcutIds(widget).includes(shortcutId)
+    getSectionShortcutIds(widget).includes(shortcutId),
   );
 };
 
@@ -58,43 +73,97 @@ const isDashboardMoveTarget = (target: ShortcutMoveTarget): target is ShortcutMo
   return target.container.type === 'dashboard';
 };
 
+const getVisiblePageWidgets = (widgets: Widget[], pageId: string): Widget[] => {
+  const hiddenShortcutIds = new Set<string>();
+
+  widgets.forEach((widget) => {
+    if (widget.type === 'section' && widget.config?.shortcutIds) {
+      (widget.config.shortcutIds as string[]).forEach((shortcutId) => hiddenShortcutIds.add(shortcutId));
+    }
+  });
+
+  return widgets.filter((widget) =>
+    widget.pageId === pageId && !hiddenShortcutIds.has(widget.id),
+  );
+};
+
 const findAvailablePositionInGrid = (
   pageWidgets: Widget[],
   w: number,
   h: number,
   maxCols: number,
-  maxRows: number
+  maxRows: number,
 ): { x: number; y: number } | null => {
   if (w > maxCols || h > maxRows) return null;
-  
+
   const maxY = maxRows - h;
   const maxX = maxCols - w;
-  
+
   for (let y = 0; y <= maxY; y++) {
     for (let x = 0; x <= maxX; x++) {
-      const hasCollision = pageWidgets.some(widget =>
+      const hasCollision = pageWidgets.some((widget) =>
         hasOverlap(
           x, y, w, h,
-          widget.grid.x, widget.grid.y, widget.grid.w, widget.grid.h
-        )
+          widget.grid.x, widget.grid.y, widget.grid.w, widget.grid.h,
+        ),
       );
-      
+
       if (!hasCollision) {
         return { x, y };
       }
     }
   }
-  
+
   return null;
+};
+
+const removeResponsiveLayoutPage = (
+  responsiveLayouts: ResponsiveLayouts,
+  pageId: string,
+): ResponsiveLayouts => {
+  const nextLayouts = normalizeResponsiveLayouts(responsiveLayouts);
+
+  (Object.keys(nextLayouts) as ResponsiveBreakpointKey[]).forEach((breakpoint) => {
+    const pageLayouts = nextLayouts[breakpoint];
+    if (!pageLayouts?.[pageId]) return;
+
+    const { [pageId]: _removed, ...rest } = pageLayouts;
+    if (Object.keys(rest).length > 0) {
+      nextLayouts[breakpoint] = rest;
+    } else {
+      delete nextLayouts[breakpoint];
+    }
+  });
+
+  return nextLayouts;
 };
 
 export const useWidgetStore = create<WidgetState>((set, get) => ({
   widgets: [],
+  responsiveLayouts: {},
 
-  setWidgets: (widgets) => set({ widgets }),
+  setWidgets: (widgets) => set((state) => ({
+    widgets,
+    responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(widgets, state.responsiveLayouts),
+  })),
+
+  setResponsiveLayouts: (responsiveLayouts) => set((state) => ({
+    responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(
+      state.widgets,
+      normalizeResponsiveLayouts(responsiveLayouts),
+    ),
+  })),
+
+  setDashboardState: (widgets, responsiveLayouts) => set({
+    widgets,
+    responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(
+      widgets,
+      normalizeResponsiveLayouts(responsiveLayouts),
+    ),
+  }),
 
   addWidget: (newItem) => {
-    set(state => ({
+    set((state) => ({
       widgets: [
         ...state.widgets,
         {
@@ -109,85 +178,88 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
             x: newItem.x ?? 0,
             y: newItem.y ?? Infinity,
             w: newItem.w,
-            h: newItem.h
+            h: newItem.h,
           },
           pageId: newItem.pageId,
           config: newItem.config,
-          integrationId: newItem.integrationId
-        }
-      ]
+          integrationId: newItem.integrationId,
+        },
+      ],
     }));
   },
 
   updateWidget: (id, updates) => {
-    set(state => ({
-      widgets: state.widgets.map(w => (w.id === id ? { ...w, ...updates } : w))
+    set((state) => ({
+      widgets: state.widgets.map((widget) => (widget.id === id ? { ...widget, ...updates } : widget)),
     }));
   },
 
   removeWidget: (id) => {
-    set(state => ({
-      widgets: state.widgets.filter(w => w.id !== id)
-    }));
+    set((state) => {
+      const widgets = state.widgets.filter((widget) => widget.id !== id);
+      return {
+        widgets,
+        responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(widgets, state.responsiveLayouts),
+      };
+    });
   },
 
   moveShortcut: (shortcutId, target) => {
-    set(state => {
-      const shortcut = state.widgets.find(widget => widget.id === shortcutId);
+    set((state) => {
+      const shortcut = state.widgets.find((widget) => widget.id === shortcutId);
       if (!shortcut) return state;
 
       const sourceSection = findContainingSection(state.widgets, shortcutId);
       let nextWidgets = state.widgets;
 
       if (sourceSection) {
-        const nextSourceIds = getSectionShortcutIds(sourceSection).filter(id => id !== shortcutId);
-        nextWidgets = nextWidgets.map(widget =>
-          widget.id === sourceSection.id ? updateSectionShortcutIds(widget, nextSourceIds) : widget
+        const nextSourceIds = getSectionShortcutIds(sourceSection).filter((id) => id !== shortcutId);
+        nextWidgets = nextWidgets.map((widget) =>
+          widget.id === sourceSection.id ? updateSectionShortcutIds(widget, nextSourceIds) : widget,
         );
       }
 
       if (isSectionMoveTarget(target)) {
-        const sectionTarget = target;
-        const targetSection = nextWidgets.find(widget => widget.id === sectionTarget.container.sectionId);
+        const targetSection = nextWidgets.find((widget) => widget.id === target.container.sectionId);
         if (!targetSection) return state;
 
-        const targetIds = getSectionShortcutIds(targetSection).filter(id => id !== shortcutId);
-        const insertIndex = Math.max(0, Math.min(sectionTarget.index ?? targetIds.length, targetIds.length));
+        const targetIds = getSectionShortcutIds(targetSection).filter((id) => id !== shortcutId);
+        const insertIndex = Math.max(0, Math.min(target.index ?? targetIds.length, targetIds.length));
         const nextTargetIds = [...targetIds];
         nextTargetIds.splice(insertIndex, 0, shortcutId);
 
-        nextWidgets = nextWidgets.map(widget => {
+        nextWidgets = nextWidgets.map((widget) => {
           if (widget.id === targetSection.id) {
             return updateSectionShortcutIds(widget, nextTargetIds);
           }
+
           if (widget.id === shortcutId) {
             return {
               ...widget,
               pageId: targetSection.pageId,
             };
           }
+
           return widget;
         });
+      } else if (isDashboardMoveTarget(target)) {
+        nextWidgets = nextWidgets.map((widget) => {
+          if (widget.id !== shortcutId) return widget;
 
-        return { widgets: nextWidgets };
-      }
-
-      if (!isDashboardMoveTarget(target)) {
+          return {
+            ...widget,
+            pageId: target.container.pageId,
+            grid: target.grid ? { ...widget.grid, ...target.grid } : widget.grid,
+          };
+        });
+      } else {
         return state;
       }
 
-      const dashboardTarget = target;
-      nextWidgets = nextWidgets.map(widget => {
-        if (widget.id !== shortcutId) return widget;
-
-        return {
-          ...widget,
-          pageId: dashboardTarget.container.pageId,
-          grid: dashboardTarget.grid ? { ...widget.grid, ...dashboardTarget.grid } : widget.grid,
-        };
-      });
-
-      return { widgets: nextWidgets };
+      return {
+        widgets: nextWidgets,
+        responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(nextWidgets, state.responsiveLayouts),
+      };
     });
   },
 
@@ -201,7 +273,7 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
       };
     }
 
-    const shortcut = widgets.find(widget => widget.id === shortcutId);
+    const shortcut = widgets.find((widget) => widget.id === shortcutId);
     if (!shortcut) return null;
 
     return {
@@ -210,43 +282,43 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
     };
   },
 
-  updateLayout: (layout, isMedium = false, isMobile = false) => {
+  updateLayout: (pageId, breakpoint, layout) => {
     if (!layout || layout.length === 0) return;
 
-    const { maxRows } = getGridDimensions(isMedium, isMobile);
+    const cleanLayout = layout.map((item) => ({
+      ...item,
+      i: item.i.startsWith('.$') ? item.i.substring(2) : item.i,
+    }));
+    const { maxCols, maxRows } = getGridDimensions(breakpoint);
 
-    if (layout.some((l) => l.y + l.h > maxRows)) {
+    if (cleanLayout.some((item) => item.y + item.h > maxRows || item.x + item.w > maxCols)) {
       return;
     }
 
-    set(state => {
+    set((state) => {
       let hasChanges = false;
       let rejectionHappened = false;
-      const newWidgets = state.widgets.map(widget => {
-        const layoutItem = layout.find((l) => {
-          const cleanId = l.i.startsWith('.$') ? l.i.substring(2) : l.i;
-          return cleanId === widget.id;
-        });
 
-        if (layoutItem) {
-          // Check minimum dimensions
+      if (breakpoint === 'desktop') {
+        const widgets = state.widgets.map((widget) => {
+          const layoutItem = cleanLayout.find((item) => item.i === widget.id);
+          if (!layoutItem) return widget;
+
           const { w: minW, h: minH } = getMinDimensions(
             (widget.type === 'widget' ? widget.widgetType : widget.type) || 'clock',
-            widget.config || {}
+            widget.config || {},
           );
 
           if (layoutItem.w < minW || layoutItem.h < minH) {
-            // New size is smaller than allowed minimum - ignore this update
-            // But mark rejection to force a state refresh (snap back)
             rejectionHappened = true;
             return widget;
           }
 
           const newGrid = {
-            x: Math.max(0, layoutItem.x),
+            x: Math.max(0, Math.min(layoutItem.x, maxCols - layoutItem.w)),
             y: Math.max(0, layoutItem.y),
             w: layoutItem.w,
-            h: layoutItem.h
+            h: layoutItem.h,
           };
 
           const isDifferent =
@@ -259,33 +331,168 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
             hasChanges = true;
             return { ...widget, grid: newGrid };
           }
-        }
-        return widget;
-      });
 
-      return (hasChanges || rejectionHappened) ? { widgets: newWidgets } : state;
+          return widget;
+        });
+
+        if (!hasChanges && !rejectionHappened) {
+          return state;
+        }
+
+        return {
+          widgets,
+          responsiveLayouts: sanitizeResponsiveLayoutsForWidgets(widgets, state.responsiveLayouts),
+        };
+      }
+
+      const nextPageLayout: LayoutItem[] = [];
+      const pageWidgets = getVisiblePageWidgets(state.widgets, pageId);
+      const resolvedPageWidgets = resolveResponsivePageLayout(
+        pageWidgets,
+        pageId,
+        breakpoint,
+        state.responsiveLayouts,
+      ).widgets;
+      const widgetsById = new Map(resolvedPageWidgets.map((widget) => [widget.id, widget]));
+
+      for (const item of cleanLayout) {
+        const widget = widgetsById.get(item.i);
+        if (!widget) continue;
+
+        const { w: minW, h: minH } = getMinDimensions(
+          (widget.type === 'widget' ? widget.widgetType : widget.type) || 'clock',
+          widget.config || {},
+        );
+
+        if (item.w < minW || item.h < minH) {
+          rejectionHappened = true;
+          continue;
+        }
+
+        nextPageLayout.push({
+          i: item.i,
+          x: Math.max(0, Math.min(item.x, maxCols - item.w)),
+          y: Math.max(0, Math.min(item.y, maxRows - item.h)),
+          w: item.w,
+          h: item.h,
+        });
+      }
+
+      const responsiveLayouts = normalizeResponsiveLayouts(state.responsiveLayouts);
+      const nextBreakpointLayouts = {
+        ...(responsiveLayouts[breakpoint] || {}),
+        [pageId]: nextPageLayout,
+      };
+      const previousLayout = responsiveLayouts[breakpoint]?.[pageId] || [];
+
+      hasChanges = JSON.stringify(previousLayout) !== JSON.stringify(nextPageLayout);
+
+      if (!hasChanges && !rejectionHappened) {
+        return state;
+      }
+
+      return {
+        responsiveLayouts: {
+          ...responsiveLayouts,
+          [breakpoint]: nextBreakpointLayouts,
+        },
+      };
     });
   },
 
-  findAvailablePosition: (pageId: string, w: number, h: number, isMedium: boolean, isMobile: boolean) => {
-    const { widgets } = get();
-    const pageWidgets = widgets.filter(widget => widget.pageId === pageId);
-    const { maxCols, maxRows } = getGridDimensions(isMedium, isMobile);
-    
-    return findAvailablePositionInGrid(pageWidgets, w, h, maxCols, maxRows);
+  materializeResponsiveLayout: (pageId, breakpoint) => {
+    set((state) => {
+      const pageWidgets = getVisiblePageWidgets(state.widgets, pageId);
+      const resolved = resolveResponsivePageLayout(pageWidgets, pageId, breakpoint, state.responsiveLayouts);
+      const nextPageLayout = getLayoutItemsFromWidgets(resolved.widgets);
+      const responsiveLayouts = normalizeResponsiveLayouts(state.responsiveLayouts);
+      const previousLayout = responsiveLayouts[breakpoint]?.[pageId] || [];
+
+      if (JSON.stringify(previousLayout) === JSON.stringify(nextPageLayout)) {
+        return state;
+      }
+
+      return {
+        responsiveLayouts: {
+          ...responsiveLayouts,
+          [breakpoint]: {
+            ...(responsiveLayouts[breakpoint] || {}),
+            [pageId]: nextPageLayout,
+          },
+        },
+      };
+    });
   },
 
-  checkSpaceAvailable: (pageId: string, w: number, h: number, isMedium: boolean, isMobile: boolean) => {
-    return get().findAvailablePosition(pageId, w, h, isMedium, isMobile) !== null;
+  resetResponsiveLayout: (pageId, breakpoint) => {
+    set((state) => {
+      const responsiveLayouts = normalizeResponsiveLayouts(state.responsiveLayouts);
+      const pageLayouts = responsiveLayouts[breakpoint];
+      if (!pageLayouts?.[pageId]) {
+        return state;
+      }
+
+      const { [pageId]: _removed, ...rest } = pageLayouts;
+      if (Object.keys(rest).length === 0) {
+        const nextLayouts = { ...responsiveLayouts };
+        delete nextLayouts[breakpoint];
+        return { responsiveLayouts: nextLayouts };
+      }
+
+      return {
+        responsiveLayouts: {
+          ...responsiveLayouts,
+          [breakpoint]: rest,
+        },
+      };
+    });
   },
 
-  getWidgetsByPage: (pageId: string) => {
-    return get().widgets.filter(w => w.pageId === pageId);
+  getResponsiveLayoutState: (pageId, breakpoint) => {
+    return getPageLayoutState(pageId, breakpoint, get().responsiveLayouts);
   },
 
-  removeWidgetsByPage: (pageId: string) => {
-    set(state => ({
-      widgets: state.widgets.filter(w => w.pageId !== pageId)
+  findAvailablePosition: (pageId, w, h, breakpoint) => {
+    const pageWidgets = getVisiblePageWidgets(get().widgets, pageId);
+    const resolvedPageWidgets = resolveResponsivePageLayout(
+      pageWidgets,
+      pageId,
+      breakpoint,
+      get().responsiveLayouts,
+    ).widgets;
+    const { maxCols, maxRows } = getGridDimensions(breakpoint);
+
+    return findAvailablePositionInGrid(resolvedPageWidgets, w, h, maxCols, maxRows);
+  },
+
+  checkSpaceAvailable: (pageId, w, h, breakpoint) => {
+    return get().findAvailablePosition(pageId, w, h, breakpoint) !== null;
+  },
+
+  getWidgetsByPage: (pageId) => {
+    return get().widgets.filter((widget) => widget.pageId === pageId);
+  },
+
+  getRenderableWidgetsByPage: (pageId) => {
+    return getVisiblePageWidgets(get().widgets, pageId);
+  },
+
+  removeWidgetsByPage: (pageId) => {
+    set((state) => {
+      const widgets = state.widgets.filter((widget) => widget.pageId !== pageId);
+      return {
+        widgets,
+        responsiveLayouts: removeResponsiveLayoutPage(
+          sanitizeResponsiveLayoutsForWidgets(widgets, state.responsiveLayouts),
+          pageId,
+        ),
+      };
+    });
+  },
+
+  removeResponsiveLayoutsByPage: (pageId) => {
+    set((state) => ({
+      responsiveLayouts: removeResponsiveLayoutPage(state.responsiveLayouts, pageId),
     }));
-  }
+  },
 }));

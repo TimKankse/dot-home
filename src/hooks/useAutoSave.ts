@@ -9,6 +9,7 @@ export const useAutoSave = () => {
   const { saveConfig, isLoaded } = usePersistenceStore();
   const settings = useSettingsStore((state) => state.settings);
   const widgets = useWidgetStore((state) => state.widgets);
+  const responsiveLayouts = useWidgetStore((state) => state.responsiveLayouts);
   const pages = usePageStore((state) => state.pages);
   const integrations = useIntegrationStore((state) => state.integrations);
   
@@ -40,6 +41,7 @@ export const useAutoSave = () => {
     isLoaded, 
     settings, 
     widgets, 
+    responsiveLayouts,
     pages, 
     integrations,
     saveConfig

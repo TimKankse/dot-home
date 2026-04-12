@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { useWidgetStore } from './useWidgetStore';
-import { Widget } from '@/types/widget';
+import { ResponsiveLayouts, Widget } from '@/types/widget';
 import { usePageStore, Page } from './usePageStore';
 import { useIntegrationStore } from './useIntegrationStore';
 import { useSettingsStore } from './useSettingsStore';
+import { normalizeResponsiveLayouts } from '@/utils/gridUtils';
 
 interface PersistenceState {
   isLoaded: boolean;
@@ -37,12 +38,14 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
       
       let pages: Page[] = [];
       let widgets: Widget[] = [];
+      let responsiveLayouts: ResponsiveLayouts = {};
       let integrations = [];
 
       if (data.pages) {
         // New format
         pages = data.pages;
         widgets = data.widgets || [];
+        responsiveLayouts = normalizeResponsiveLayouts(data.responsiveLayouts);
         integrations = data.integrations || [];
         
         if (data.settings) {
@@ -135,7 +138,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
           : 0
       });
 
-      useWidgetStore.getState().setWidgets(widgets);
+      useWidgetStore.getState().setDashboardState(widgets, responsiveLayouts);
       useIntegrationStore.getState().setIntegrations(integrations);
 
       // Set edit permission from API response (default to true for owned dashboards)
@@ -163,6 +166,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
     try {
       // Gather data from all stores
       let widgets = [...useWidgetStore.getState().widgets];
+      const responsiveLayouts = useWidgetStore.getState().responsiveLayouts;
       let { pages } = usePageStore.getState();
       const { scrollDirection, defaultPageId } = usePageStore.getState();
       const { integrations } = useIntegrationStore.getState();
@@ -206,6 +210,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           widgets, 
+          responsiveLayouts,
           scrollDirection, 
           pages, 
           integrations,

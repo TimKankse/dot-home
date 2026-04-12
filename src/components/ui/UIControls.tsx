@@ -1,13 +1,16 @@
 "use client";
 
 import React from 'react';
-import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout } from 'lucide-react';
+import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout, LayoutGrid } from 'lucide-react';
 import styles from './UIControls.module.css';
 
 interface UIControlsProps {
   isEditing: boolean;
   canEdit?: boolean;
+  showLayoutControlsToggle?: boolean;
+  isLayoutControlsOpen?: boolean;
   onToggleEdit: () => void;
+  onToggleLayoutControls?: () => void;
   onAdd: () => void;
   onSave: () => void;
   onAddPage: () => void;
@@ -18,7 +21,10 @@ interface UIControlsProps {
 export const UIControls: React.FC<UIControlsProps> = ({ 
   isEditing, 
   canEdit = true,
+  showLayoutControlsToggle = false,
+  isLayoutControlsOpen = false,
   onToggleEdit, 
+  onToggleLayoutControls,
   onAdd, 
   onAddPage,
   saveStatus = 'idle',
@@ -54,6 +60,18 @@ export const UIControls: React.FC<UIControlsProps> = ({
         >
           <Layout size={20} />
           <Plus size={12} style={{ position: 'absolute', top: 8, right: 8 }} />
+        </button>
+      )}
+
+      {showLayoutControlsToggle && onToggleLayoutControls && (
+        <button
+          className={`${styles.button} ${isLayoutControlsOpen ? styles.active : ''}`}
+          onClick={onToggleLayoutControls}
+          aria-label={isLayoutControlsOpen ? "Close Layout Controls" : "Open Layout Controls"}
+          title={isLayoutControlsOpen ? "Close layout controls" : "Open layout controls"}
+          aria-pressed={isLayoutControlsOpen}
+        >
+          <LayoutGrid size={20} />
         </button>
       )}
 

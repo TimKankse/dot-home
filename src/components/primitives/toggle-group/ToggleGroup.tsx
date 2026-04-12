@@ -11,16 +11,18 @@ interface ToggleGroupProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  fullWidth?: boolean;
 }
 
 export const ToggleGroup: React.FC<ToggleGroupProps> = ({
   options,
   value,
   onChange,
-  className = ''
+  className = '',
+  fullWidth = false,
 }) => {
   return (
-    <div className={`${styles.group} ${className}`}>
+    <div className={`${styles.group} ${fullWidth ? styles.fullWidth : ''} ${className}`}>
       {options.map((option) => (
         <button
           key={option.value}

@@ -104,6 +104,7 @@ export const getDefaultDashboardLayout = () => {
         pageId: pageId,
       },
     ],
+    responsiveLayouts: {},
     pages: [{ id: pageId }],
     scrollDirection: 'vertical',
     defaultPageId: pageId,
@@ -141,4 +142,3 @@ export const getDefaultDashboardLayout = () => {
     },
   };
 };
-

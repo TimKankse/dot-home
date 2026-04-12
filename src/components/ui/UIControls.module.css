@@ -41,8 +41,9 @@
 }
 
 .active:hover {
-  background: var(--bg-card);
-  color: var(--text-main);
+  background: var(--text-main);
+  color: var(--bg-app);
+  transform: translateY(-2px);
 }
 
 .indicator {

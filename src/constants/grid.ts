@@ -1,13 +1,22 @@
 export const GRID_BREAKPOINTS = {
   desktop: { cols: 8, rows: 8 },
-  medium: { cols: 4, rows: 16 },
+  tablet: { cols: 4, rows: 16 },
   mobile: { cols: 2, rows: 32 },
 } as const;
 
 export type BreakpointKey = keyof typeof GRID_BREAKPOINTS;
+export type ResponsiveBreakpointKey = Exclude<BreakpointKey, 'desktop'>;
 
-export function getGridDimensions(isMedium: boolean, isMobile: boolean) {
-  if (isMobile) return { maxCols: GRID_BREAKPOINTS.mobile.cols, maxRows: GRID_BREAKPOINTS.mobile.rows };
-  if (isMedium) return { maxCols: GRID_BREAKPOINTS.medium.cols, maxRows: GRID_BREAKPOINTS.medium.rows };
-  return { maxCols: GRID_BREAKPOINTS.desktop.cols, maxRows: GRID_BREAKPOINTS.desktop.rows };
+export function getGridDimensions(breakpoint: BreakpointKey) {
+  const { cols: maxCols, rows: maxRows } = GRID_BREAKPOINTS[breakpoint];
+  return { maxCols, maxRows };
+}
+
+export function getBreakpointFromViewport(width: number, height: number): BreakpointKey {
+  const isMobile = width < 768;
+  const isTablet = (width >= 768 && width <= 975) || (height > width && !isMobile);
+
+  if (isMobile) return 'mobile';
+  if (isTablet) return 'tablet';
+  return 'desktop';
 }

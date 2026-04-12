@@ -111,6 +111,7 @@ export async function POST(request: Request) {
         name: 'Main',
         layout: JSON.stringify({
           widgets: [],
+          responsiveLayouts: {},
           pages: [{ id: 'default-page' }],
           scrollDirection: 'vertical',
           settings: {

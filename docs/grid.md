@@ -45,9 +45,9 @@ Defined in `src/constants/grid.ts`:
 
 | Breakpoint | Columns | Rows | Description |
 |------------|---------|------|-------------|
-| `desktop` | 16 | 8 | Full-size screens |
-| `medium` | 8 | 8 | Tablets / smaller screens |
-| `mobile` | 4 | 8 | Mobile devices |
+| `desktop` | 8 | 8 | Full-size screens |
+| `tablet` | 4 | 16 | Tablets / smaller screens |
+| `mobile` | 2 | 32 | Mobile devices |
 
 ---
 
@@ -65,7 +65,7 @@ interface GridPosition {
 ```
 
 The grid enforces:
-- **Max 8 rows** per page (fixed height)
+- Breakpoint-specific row limits (`8`, `16`, `32`)
 - Widgets cannot overlap
 - Auto-positioning finds first available slot
 
@@ -98,5 +98,5 @@ Widgets are organized into pages:
 When editing is enabled:
 - Widgets become draggable and resizable
 - Grid shows visual guides
-- Only works on desktop breakpoint
+- Layout variants are currently edited from desktop, with desktop preview targets for tablet and mobile
 - Changes auto-save on toggle off

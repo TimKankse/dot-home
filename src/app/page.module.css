@@ -37,6 +37,26 @@
   position: relative;
 }
 
+.dashboardViewport {
+  width: var(--dashboard-shell-width, 100%);
+  height: var(--dashboard-shell-height, 100dvh);
+  margin: 0 auto;
+  position: relative;
+  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, box-shadow 0.2s ease;
+}
+
+.previewViewport {
+  margin: 40px auto;
+  border-radius: 36px;
+  overflow: hidden;
+  border: 1px solid var(--border-dim);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 92%, transparent), color-mix(in srgb, var(--bg-app) 96%, transparent));
+  box-shadow:
+    0 24px 80px var(--shadow-md),
+    inset 0 1px 0 color-mix(in srgb, var(--bg-highlight) 80%, transparent);
+}
+
 /* Wrapper for the sliding pages */
 .pagesWrapper {
   display: flex;
@@ -46,29 +66,29 @@
 /* Horizontal layout (desktop default) */
 .pagesWrapper[data-scroll="horizontal"] {
   flex-direction: row;
-  width: calc(var(--total-pages) * 100%);
-  height: 100dvh;
-  transform: translateX(calc(var(--current-page-index) * -100vw));
+  width: calc(var(--total-pages) * var(--dashboard-shell-width, 100%));
+  height: var(--dashboard-shell-height, 100dvh);
+  transform: translateX(calc(var(--current-page-index) * -100% / var(--total-pages)));
 }
 
 /* Vertical layout (mobile/portrait/preference) */
 .pagesWrapper[data-scroll="vertical"] {
   flex-direction: column;
-  width: 100%;
-  height: calc(var(--total-pages) * 100dvh);
-  transform: translateY(calc(var(--current-page-index) * -100dvh));
+  width: var(--dashboard-shell-width, 100%);
+  height: calc(var(--total-pages) * var(--dashboard-shell-height, 100dvh));
+  transform: translateY(calc(var(--current-page-index) * -100% / var(--total-pages)));
 }
 
 /* Individual page container */
 .pageContainer {
   position: relative;
-  width: 100%;
-  height: 100dvh;
+  width: var(--dashboard-shell-width, 100%);
+  height: var(--dashboard-shell-height, 100dvh);
   overflow-x: hidden;
   overflow-y: hidden;
 }
 
-/* Allow scrolling on mobile/medium screens */
+/* Allow scrolling on mobile/tablet screens */
 .pageContainer.scrollable {
   overflow-y: auto;
 }

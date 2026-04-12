@@ -1,30 +1,32 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
 import { CustomDragGhost } from "@/components/core/CustomDragGhost";
 import { UIControls } from "@/components/ui/UIControls";
+import { LayoutTargetControls } from "@/components/ui/LayoutTargetControls";
 import { ItemEditorDialog } from "@/components/item-editor/ItemEditorDialog";
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { usePersistenceStore } from "@/store/usePersistenceStore";
 import { useWidgetStore } from "@/store/useWidgetStore";
 import { usePageStore } from "@/store/usePageStore";
-// import { useSettingsStore } from "@/store/useSettingsStore";
 import { PageIndicators } from "@/components/ui/PageIndicators";
 import { useScrollNavigation } from "@/hooks/useScrollNavigation";
 import { useResponsiveState } from "@/hooks/useResponsiveState";
 import { useShortcutDragController } from "@/hooks/useShortcutDragController";
 import { useWidgetManager } from "@/hooks/useWidgetManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { getResponsiveLayout } from "@/utils/gridUtils";
-import { NewWidgetInput } from "@/types/widget";
+import { resolveResponsivePageLayout } from "@/utils/gridUtils";
+import { NewWidgetInput, Widget } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
-
-import { Widget } from "@/types/widget";
 import { getMinDimensions } from "@/constants/widget-definitions";
-import { getGridDimensions } from "@/constants/grid";
+import {
+  getGridDimensions,
+  type BreakpointKey,
+  type ResponsiveBreakpointKey,
+} from "@/constants/grid";
 
 interface DashboardPageContentProps {
   pageId: string;
@@ -34,16 +36,19 @@ interface DashboardPageContentProps {
   className: string;
   isEditing: boolean;
   canEditDashboard: boolean;
-  handleLayoutChange: (layout: { i?: string; x?: number; y?: number; w?: number; h?: number }[]) => void;
-  handleBreakpointChange: (bp: string, cols: number) => void;
-  handleWidgetDragStop: (widgetId: string, mouseX: number, mouseY: number) => void;
+  breakpoint: BreakpointKey;
+  onLayoutChange: (pageId: string, layout: { i?: string; x?: number; y?: number; w?: number; h?: number }[]) => void;
+  onWidgetDragStop: (widgetId: string, mouseX: number, mouseY: number) => void;
   handleEditWidget: (w: Widget) => void;
   showWidgetNames: boolean;
   rowHeight: number;
   gapSize: number;
-  isMedium: boolean;
-  isMobile: boolean;
 }
+
+const PREVIEW_WIDTHS: Record<ResponsiveBreakpointKey, string> = {
+  tablet: 'min(820px, calc(100vw - 120px))',
+  mobile: 'min(430px, calc(100vw - 48px))',
+};
 
 const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   pageId,
@@ -53,23 +58,21 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   className,
   isEditing,
   canEditDashboard,
-  handleLayoutChange,
-  handleBreakpointChange,
-  handleWidgetDragStop,
+  breakpoint,
+  onLayoutChange,
+  onWidgetDragStop,
   handleEditWidget,
   showWidgetNames,
   rowHeight,
   gapSize,
-  isMedium,
-  isMobile
 }) => {
   const [windowHeight, setWindowHeight] = useState(0);
 
   useEffect(() => {
     const updateHeight = () => {
-        setWindowHeight(window.innerHeight);
+      setWindowHeight(window.innerHeight);
     };
-    
+
     updateHeight();
     window.addEventListener('resize', updateHeight);
     return () => window.removeEventListener('resize', updateHeight);
@@ -77,110 +80,112 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
 
   const paddingTop = useMemo(() => {
     if (windowHeight === 0) return safeAreaTop;
-    
+
     const delta = windowHeight - contentHeight;
-    const padding = Math.max(0, delta / 2);
-    return padding;
+    return Math.max(0, delta / 2);
   }, [windowHeight, contentHeight, safeAreaTop]);
 
+  const allowGridEditing = isEditing && canEditDashboard;
+
   return (
-    <div 
-        className={className} 
-        style={{ paddingTop: `${paddingTop}px` }}
+    <div
+      className={className}
+      style={{ paddingTop: `${paddingTop}px` }}
     >
-      <DashboardGrid 
+      <DashboardGrid
         pageId={pageId}
         items={widgets}
-        isEditing={isEditing && canEditDashboard} 
-        onLayoutChange={handleLayoutChange} 
-        onBreakpointChange={handleBreakpointChange}
-        onWidgetDragStop={handleWidgetDragStop}
+        isEditing={allowGridEditing}
+        onLayoutChange={(layout) => onLayoutChange(pageId, layout)}
+        onWidgetDragStop={onWidgetDragStop}
         rowHeight={rowHeight}
         gap={gapSize}
-        gs-no-move={(!isEditing || !canEditDashboard) ? "true" : "false"}
-        gs-no-resize={(!isEditing || !canEditDashboard) ? "true" : "false"}
-        isMedium={isMedium}
-        isMobile={isMobile}
+        gs-no-move={allowGridEditing ? "false" : "true"}
+        gs-no-resize={allowGridEditing ? "false" : "true"}
+        breakpoint={breakpoint}
       >
         {widgets.map((widget) => {
           const { w: minW, h: minH } = getMinDimensions(
             (widget.type === 'widget' ? widget.widgetType : widget.type) || 'clock',
-            widget.config || {}
+            widget.config || {},
           );
-          
+
           return (
-          <div 
-            key={widget.id} 
-            className="widget-candidate"
-            gs-id={widget.id}
-            gs-x={widget.grid.x}
-            gs-y={widget.grid.y}
-            gs-w={widget.grid.w}
-            gs-h={widget.grid.h}
-            gs-min-w={minW}
-            gs-min-h={minH}
-            data-gs-min-w={minW}
-            data-gs-min-h={minH}
-            data-widget-type={widget.type}
-            data-widget-id={widget.id}
-          >
-            <div className="grid-stack-item-content">
-              <WidgetRenderer 
-                widget={widget} 
-                isEditing={isEditing}
-                canEditDashboard={canEditDashboard}
-                onEdit={handleEditWidget}
-                showWidgetNames={showWidgetNames}
-              />
+            <div
+              key={widget.id}
+              className="widget-candidate"
+              gs-id={widget.id}
+              gs-x={widget.grid.x}
+              gs-y={widget.grid.y}
+              gs-w={widget.grid.w}
+              gs-h={widget.grid.h}
+              gs-min-w={minW}
+              gs-min-h={minH}
+              data-gs-min-w={minW}
+              data-gs-min-h={minH}
+              data-widget-type={widget.type}
+              data-widget-id={widget.id}
+            >
+              <div className="grid-stack-item-content">
+                <WidgetRenderer
+                  widget={widget}
+                  isEditing={allowGridEditing}
+                  canEditDashboard={canEditDashboard}
+                  onEdit={handleEditWidget}
+                  showWidgetNames={showWidgetNames}
+                />
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </DashboardGrid>
+          );
+        })}
+      </DashboardGrid>
     </div>
   );
 };
 
 export default function Home() {
-  // Persistence store
-  const { 
-    isEditing, 
+  const {
+    isEditing,
     canEditDashboard,
-    saveStatus, 
-    fetchConfig, 
-    saveConfig, 
-    toggleEdit, 
-    isLoaded
+    saveStatus,
+    fetchConfig,
+    saveConfig,
+    toggleEdit,
+    isLoaded,
   } = usePersistenceStore();
 
-  // Widget store
-  const { widgets, updateLayout, moveShortcut } = useWidgetStore();
+  const {
+    widgets,
+    responsiveLayouts,
+    updateLayout,
+    moveShortcut,
+    getRenderableWidgetsByPage,
+    getResponsiveLayoutState,
+    materializeResponsiveLayout,
+    resetResponsiveLayout,
+  } = useWidgetStore();
 
-  // Page store
   const {
     pages,
     currentPageIndex,
     scrollDirection,
     addPage,
-    setPageIndex
+    setPageIndex,
   } = usePageStore();
 
   const {
-    isMobile,
-    isMedium,
-    breakpointRef,
+    breakpoint: viewportBreakpoint,
+    isDesktop,
     mainRef,
-    handleBreakpointChange
   } = useResponsiveState();
 
   const [rowHeight, setRowHeight] = useState(100);
   const [gapSize, setGapSize] = useState(8);
   const [borderRadius, setBorderRadius] = useState(32);
   const [showWidgetNames, setShowWidgetNames] = useState(true);
-  
-
-
-
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLayoutControlsOpen, setIsLayoutControlsOpen] = useState(false);
+  const [layoutTargetBreakpoint, setLayoutTargetBreakpoint] = useState<BreakpointKey>('desktop');
 
   useEffect(() => {
     const loadGridSettings = () => {
@@ -188,39 +193,34 @@ export default function Home() {
       const storedGapSize = localStorage.getItem('grid-gap-size');
       const storedBorderRadius = localStorage.getItem('grid-border-radius');
       const storedShowWidgetNames = localStorage.getItem('show-widget-names');
-      
+
       if (storedRowHeight) setRowHeight(parseInt(storedRowHeight));
       if (storedGapSize) setGapSize(parseInt(storedGapSize));
       if (storedBorderRadius) setBorderRadius(parseInt(storedBorderRadius));
       if (storedShowWidgetNames !== null) setShowWidgetNames(storedShowWidgetNames === 'true');
     };
-    
+
     loadGridSettings();
-    
-    const handleChange = (e: CustomEvent) => {
-      if (e.detail.rowHeight !== undefined) setRowHeight(e.detail.rowHeight);
-      if (e.detail.gapSize !== undefined) setGapSize(e.detail.gapSize);
-      if (e.detail.borderRadius !== undefined) setBorderRadius(e.detail.borderRadius);
-      if (e.detail.showWidgetNames !== undefined) setShowWidgetNames(e.detail.showWidgetNames);
+
+    const handleChange = (event: CustomEvent) => {
+      if (event.detail.rowHeight !== undefined) setRowHeight(event.detail.rowHeight);
+      if (event.detail.gapSize !== undefined) setGapSize(event.detail.gapSize);
+      if (event.detail.borderRadius !== undefined) setBorderRadius(event.detail.borderRadius);
+      if (event.detail.showWidgetNames !== undefined) setShowWidgetNames(event.detail.showWidgetNames);
     };
-    
+
     window.addEventListener('grid-appearance-change', handleChange as EventListener);
-    
+
     return () => {
       window.removeEventListener('grid-appearance-change', handleChange as EventListener);
     };
   }, []);
 
-  // Sync grid settings to CSS variables on root so Portals (Modals) inherit them
   useEffect(() => {
     document.documentElement.style.setProperty('--widget-radius', `${borderRadius}px`);
     document.documentElement.style.setProperty('--row-height', `${rowHeight}px`);
     document.documentElement.style.setProperty('--gap-size', `${gapSize}px`);
   }, [borderRadius, rowHeight, gapSize]);
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-
 
   const {
     isAddModalOpen,
@@ -230,8 +230,16 @@ export default function Home() {
     handleDeleteWidget,
     handleAdd,
     closeAddModal,
-    openAddModal
+    openAddModal,
   } = useWidgetManager();
+
+  const canEditFromDesktopPreview = isEditing && canEditDashboard && isDesktop;
+  const renderedBreakpoint = canEditFromDesktopPreview ? layoutTargetBreakpoint : viewportBreakpoint;
+  const isPreviewingResponsiveLayout = canEditFromDesktopPreview && renderedBreakpoint !== 'desktop';
+  const currentPageId = pages[currentPageIndex]?.id;
+  const currentLayoutState = currentPageId
+    ? getResponsiveLayoutState(currentPageId, renderedBreakpoint)
+    : { isCustom: false, sourceBreakpoint: 'desktop' as BreakpointKey };
 
   useKeyboardShortcuts({
     onToggleEdit: () => handleToggleEdit(),
@@ -241,17 +249,16 @@ export default function Home() {
     onPrevPage: () => currentPageIndex > 0 && setPageIndex(currentPageIndex - 1),
     onNextPage: () => currentPageIndex < pages.length - 1 && setPageIndex(currentPageIndex + 1),
     onPageNavigate: (index) => index < pages.length && setPageIndex(index),
-    isModalOpen: isAddModalOpen || isSettingsOpen
+    isModalOpen: isAddModalOpen || isSettingsOpen,
   });
 
-  // Listen for widget edit requests (e.g. from shortcuts inside sections)
   useEffect(() => {
-    const handleWidgetEdit = (e: Event) => {
-      const customEvent = e as CustomEvent<{ widget?: Widget; widgetId?: string }>;
+    const handleWidgetEdit = (event: Event) => {
+      const customEvent = event as CustomEvent<{ widget?: Widget; widgetId?: string }>;
       const eventWidget = customEvent.detail?.widget;
       const widgetId = customEvent.detail?.widgetId;
       const resolvedWidget = eventWidget ?? (widgetId
-        ? widgets.find(widget => widget.id === widgetId)
+        ? widgets.find((widget) => widget.id === widgetId)
         : undefined);
 
       if (resolvedWidget) {
@@ -266,9 +273,9 @@ export default function Home() {
   }, [handleEditWidget, widgets]);
 
   useAutoSave();
-  useShortcutDragController(isEditing);
+  useShortcutDragController(isEditing && renderedBreakpoint === 'desktop');
 
-  const effectiveScrollDirection = (isMedium || isMobile) ? 'horizontal' : scrollDirection;
+  const effectiveScrollDirection = renderedBreakpoint === 'desktop' ? scrollDirection : 'horizontal';
 
   useEffect(() => {
     fetchConfig();
@@ -279,43 +286,50 @@ export default function Home() {
     pagesLength: pages.length,
     setPageIndex,
     isModalOpen: isAddModalOpen || isSettingsOpen,
-    effectiveScrollDirection
+    effectiveScrollDirection,
   });
 
   const handleToggleEdit = () => {
     if (isEditing) {
       saveConfig();
+      setIsLayoutControlsOpen(false);
     }
     toggleEdit();
   };
 
-  const handleLayoutChange = (currentLayout: { i?: string; x?: number; y?: number; w?: number; h?: number }[]) => { 
-    if ((breakpointRef.current === 'lg' || breakpointRef.current === 'md') && !isMedium && !isMobile) {
-      const validLayout = currentLayout.filter(
-        (item): item is { i: string; x: number; y: number; w: number; h: number } => 
-          item.i !== undefined && item.x !== undefined && item.y !== undefined && 
-          item.w !== undefined && item.h !== undefined
-      );
-      updateLayout(validLayout, isMedium, isMobile);
-    }
+  const handleLayoutChange = (
+    pageId: string,
+    currentLayout: { i?: string; x?: number; y?: number; w?: number; h?: number }[],
+  ) => {
+    if (!isEditing || !canEditDashboard) return;
+
+    const validLayout = currentLayout.filter(
+      (item): item is { i: string; x: number; y: number; w: number; h: number } =>
+        item.i !== undefined &&
+        item.x !== undefined &&
+        item.y !== undefined &&
+        item.w !== undefined &&
+        item.h !== undefined,
+    );
+
+    updateLayout(pageId, renderedBreakpoint, validLayout);
   };
 
-  // When a widget drag ends, check if a shortcut was dropped over a section
   const handleWidgetDragStop = (widgetId: string, mouseX: number, mouseY: number) => {
     if (!isEditing) return;
 
-    const draggedWidget = widgets.find(w => w.id === widgetId);
+    const draggedWidget = widgets.find((widget) => widget.id === widgetId);
     if (!draggedWidget || draggedWidget.type !== 'shortcut') return;
 
     const elementsUnderMouse = document.elementsFromPoint(mouseX, mouseY);
-    
-    for (const el of elementsUnderMouse) {
-      const sectionEl = (el as HTMLElement).closest('[data-widget-type="section"]');
-      if (sectionEl && sectionEl !== el.closest(`[data-widget-id="${widgetId}"]`)) {
-        const sectionId = sectionEl.getAttribute('data-widget-id');
+
+    for (const element of elementsUnderMouse) {
+      const sectionElement = (element as HTMLElement).closest('[data-widget-type="section"]');
+      if (sectionElement && sectionElement !== element.closest(`[data-widget-id="${widgetId}"]`)) {
+        const sectionId = sectionElement.getAttribute('data-widget-id');
         if (!sectionId) continue;
 
-        const section = widgets.find(w => w.id === sectionId);
+        const section = widgets.find((widget) => widget.id === sectionId);
         if (!section) continue;
 
         const sectionConfig = (section.config || {}) as Record<string, unknown>;
@@ -323,19 +337,18 @@ export default function Home() {
 
         if (existingShortcutIds.includes(widgetId)) return;
 
-        // Read the placeholder index set by useSectionDrag on the section grid
-        const gridEl = sectionEl.querySelector('[data-placeholder-index]');
-        const placeholderIdx = gridEl ? parseInt((gridEl as HTMLElement).dataset.placeholderIndex!, 10) : null;
+        const gridElement = sectionElement.querySelector('[data-placeholder-index]');
+        const placeholderIndex = gridElement ? parseInt((gridElement as HTMLElement).dataset.placeholderIndex!, 10) : null;
 
-        let insertIdx = placeholderIdx ?? existingShortcutIds.length;
-        insertIdx = Math.max(0, Math.min(insertIdx, existingShortcutIds.length));
-        
+        let insertIndex = placeholderIndex ?? existingShortcutIds.length;
+        insertIndex = Math.max(0, Math.min(insertIndex, existingShortcutIds.length));
+
         moveShortcut(widgetId, {
           container: {
             type: 'section',
             sectionId,
           },
-          index: insertIdx,
+          index: insertIndex,
         });
 
         return;
@@ -344,112 +357,134 @@ export default function Home() {
   };
 
   const getWidgetsForPage = (pageId: string) => {
-    // Collect IDs of shortcuts that are inside sections
-    const hiddenShortcutIds = new Set<string>();
-    widgets.forEach(w => {
-      if (w.type === 'section' && w.config?.shortcutIds) {
-        (w.config.shortcutIds as string[]).forEach(id => hiddenShortcutIds.add(id));
-      }
-    });
-
-    // Filter widgets: match pageId AND not in hidden set
-    const pageWidgets = widgets.filter(w => 
-      w.pageId === pageId && !hiddenShortcutIds.has(w.id)
-    );
-
-    if (isMobile) {
-      return getResponsiveLayout(pageWidgets, 2);
-    }
-    if (isMedium) {
-      return getResponsiveLayout(pageWidgets, 4);
-    }
-    return pageWidgets;
+    const pageWidgets = getRenderableWidgetsByPage(pageId);
+    return resolveResponsivePageLayout(pageWidgets, pageId, renderedBreakpoint, responsiveLayouts).widgets;
   };
 
+  const handleMakeCurrentPageCustom = () => {
+    if (!currentPageId || renderedBreakpoint === 'desktop') return;
+    materializeResponsiveLayout(currentPageId, renderedBreakpoint as ResponsiveBreakpointKey);
+  };
+
+  const handleResetCurrentPageLayout = () => {
+    if (!currentPageId || renderedBreakpoint === 'desktop') return;
+    resetResponsiveLayout(currentPageId, renderedBreakpoint as ResponsiveBreakpointKey);
+  };
+
+  const dashboardShellWidth = isPreviewingResponsiveLayout
+    ? PREVIEW_WIDTHS[renderedBreakpoint as ResponsiveBreakpointKey]
+    : '100%';
+  const dashboardShellHeight = isPreviewingResponsiveLayout
+    ? 'calc(100dvh - 80px)'
+    : '100dvh';
+
   if (!isLoaded || pages.length === 0) {
-    return null; // Or a loading spinner
+    return null;
   }
 
   return (
-      <main 
-        ref={mainRef} 
-        className={styles.mainContainer}
-        style={{ 
-          ['--widget-radius' as string]: `${borderRadius}px`,
-          ['--row-height' as string]: `${rowHeight}px`,
-          ['--gap-size' as string]: `${gapSize}px`,
-        } as React.CSSProperties}
-      >
-      <PageIndicators />
-      
-      <div 
-        className={styles.pagesWrapper}
-        data-scroll={effectiveScrollDirection}
-        style={{
-          ['--current-page-index' as string]: currentPageIndex,
-          ['--total-pages' as string]: pages.length,
-        } as React.CSSProperties}
-      >
-{pages.map((page) => {
+    <main
+      ref={mainRef}
+      className={styles.mainContainer}
+      style={{
+        ['--widget-radius' as string]: `${borderRadius}px`,
+        ['--row-height' as string]: `${rowHeight}px`,
+        ['--gap-size' as string]: `${gapSize}px`,
+        ['--dashboard-shell-width' as string]: dashboardShellWidth,
+        ['--dashboard-shell-height' as string]: dashboardShellHeight,
+      } as React.CSSProperties}
+    >
+      {canEditFromDesktopPreview && (
+        <LayoutTargetControls
+          isOpen={isLayoutControlsOpen}
+          target={layoutTargetBreakpoint}
+          isCustom={currentLayoutState.isCustom}
+          sourceBreakpoint={currentLayoutState.sourceBreakpoint}
+          onClose={() => setIsLayoutControlsOpen(false)}
+          onTargetChange={setLayoutTargetBreakpoint}
+          onMakeCustom={handleMakeCurrentPageCustom}
+          onResetToAuto={handleResetCurrentPageLayout}
+        />
+      )}
+
+      <PageIndicators breakpoint={isDesktop ? 'desktop' : renderedBreakpoint} />
+
+      <div className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}>
+        <div
+          className={styles.pagesWrapper}
+          data-scroll={effectiveScrollDirection}
+          style={{
+            ['--current-page-index' as string]: currentPageIndex,
+            ['--total-pages' as string]: pages.length,
+          } as React.CSSProperties}
+        >
+          {pages.map((page) => {
             const pageWidgets = getWidgetsForPage(page.id);
-            const { maxRows } = getGridDimensions(isMedium, isMobile);
-            const pageContentHeight = maxRows * rowHeight;
+            const { maxRows } = getGridDimensions(renderedBreakpoint);
+            const usedRows = pageWidgets.reduce<number>(
+              (maxRow, widget) => Math.max(maxRow, widget.grid.y + widget.grid.h),
+              maxRows,
+            );
+            const pageContentHeight = usedRows * rowHeight;
 
             return (
-            <div 
-              key={page.id} 
-              className={`${styles.pageContainer} ${(isMedium || isMobile) ? styles.scrollable : ''}`}
-            >
-              <DashboardPageContent 
-                pageId={page.id}
-                widgets={pageWidgets}
-                contentHeight={pageContentHeight}
-                safeAreaTop={32}
-                className={styles.dashboard}
-                isEditing={isEditing}
-                canEditDashboard={canEditDashboard}
-                handleLayoutChange={handleLayoutChange}
-                handleBreakpointChange={handleBreakpointChange}
-                handleWidgetDragStop={handleWidgetDragStop}
-                handleEditWidget={handleEditWidget}
-                showWidgetNames={showWidgetNames}
-                rowHeight={rowHeight}
-                gapSize={gapSize}
-                isMedium={isMedium}
-                isMobile={isMobile}
-              />
-
-            </div>
-          )})}
+              <div
+                key={page.id}
+                className={`${styles.pageContainer} ${renderedBreakpoint !== 'desktop' ? styles.scrollable : ''}`}
+              >
+                <DashboardPageContent
+                  pageId={page.id}
+                  widgets={pageWidgets}
+                  contentHeight={pageContentHeight}
+                  safeAreaTop={32}
+                  className={styles.dashboard}
+                  isEditing={isEditing}
+                  canEditDashboard={canEditDashboard && isDesktop}
+                  breakpoint={renderedBreakpoint}
+                  onLayoutChange={handleLayoutChange}
+                  onWidgetDragStop={handleWidgetDragStop}
+                  handleEditWidget={handleEditWidget}
+                  showWidgetNames={showWidgetNames}
+                  rowHeight={rowHeight}
+                  gapSize={gapSize}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
-      
 
-
-      <UIControls 
-        isEditing={isEditing} 
+      <UIControls
+        isEditing={isEditing}
         canEdit={canEditDashboard}
-        onToggleEdit={handleToggleEdit} 
+        showLayoutControlsToggle={canEditFromDesktopPreview}
+        isLayoutControlsOpen={isLayoutControlsOpen}
+        onToggleEdit={handleToggleEdit}
+        onToggleLayoutControls={() => setIsLayoutControlsOpen((current) => !current)}
         onAdd={openAddModal}
         onSave={saveConfig}
         onAddPage={addPage}
         saveStatus={saveStatus}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => {
+          setIsLayoutControlsOpen(false);
+          setIsSettingsOpen(true);
+        }}
       />
 
       <ItemEditorDialog
         key={editingItem?.id || 'new'}
         isOpen={isAddModalOpen}
         onClose={closeAddModal}
-        onAdd={(newItem) => handleAdd(newItem as unknown as NewWidgetInput, isMedium, isMobile)}
+        onAdd={(newItem) => handleAdd(newItem as unknown as NewWidgetInput, 'desktop')}
         onEdit={handleUpdateWidget}
         onDelete={canEditDashboard ? handleDeleteWidget : undefined}
         initialItem={editingItem}
         mode={editingItem ? 'edit' : 'add'}
       />
 
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
       <CustomDragGhost />
     </main>
