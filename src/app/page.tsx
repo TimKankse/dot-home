@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
@@ -19,7 +19,11 @@ import { useResponsiveState } from "@/hooks/useResponsiveState";
 import { useShortcutDragController } from "@/hooks/useShortcutDragController";
 import { useWidgetManager } from "@/hooks/useWidgetManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { resolveResponsivePageLayout } from "@/utils/gridUtils";
+import {
+  createRenderedResponsivePages,
+  resolveResponsivePageLayout,
+  type RenderedResponsivePage,
+} from "@/utils/gridUtils";
 import { NewWidgetInput, Widget } from "@/types/widget";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import { getMinDimensions } from "@/constants/widget-definitions";
@@ -33,6 +37,7 @@ import {
 interface DashboardPageContentProps {
   pageId: string;
   widgets: Widget[];
+  rowOffset: number;
   contentHeight: number;
   safeAreaTop: number;
   className: string;
@@ -55,6 +60,7 @@ const PREVIEW_VIEWPORT_OFFSETS: Record<ResponsiveBreakpointKey, number> = {
 const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   pageId,
   widgets,
+  rowOffset,
   contentHeight,
   safeAreaTop,
   className,
@@ -98,7 +104,13 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
         pageId={pageId}
         items={widgets}
         isEditing={allowGridEditing}
-        onLayoutChange={(layout) => onLayoutChange(pageId, layout)}
+        onLayoutChange={(layout) => onLayoutChange(
+          pageId,
+          layout.map((item) => ({
+            ...item,
+            y: item.y === undefined ? item.y : item.y + rowOffset,
+          })),
+        )}
         onWidgetDragStop={onWidgetDragStop}
         rowHeight={rowHeight}
         gap={gapSize}
@@ -145,6 +157,11 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   );
 };
 
+interface RenderedDashboardPage extends Omit<RenderedResponsivePage, 'breakpoint'> {
+  basePageIndex: number;
+  breakpoint: BreakpointKey;
+}
+
 export default function Home() {
   const {
     isEditing,
@@ -190,6 +207,7 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLayoutControlsOpen, setIsLayoutControlsOpen] = useState(false);
   const [layoutTargetBreakpoint, setLayoutTargetBreakpoint] = useState<BreakpointKey>('desktop');
+  const [requestedRenderedPageIndex, setRequestedRenderedPageIndex] = useState(0);
 
   useEffect(() => {
     const loadGridSettings = () => {
@@ -241,7 +259,89 @@ export default function Home() {
   const canEditFromDesktopPreview = canOpenLayoutControls && isDesktop;
   const renderedBreakpoint = canEditFromDesktopPreview ? layoutTargetBreakpoint : viewportBreakpoint;
   const isPreviewingResponsiveLayout = canEditFromDesktopPreview && renderedBreakpoint !== 'desktop';
-  const currentPageId = pages[currentPageIndex]?.id;
+  const pageLayouts = useMemo(() => {
+    return pages.map((page, basePageIndex) => {
+      const pageWidgets = getRenderableWidgetsByPage(page.id);
+      const resolvedLayout = resolveResponsivePageLayout(
+        pageWidgets,
+        page.id,
+        renderedBreakpoint,
+        responsiveLayouts,
+      );
+
+      return {
+        pageId: page.id,
+        basePageIndex,
+        resolvedLayout,
+      };
+    });
+  }, [getRenderableWidgetsByPage, pages, renderedBreakpoint, responsiveLayouts]);
+
+  const renderedPages = useMemo<RenderedDashboardPage[]>(() => {
+    if (renderedBreakpoint === 'desktop') {
+      return pageLayouts.map(({ pageId, basePageIndex, resolvedLayout }) => ({
+        id: pageId,
+        basePageId: pageId,
+        basePageIndex,
+        breakpoint: 'desktop',
+        segmentIndex: 0,
+        segmentCount: 1,
+        rowOffset: 0,
+        widgets: resolvedLayout.widgets,
+        diagnostics: resolvedLayout.diagnostics,
+      }));
+    }
+
+    return pageLayouts.flatMap(({ pageId, basePageIndex, resolvedLayout }) => (
+      createRenderedResponsivePages(
+        pageId,
+        renderedBreakpoint as ResponsiveBreakpointKey,
+        resolvedLayout,
+      ).map((renderedPage) => ({
+        ...renderedPage,
+        basePageIndex,
+      }))
+    ));
+  }, [pageLayouts, renderedBreakpoint]);
+
+  const renderedPageIndex = useMemo(() => {
+    if (renderedPages.length === 0) {
+      return 0;
+    }
+
+    if (renderedBreakpoint === 'desktop') {
+      return Math.min(currentPageIndex, renderedPages.length - 1);
+    }
+
+    const activeRenderedPage = renderedPages[requestedRenderedPageIndex];
+    if (activeRenderedPage?.basePageIndex === currentPageIndex) {
+      return requestedRenderedPageIndex;
+    }
+
+    const nextIndex = renderedPages.findIndex((page) => page.basePageIndex === currentPageIndex);
+    if (nextIndex >= 0) {
+      return nextIndex;
+    }
+
+    return Math.min(requestedRenderedPageIndex, renderedPages.length - 1);
+  }, [currentPageIndex, renderedBreakpoint, renderedPages, requestedRenderedPageIndex]);
+
+  const setActiveRenderedPage = useCallback((index: number) => {
+    if (renderedPages.length === 0) return;
+
+    const clampedIndex = Math.max(0, Math.min(index, renderedPages.length - 1));
+    const nextRenderedPage = renderedPages[clampedIndex];
+
+    setRequestedRenderedPageIndex(clampedIndex);
+
+    if (nextRenderedPage && nextRenderedPage.basePageIndex !== currentPageIndex) {
+      setPageIndex(nextRenderedPage.basePageIndex);
+    }
+  }, [currentPageIndex, renderedPages, setPageIndex]);
+
+  const currentRenderedPage = renderedPages[renderedPageIndex] ?? renderedPages[0];
+  const currentPageId = currentRenderedPage?.basePageId ?? pages[currentPageIndex]?.id;
+  const currentPageLayout = pageLayouts.find((page) => page.pageId === currentPageId);
   const currentLayoutState = currentPageId
     ? getResponsiveLayoutState(currentPageId, renderedBreakpoint)
     : { isCustom: false, sourceBreakpoint: 'desktop' as BreakpointKey };
@@ -251,9 +351,9 @@ export default function Home() {
     onOpenSettings: () => setIsSettingsOpen(true),
     onAddItem: openAddModal,
     onSaveChanges: saveConfig,
-    onPrevPage: () => currentPageIndex > 0 && setPageIndex(currentPageIndex - 1),
-    onNextPage: () => currentPageIndex < pages.length - 1 && setPageIndex(currentPageIndex + 1),
-    onPageNavigate: (index) => index < pages.length && setPageIndex(index),
+    onPrevPage: () => renderedPageIndex > 0 && setActiveRenderedPage(renderedPageIndex - 1),
+    onNextPage: () => renderedPageIndex < renderedPages.length - 1 && setActiveRenderedPage(renderedPageIndex + 1),
+    onPageNavigate: (index) => index < renderedPages.length && setActiveRenderedPage(index),
     isModalOpen: isAddModalOpen || isSettingsOpen,
   });
 
@@ -287,9 +387,9 @@ export default function Home() {
   }, [fetchConfig]);
 
   useScrollNavigation({
-    currentPageIndex,
-    pagesLength: pages.length,
-    setPageIndex,
+    currentPageIndex: renderedPageIndex,
+    pagesLength: renderedPages.length,
+    setPageIndex: setActiveRenderedPage,
     isModalOpen: isAddModalOpen || isSettingsOpen,
     effectiveScrollDirection,
   });
@@ -361,11 +461,6 @@ export default function Home() {
     }
   };
 
-  const getWidgetsForPage = (pageId: string) => {
-    const pageWidgets = getRenderableWidgetsByPage(pageId);
-    return resolveResponsivePageLayout(pageWidgets, pageId, renderedBreakpoint, responsiveLayouts).widgets;
-  };
-
   const handleMakeCurrentPageCustom = () => {
     if (!currentPageId || renderedBreakpoint === 'desktop') return;
     materializeResponsiveLayout(currentPageId, renderedBreakpoint as ResponsiveBreakpointKey);
@@ -418,6 +513,7 @@ export default function Home() {
           target={renderedBreakpoint}
           isCustom={currentLayoutState.isCustom}
           sourceBreakpoint={currentLayoutState.sourceBreakpoint}
+          diagnostics={renderedBreakpoint === 'desktop' ? null : currentPageLayout?.resolvedLayout.diagnostics ?? null}
           canSelectTarget={canEditFromDesktopPreview}
           breakpointThresholds={breakpointThresholds}
           onClose={() => setIsLayoutControlsOpen(false)}
@@ -428,21 +524,28 @@ export default function Home() {
         />
       )}
 
-      <PageIndicators breakpoint={isDesktop ? 'desktop' : renderedBreakpoint} />
+      <PageIndicators
+        breakpoint={isDesktop ? 'desktop' : renderedBreakpoint}
+        renderedPages={renderedPages.map((page) => ({
+          id: page.id,
+          basePageId: page.basePageId,
+        }))}
+        currentRenderedPageIndex={renderedPageIndex}
+        onRenderedPageChange={setActiveRenderedPage}
+      />
 
       <div className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}>
         <div
           className={styles.pagesWrapper}
           data-scroll={effectiveScrollDirection}
           style={{
-            ['--current-page-index' as string]: currentPageIndex,
-            ['--total-pages' as string]: pages.length,
+            ['--current-page-index' as string]: renderedPageIndex,
+            ['--total-pages' as string]: renderedPages.length,
           } as React.CSSProperties}
         >
-          {pages.map((page) => {
-            const pageWidgets = getWidgetsForPage(page.id);
+          {renderedPages.map((page) => {
             const { maxRows } = getGridDimensions(renderedBreakpoint);
-            const usedRows = pageWidgets.reduce<number>(
+            const usedRows = page.widgets.reduce<number>(
               (maxRow, widget) => Math.max(maxRow, widget.grid.y + widget.grid.h),
               maxRows,
             );
@@ -454,8 +557,9 @@ export default function Home() {
                 className={`${styles.pageContainer} ${renderedBreakpoint !== 'desktop' ? styles.scrollable : ''}`}
               >
                 <DashboardPageContent
-                  pageId={page.id}
-                  widgets={pageWidgets}
+                  pageId={page.basePageId}
+                  widgets={page.widgets}
+                  rowOffset={page.rowOffset}
                   contentHeight={pageContentHeight}
                   safeAreaTop={32}
                   className={styles.dashboard}

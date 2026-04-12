@@ -8,9 +8,17 @@ import styles from './PageIndicators.module.css';
 
 interface PageIndicatorsProps {
   breakpoint?: BreakpointKey;
+  renderedPages?: Array<{ id: string; basePageId: string }>;
+  currentRenderedPageIndex?: number;
+  onRenderedPageChange?: (index: number) => void;
 }
 
-export const PageIndicators: React.FC<PageIndicatorsProps> = ({ breakpoint }) => {
+export const PageIndicators: React.FC<PageIndicatorsProps> = ({
+  breakpoint,
+  renderedPages,
+  currentRenderedPageIndex,
+  onRenderedPageChange,
+}) => {
   const { 
     pages, 
     currentPageIndex, 
@@ -23,8 +31,11 @@ export const PageIndicators: React.FC<PageIndicatorsProps> = ({ breakpoint }) =>
 
   const { isEditing, canEditDashboard } = usePersistenceStore();
   const { breakpoint: viewportBreakpoint } = useResponsiveState();
+  const indicatorPages = renderedPages ?? pages.map((page) => ({ id: page.id, basePageId: page.id }));
+  const activeIndicatorIndex = currentRenderedPageIndex ?? currentPageIndex;
+  const handleIndicatorChange = onRenderedPageChange ?? setPageIndex;
 
-  if (pages.length <= 1 && !isEditing) return null;
+  if (indicatorPages.length <= 1 && !isEditing) return null;
 
   const activeBreakpoint = breakpoint || viewportBreakpoint;
   const isVertical = activeBreakpoint === 'desktop';
@@ -70,11 +81,11 @@ export const PageIndicators: React.FC<PageIndicatorsProps> = ({ breakpoint }) =>
         )}
 
         <div className={styles.indicators}>
-          {pages.map((page, index) => (
+          {indicatorPages.map((page, index) => (
             <button
               key={page.id}
-              className={`${styles.indicator} ${currentPageIndex === index ? styles.active : ''}`}
-              onClick={() => setPageIndex(index)}
+              className={`${styles.indicator} ${activeIndicatorIndex === index ? styles.active : ''}`}
+              onClick={() => handleIndicatorChange(index)}
               aria-label={`Go to page ${index + 1}`}
             />
           ))}

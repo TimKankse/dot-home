@@ -143,10 +143,94 @@
   line-height: 1.4;
 }
 
-.sliderBlock {
+.section {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--border-dim);
+}
+
+.sectionToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sectionHeaderCopy {
+  min-width: 0;
+}
+
+.sectionTitle {
+  color: var(--text-main);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sectionIcon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.sectionIconExpanded {
+  transform: rotate(180deg);
+  color: var(--text-main);
+}
+
+.sectionBody {
+  margin-top: 12px;
+}
+
+.sectionBodyCollapsed {
+  margin-top: 0;
+}
+
+.diagnostics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.diagnosticsItem {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-highlight) 70%, transparent);
+  border: 1px solid var(--border-dim);
+}
+
+.diagnosticsLabel {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.diagnosticsValue {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-main);
+  font-size: 0.96rem;
+  font-weight: 600;
+}
+
+.diagnosticsHint {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.sliderBlock {
+  min-width: 0;
 }
 
 .sliderHeader {
@@ -163,8 +247,8 @@
   font-weight: 600;
 }
 
+.sliderHintStandalone,
 .sliderHint {
-  margin-top: 4px;
   color: var(--text-muted);
   font-size: 0.8rem;
   line-height: 1.35;
@@ -188,5 +272,11 @@
   .shell {
     top: 16px;
     width: min(640px, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 640px) {
+  .diagnostics {
+    grid-template-columns: 1fr;
   }
 }

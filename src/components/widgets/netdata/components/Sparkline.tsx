@@ -20,6 +20,9 @@ const CHART_WIDTH = 120;
 const CHART_HEIGHT = 40;
 const GRID_DIVISIONS = 4;
 const HISTORY_PRECISION = 10;
+const HOVER_POINT_SIZE_RATIO = 0.24;
+const MIN_HOVER_POINT_SIZE = 9;
+const MAX_HOVER_POINT_SIZE = 18;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -34,6 +37,7 @@ export const Sparkline: React.FC<SparklineProps> = ({
     tooltipLabel,
 }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const [hoverPointSize, setHoverPointSize] = useState(MIN_HOVER_POINT_SIZE);
     const { settings } = useSettingsStore();
     const gradientId = `sparkline-gradient-${useId().replace(/:/g, '')}`;
 
@@ -55,9 +59,13 @@ export const Sparkline: React.FC<SparklineProps> = ({
 
     const resolvedFormatX = formatX || defaultFormatX;
 
-    if (!dataPoints || dataPoints.length < 2) return null;
+    if (!dataPoints || dataPoints.length === 0) return null;
 
-    const values = dataPoints.map(point => point.y);
+    const renderDataPoints = dataPoints.length === 1
+        ? [dataPoints[0], dataPoints[0]]
+        : dataPoints;
+
+    const values = renderDataPoints.map(point => point.y);
     const dataMin = Math.min(...values);
     const dataMax = Math.max(...values);
     let range = dataMax - dataMin;
@@ -79,8 +87,8 @@ export const Sparkline: React.FC<SparklineProps> = ({
 
     const paddedRange = max - min;
 
-    const chartPoints = dataPoints.map((point, index) => {
-        const x = (index / (dataPoints.length - 1)) * CHART_WIDTH;
+    const renderedChartPoints = renderDataPoints.map((point, index) => {
+        const x = (index / (renderDataPoints.length - 1)) * CHART_WIDTH;
         const normalizedY = clamp((point.y - min) / paddedRange, 0, 1);
         const y = CHART_HEIGHT - normalizedY * CHART_HEIGHT;
 
@@ -91,8 +99,12 @@ export const Sparkline: React.FC<SparklineProps> = ({
         };
     });
 
-    const points = chartPoints.map(point => `${point.chartX},${point.chartY}`).join(' ');
-    const hoveredPoint = hoveredIndex !== null ? chartPoints[hoveredIndex] : null;
+    const interactiveChartPoints = dataPoints.length === 1
+        ? [renderedChartPoints[renderedChartPoints.length - 1]]
+        : renderedChartPoints;
+
+    const points = renderedChartPoints.map(point => `${point.chartX},${point.chartY}`).join(' ');
+    const hoveredPoint = hoveredIndex !== null ? interactiveChartPoints[hoveredIndex] : null;
 
     const hoverLeft = hoveredPoint ? `${(hoveredPoint.chartX / CHART_WIDTH) * 100}%` : '0%';
     const hoverTop = hoveredPoint ? `${(hoveredPoint.chartY / CHART_HEIGHT) * 100}%` : '0%';
@@ -109,8 +121,18 @@ export const Sparkline: React.FC<SparklineProps> = ({
         const bounds = event.currentTarget.getBoundingClientRect();
         if (bounds.width === 0) return;
 
+        const nextHoverPointSize = Math.round(
+            clamp(bounds.height * HOVER_POINT_SIZE_RATIO, MIN_HOVER_POINT_SIZE, MAX_HOVER_POINT_SIZE)
+        );
+        setHoverPointSize(currentSize => currentSize === nextHoverPointSize ? currentSize : nextHoverPointSize);
+
+        if (interactiveChartPoints.length === 1) {
+            setHoveredIndex(currentIndex => currentIndex === 0 ? currentIndex : 0);
+            return;
+        }
+
         const relativeX = clamp(event.clientX - bounds.left, 0, bounds.width);
-        const nextIndex = Math.round((relativeX / bounds.width) * (chartPoints.length - 1));
+        const nextIndex = Math.round((relativeX / bounds.width) * (interactiveChartPoints.length - 1));
 
         setHoveredIndex(currentIndex => currentIndex === nextIndex ? currentIndex : nextIndex);
     };
@@ -187,16 +209,23 @@ export const Sparkline: React.FC<SparklineProps> = ({
                             y1="0"
                             y2={CHART_HEIGHT}
                         />
-                        <circle
-                            className={styles.hoverPoint}
-                            cx={hoveredPoint.chartX}
-                            cy={hoveredPoint.chartY}
-                            r="2.6"
-                            fill={color}
-                        />
                     </>
                 )}
             </svg>
+
+            {hoveredPoint && (
+                <div
+                    aria-hidden="true"
+                    className={styles.hoverPoint}
+                    style={{
+                        left: hoverLeft,
+                        top: hoverTop,
+                        width: `${hoverPointSize}px`,
+                        height: `${hoverPointSize}px`,
+                        backgroundColor: color,
+                    }}
+                />
+            )}
 
             {hoveredPoint && (
                 <div

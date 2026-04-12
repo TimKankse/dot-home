@@ -11,6 +11,7 @@ import type {
 import {
   getLayoutItemsFromWidgets,
   getPageLayoutState,
+  getResponsiveSegmentLocalY,
   normalizeResponsiveLayouts,
   resolveResponsivePageLayout,
   sanitizeResponsiveLayoutsForWidgets,
@@ -101,6 +102,47 @@ const findAvailablePositionInGrid = (
 
   for (let y = 0; y <= maxY; y++) {
     for (let x = 0; x <= maxX; x++) {
+      const hasCollision = pageWidgets.some((widget) =>
+        hasOverlap(
+          x, y, w, h,
+          widget.grid.x, widget.grid.y, widget.grid.w, widget.grid.h,
+        ),
+      );
+
+      if (!hasCollision) {
+        return { x, y };
+      }
+    }
+  }
+
+  return null;
+};
+
+const findAvailablePositionInResponsiveGrid = (
+  pageWidgets: Widget[],
+  w: number,
+  h: number,
+  maxCols: number,
+  maxRows: number,
+): { x: number; y: number } | null => {
+  if (w > maxCols || h > maxRows) return null;
+
+  const existingSegmentCount = pageWidgets.reduce<number>(
+    (maxSegmentCount, widget) => Math.max(maxSegmentCount, Math.floor(widget.grid.y / maxRows) + 1),
+    1,
+  );
+  const maxSegments = existingSegmentCount + 1;
+  const maxGlobalY = (maxSegments * maxRows) - h;
+  const maxX = maxCols - w;
+
+  for (let y = 0; y <= maxGlobalY; y += 1) {
+    const localY = y % maxRows;
+    if (localY + h > maxRows) {
+      y += maxRows - localY - 1;
+      continue;
+    }
+
+    for (let x = 0; x <= maxX; x += 1) {
       const hasCollision = pageWidgets.some((widget) =>
         hasOverlap(
           x, y, w, h,
@@ -291,7 +333,23 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
     }));
     const { maxCols, maxRows } = getGridDimensions(breakpoint);
 
-    if (cleanLayout.some((item) => item.y + item.h > maxRows || item.x + item.w > maxCols)) {
+    const hasOutOfBoundsItem = cleanLayout.some((item) => {
+      if (item.x < 0 || item.y < 0 || item.w <= 0 || item.h <= 0) {
+        return true;
+      }
+
+      if (item.x + item.w > maxCols || item.w > maxCols || item.h > maxRows) {
+        return true;
+      }
+
+      if (breakpoint !== 'desktop' && getResponsiveSegmentLocalY(item.y, breakpoint) + item.h > maxRows) {
+        return true;
+      }
+
+      return breakpoint === 'desktop' && item.y + item.h > maxRows;
+    });
+
+    if (hasOutOfBoundsItem) {
       return;
     }
 
@@ -347,13 +405,16 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
 
       const nextPageLayout: LayoutItem[] = [];
       const pageWidgets = getVisiblePageWidgets(state.widgets, pageId);
-      const resolvedPageWidgets = resolveResponsivePageLayout(
+      const resolvedPageLayout = resolveResponsivePageLayout(
         pageWidgets,
         pageId,
         breakpoint,
         state.responsiveLayouts,
-      ).widgets;
-      const widgetsById = new Map(resolvedPageWidgets.map((widget) => [widget.id, widget]));
+      );
+      const widgetsById = new Map(resolvedPageLayout.widgets.map((widget) => [widget.id, widget]));
+      const mergedLayoutById = new Map(
+        getLayoutItemsFromWidgets(resolvedPageLayout.widgets).map((item) => [item.i, item]),
+      );
 
       for (const item of cleanLayout) {
         const widget = widgetsById.get(item.i);
@@ -372,20 +433,41 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
         nextPageLayout.push({
           i: item.i,
           x: Math.max(0, Math.min(item.x, maxCols - item.w)),
-          y: Math.max(0, Math.min(item.y, maxRows - item.h)),
+          y: Math.max(0, item.y),
           w: item.w,
           h: item.h,
         });
       }
 
+      nextPageLayout.forEach((item) => {
+        mergedLayoutById.set(item.i, item);
+      });
+
       const responsiveLayouts = normalizeResponsiveLayouts(state.responsiveLayouts);
+      const draftPageLayout = resolvedPageLayout.widgets
+        .map((widget) => mergedLayoutById.get(widget.id))
+        .filter((item): item is LayoutItem => item !== undefined);
+      const draftResponsiveLayouts: ResponsiveLayouts = {
+        ...responsiveLayouts,
+        [breakpoint]: {
+          ...(responsiveLayouts[breakpoint] || {}),
+          [pageId]: draftPageLayout,
+        },
+      };
+      const legalizedLayout = resolveResponsivePageLayout(
+        pageWidgets,
+        pageId,
+        breakpoint,
+        draftResponsiveLayouts,
+      );
+      const nextLegalizedPageLayout = getLayoutItemsFromWidgets(legalizedLayout.widgets);
       const nextBreakpointLayouts = {
-        ...(responsiveLayouts[breakpoint] || {}),
-        [pageId]: nextPageLayout,
+        ...(draftResponsiveLayouts[breakpoint] || {}),
+        [pageId]: nextLegalizedPageLayout,
       };
       const previousLayout = responsiveLayouts[breakpoint]?.[pageId] || [];
 
-      hasChanges = JSON.stringify(previousLayout) !== JSON.stringify(nextPageLayout);
+      hasChanges = JSON.stringify(previousLayout) !== JSON.stringify(nextLegalizedPageLayout);
 
       if (!hasChanges && !rejectionHappened) {
         return state;
@@ -454,15 +536,19 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
 
   findAvailablePosition: (pageId, w, h, breakpoint) => {
     const pageWidgets = getVisiblePageWidgets(get().widgets, pageId);
-    const resolvedPageWidgets = resolveResponsivePageLayout(
+    const resolvedPageLayout = resolveResponsivePageLayout(
       pageWidgets,
       pageId,
       breakpoint,
       get().responsiveLayouts,
-    ).widgets;
+    );
     const { maxCols, maxRows } = getGridDimensions(breakpoint);
 
-    return findAvailablePositionInGrid(resolvedPageWidgets, w, h, maxCols, maxRows);
+    if (breakpoint === 'desktop') {
+      return findAvailablePositionInGrid(resolvedPageLayout.widgets, w, h, maxCols, maxRows);
+    }
+
+    return findAvailablePositionInResponsiveGrid(resolvedPageLayout.widgets, w, h, maxCols, maxRows);
   },
 
   checkSpaceAvailable: (pageId, w, h, breakpoint) => {

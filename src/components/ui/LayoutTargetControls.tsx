@@ -1,5 +1,5 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, X } from 'lucide-react';
 import { Button, Slider, ToggleGroup } from '@/components/primitives';
 import {
   BREAKPOINT_THRESHOLD_GAP,
@@ -9,6 +9,7 @@ import {
   type BreakpointThresholds,
   type ResponsiveBreakpointKey,
 } from '@/constants/grid';
+import type { ResponsiveLayoutDiagnostics } from '@/utils/gridUtils';
 import styles from './LayoutTargetControls.module.css';
 
 interface LayoutTargetControlsProps {
@@ -16,6 +17,7 @@ interface LayoutTargetControlsProps {
   target: BreakpointKey;
   isCustom: boolean;
   sourceBreakpoint: BreakpointKey;
+  diagnostics?: ResponsiveLayoutDiagnostics | null;
   canSelectTarget?: boolean;
   breakpointThresholds: BreakpointThresholds;
   onClose: () => void;
@@ -36,6 +38,7 @@ export const LayoutTargetControls: React.FC<LayoutTargetControlsProps> = ({
   target,
   isCustom,
   sourceBreakpoint,
+  diagnostics,
   canSelectTarget = true,
   breakpointThresholds,
   onClose,
@@ -44,6 +47,8 @@ export const LayoutTargetControls: React.FC<LayoutTargetControlsProps> = ({
   onMakeCustom,
   onResetToAuto,
 }) => {
+  const [isDiagnosticsExpanded, setIsDiagnosticsExpanded] = useState(false);
+  const [isSliderExpanded, setIsSliderExpanded] = useState(true);
   const targetLabel = BREAKPOINT_LABELS[target];
   const sourceLabel = BREAKPOINT_LABELS[sourceBreakpoint];
   const isResponsiveTarget = target !== 'desktop';
@@ -118,26 +123,102 @@ export const LayoutTargetControls: React.FC<LayoutTargetControlsProps> = ({
           <div className={styles.description}>{description}</div>
 
           {isResponsiveTarget && (
-            <div className={styles.sliderBlock}>
-              <div className={styles.sliderHeader}>
-                <div>
-                  <div className={styles.sliderLabel}>{sliderLabel}</div>
-                  <div className={styles.sliderHint}>{sliderHint}</div>
+            <div className={styles.section}>
+              <button
+                type="button"
+                className={styles.sectionToggle}
+                onClick={() => setIsSliderExpanded((current) => !current)}
+                aria-expanded={isSliderExpanded}
+                aria-controls="layout-target-breakpoint-slider"
+              >
+                <div className={styles.sectionHeaderCopy}>
+                  <div className={styles.sectionTitle}>{sliderLabel}</div>
                 </div>
-                <div className={styles.sliderValue}>{sliderValue}px</div>
-              </div>
+                <ChevronDown
+                  size={16}
+                  className={`${styles.sectionIcon} ${isSliderExpanded ? styles.sectionIconExpanded : ''}`}
+                />
+              </button>
 
-              <Slider
-                min={sliderMin}
-                max={sliderMax}
-                step={8}
-                value={sliderValue}
-                onChange={(event) => onBreakpointWidthChange(
-                  target as ResponsiveBreakpointKey,
-                  parseInt(event.target.value, 10),
-                )}
-                aria-label={`${targetLabel} breakpoint max width`}
-              />
+              <div
+                id="layout-target-breakpoint-slider"
+                className={`${styles.sectionBody} ${!isSliderExpanded ? styles.sectionBodyCollapsed : ''}`}
+                hidden={!isSliderExpanded}
+              >
+                <div className={styles.sliderBlock}>
+                  <div className={styles.sliderHeader}>
+                    <div>
+                      <div className={styles.sliderHintStandalone}>{sliderHint}</div>
+                    </div>
+                    <div className={styles.sliderValue}>{sliderValue}px</div>
+                  </div>
+
+                  <Slider
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={8}
+                    value={sliderValue}
+                    onChange={(event) => onBreakpointWidthChange(
+                      target as ResponsiveBreakpointKey,
+                      parseInt(event.target.value, 10),
+                    )}
+                    aria-label={`${targetLabel} breakpoint max width`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isResponsiveTarget && (
+            <div className={styles.section}>
+              <button
+                type="button"
+                className={styles.sectionToggle}
+                onClick={() => setIsDiagnosticsExpanded((current) => !current)}
+                aria-expanded={isDiagnosticsExpanded}
+                aria-controls="layout-target-diagnostics"
+              >
+                <div className={styles.sectionHeaderCopy}>
+                  <div className={styles.sectionTitle}>Diagnostics</div>
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={`${styles.sectionIcon} ${isDiagnosticsExpanded ? styles.sectionIconExpanded : ''}`}
+                />
+              </button>
+
+              <div
+                id="layout-target-diagnostics"
+                className={`${styles.sectionBody} ${!isDiagnosticsExpanded ? styles.sectionBodyCollapsed : ''}`}
+                hidden={!isDiagnosticsExpanded}
+              >
+                <div className={styles.diagnostics}>
+                  <div className={styles.diagnosticsItem}>
+                    <span className={styles.diagnosticsLabel}>Pages</span>
+                    <span className={styles.diagnosticsValue}>
+                      {diagnostics?.segmentCount ?? 1}
+                      {diagnostics?.segmentCount === 1 ? ' page' : ' pages'}
+                    </span>
+                  </div>
+                  <div className={styles.diagnosticsItem}>
+                    <span className={styles.diagnosticsLabel}>Adjusted</span>
+                    <span className={styles.diagnosticsValue}>
+                      {diagnostics?.adjustedWidgetIds.length ?? 0}
+                    </span>
+                  </div>
+                  <div className={styles.diagnosticsItem}>
+                    <span className={styles.diagnosticsLabel}>Unplaceable</span>
+                    <span className={styles.diagnosticsValue}>
+                      {diagnostics?.unplaceableWidgetIds.length ?? 0}
+                    </span>
+                  </div>
+                  <div className={styles.diagnosticsHint}>
+                    {(diagnostics?.fitWithinPage ?? true)
+                      ? `${targetLabel} currently fits within a single responsive page.`
+                      : `${targetLabel} needs responsive overflow pages to keep every placeable widget legal.`}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

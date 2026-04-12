@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout, LayoutGrid } from 'lucide-react';
+import { Settings, Pencil, X, Plus, Loader2, Check, AlertCircle, Layout, LayoutPanelTop } from 'lucide-react';
 import styles from './UIControls.module.css';
 
 interface UIControlsProps {
@@ -58,8 +58,12 @@ export const UIControls: React.FC<UIControlsProps> = ({
           aria-label="Add Page"
           title="Add Page"
         >
-          <Layout size={20} />
-          <Plus size={12} style={{ position: 'absolute', top: 8, right: 8 }} />
+          <span className={styles.compositeIcon}>
+            <Layout size={20} />
+            <span className={styles.iconBadge} aria-hidden="true">
+              <Plus size={12} />
+            </span>
+          </span>
         </button>
       )}
 
@@ -71,7 +75,7 @@ export const UIControls: React.FC<UIControlsProps> = ({
           title={isLayoutControlsOpen ? "Close layout controls" : "Open layout controls"}
           aria-pressed={isLayoutControlsOpen}
         >
-          <LayoutGrid size={20} />
+          <LayoutPanelTop size={20} />
         </button>
       )}
 
