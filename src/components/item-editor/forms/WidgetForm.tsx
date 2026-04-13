@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FormProps } from '../types';
 import styles from '../ItemEditorDialog.module.css';
 import { IconSelector } from '../../ui/IconSelector';
-import { Select } from '../../primitives/select';
+import { Input } from '../../primitives/input';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 import { YamlEditorTab } from './YamlEditorTab';
 import { SyncConfigToggle } from '../../widgets/SyncConfigToggle';
@@ -45,7 +45,7 @@ const CONFIG_COMPONENTS: Record<string, React.ComponentType<any>> = {
   section: SectionConfig,
 };
 
-import { WIDGET_DEFINITIONS, getMinDimensions } from '@/constants/widget-definitions';
+import { getMinDimensions } from '@/constants/widget-definitions';
 
 export const WidgetForm: React.FC<FormProps> = ({ 
   initialData, 
@@ -78,8 +78,6 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const widgetType = selectedType || initialData?.widgetType || 'clock';
   const { integrations } = useIntegrationStore();
-
-  const availableIntegrations = integrations;
 
   // Sync integration config ONLY when integrationId changes to a NEW non-empty value
   useEffect(() => {
@@ -183,8 +181,7 @@ export const WidgetForm: React.FC<FormProps> = ({
             <FormErrorBoundary sectionName="Widget Configuration">
              <div className={styles.formGroup} style={{ marginBottom: '20px' }}>
               <label className={styles.label}>Name</label>
-              <input 
-                className={styles.input}
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Widget Name"

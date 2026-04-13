@@ -6,7 +6,6 @@ import { PermissionManager } from './PermissionManager';
 import { type AccessLevel } from '../ui/AccessLevelSelect';
 import { Button, Input, Label, Badge } from '../primitives';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
 import styles from './SettingsDialog.module.css';
 
 interface Dashboard {
@@ -272,7 +271,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
           </div>
         )}
         
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+        <div className={styles.formActions}>
           <Button 
             variant="secondary"
             onClick={resetForm} 
@@ -297,7 +296,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
   // Render the list view
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+      <div className={styles.listToolbar}>
         <Button 
           variant="primary"
           onClick={handleStartCreate} 
@@ -311,7 +310,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
         {dashboards.map((dashboard) => (
           <div key={dashboard.id} className={styles.integrationItem}>
             <div className={styles.integrationInfo}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className={styles.integrationTitleRow}>
                 <span className={styles.integrationName}>{dashboard.name}</span>
                 {dashboard.isUserDefault && (
                   <Badge variant="success" icon={<Star size={10} />}>
@@ -319,14 +318,14 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
                   </Badge>
                 )}
               </div>
-              <div className={styles.integrationType} style={{ display: 'flex', gap: '16px', marginTop: '4px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div className={`${styles.integrationType} ${styles.integrationMetaRow}`}>
+                <span className={styles.integrationMetaItem}>
                   <Layers size={12} /> {dashboard.pageCount} {dashboard.pageCount === 1 ? 'page' : 'pages'}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className={styles.integrationMetaItem}>
                   <Box size={12} /> {dashboard.widgetCount} {dashboard.widgetCount === 1 ? 'widget' : 'widgets'}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className={styles.integrationMetaItem}>
                   <Calendar size={12} /> {formatDate(dashboard.updatedAt)}
                 </span>
               </div>

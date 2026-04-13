@@ -14,6 +14,23 @@
   --font-body: var(--font-inter-sans);
   --font-mono: var(--font-jetbrains-mono);
   --font-ui: var(--font-inter-sans);
+
+  /* Semantic field tokens */
+  --field-bg: var(--bg-app);
+  --field-bg-hover: var(--bg-card);
+  --field-bg-focus: var(--bg-card);
+  --field-border: var(--border-dim);
+  --field-border-subtle: var(--border-dim);
+  --field-border-hover: var(--border-highlight);
+  --field-border-focus: var(--border-highlight);
+  --field-icon: var(--text-muted);
+  --field-placeholder: var(--text-dim);
+  --field-popover-bg: var(--bg-card);
+  --field-popover-border: var(--border-dim);
+  --field-option-hover-bg: var(--bg-highlight);
+  --field-option-selected-bg: var(--bg-highlight);
+  --field-danger-bg: color-mix(in srgb, var(--accent-red) 12%, transparent);
+  --field-danger-bg-strong: color-mix(in srgb, var(--accent-red) 18%, transparent);
 }
 
 [data-theme='dark'] {

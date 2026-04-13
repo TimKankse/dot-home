@@ -8,6 +8,7 @@
 'use client';
 
 import React from 'react';
+import { Switch } from '@/components/primitives/switch';
 import styles from './SyncConfigToggle.module.css';
 
 interface SyncConfigToggleProps {
@@ -25,16 +26,12 @@ export function SyncConfigToggle({
     <div className={styles.container}>
       <div className={styles.header}>
         <label className={styles.label}>Sync Configuration</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={value}
-          className={`${styles.toggle} ${value ? styles.on : styles.off}`}
-          onClick={() => onChange(!value)}
+        <Switch
+          checked={value}
+          onCheckedChange={onChange}
           disabled={disabled}
-        >
-          <span className={styles.slider} />
-        </button>
+          className={styles.switchControl}
+        />
       </div>
       <p className={styles.description}>
         {value

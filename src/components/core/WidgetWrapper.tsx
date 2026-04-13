@@ -26,30 +26,19 @@ export const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
   isEditing = false,
   onEdit,
 }) => {
+  const showConfigButton = isEditing && Boolean(onEdit);
+
   return (
     <div className={`${styles.card} ${className}`} style={style}>
-      {isEditing && onEdit && (
-        <button 
+      {showConfigButton && (
+        <button
+          type="button"
           className={`${styles.configButton} nodrag`}
           onClick={(e) => {
             e.stopPropagation();
-            onEdit();
+            onEdit?.();
           }}
-          style={{
-            position: 'absolute',
-            bottom: '8px',
-            right: '8px',
-            zIndex: 20,
-            background: 'rgba(0,0,0,0.6)',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '4px',
-            cursor: 'pointer',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          aria-label={`Configure ${widgetName ?? 'widget'}`}
         >
           <Settings size={16} />
         </button>
@@ -61,7 +50,7 @@ export const WidgetWrapper: React.FC<WidgetWrapperProps> = ({
         </div>
       )}
       
-      <div className={`${styles.content} ${contentClassName}`}>
+      <div className={`${styles.content} ${contentClassName}`.trim()}>
         <WidgetErrorBoundary>
           {children}
         </WidgetErrorBoundary>

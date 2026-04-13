@@ -4,6 +4,11 @@ export const GRID_BREAKPOINTS = {
   mobile: { cols: 2, rows: 32 },
 } as const;
 
+export const GRID_COLUMN_WIDTH_STORAGE_KEY = 'grid-column-width';
+export const DEFAULT_GRID_COLUMN_WIDTH = 150;
+export const MIN_GRID_COLUMN_WIDTH = 40;
+export const MAX_GRID_COLUMN_WIDTH = 240;
+
 export type BreakpointKey = keyof typeof GRID_BREAKPOINTS;
 export type ResponsiveBreakpointKey = Exclude<BreakpointKey, 'desktop'>;
 
@@ -25,9 +30,31 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+export function getNormalizedColumnWidth(columnWidth?: number) {
+  if (typeof columnWidth === 'number' && Number.isFinite(columnWidth)) {
+    return clamp(Math.round(columnWidth), MIN_GRID_COLUMN_WIDTH, MAX_GRID_COLUMN_WIDTH);
+  }
+
+  if (typeof window !== 'undefined') {
+    const stored = window.localStorage.getItem(GRID_COLUMN_WIDTH_STORAGE_KEY);
+    const parsed = stored ? parseInt(stored, 10) : NaN;
+
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, MIN_GRID_COLUMN_WIDTH, MAX_GRID_COLUMN_WIDTH);
+    }
+  }
+
+  return DEFAULT_GRID_COLUMN_WIDTH;
+}
+
 export function getGridDimensions(breakpoint: BreakpointKey) {
   const { cols: maxCols, rows: maxRows } = GRID_BREAKPOINTS[breakpoint];
   return { maxCols, maxRows };
+}
+
+export function getGridContentWidth(breakpoint: BreakpointKey, columnWidth?: number) {
+  const { maxCols } = getGridDimensions(breakpoint);
+  return maxCols * getNormalizedColumnWidth(columnWidth);
 }
 
 export function normalizeBreakpointThresholds(

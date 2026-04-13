@@ -3,8 +3,10 @@
   flex-direction: row !important;
   padding: 0 !important;
   overflow: hidden;
+  width: min(900px, 100%) !important;
   max-width: 900px !important;
-  height: 80vh !important;
+  height: min(80vh, calc(100dvh - 2rem)) !important;
+  min-height: 0;
 }
 
 /* Sidebar ad-hoc styles removed, content wrappers removed */
@@ -13,6 +15,29 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.sidebarCloseButton {
+  align-self: flex-start;
+  border-color: var(--border-dim);
+}
+
+.sidebarCloseButton:hover {
+  border-color: var(--border-highlight);
+}
+
+.sidebarCloseButton:focus-visible {
+  outline: 2px solid var(--text-main);
+  outline-offset: 2px;
+}
+
+.sidebarLabel {
+  margin-bottom: 8px;
+}
+
+.fullWidthSelect {
   width: 100%;
 }
 
@@ -22,11 +47,7 @@
 
 .removeButton {
   flex-shrink: 0;
-  color: var(--text-danger) !important;
-}
-
-.addButton {
-  margin-top: 8px;
+  color: var(--accent-red) !important;
 }
 
 /* Form Styles */
@@ -51,6 +72,7 @@
   padding: 32px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .formGroup {
@@ -66,63 +88,8 @@
   color: var(--text-muted);
 }
 
-.input, .select {
-  width: 100%;
-  padding: 10px 12px;
-  background-color: var(--bg-app);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--radius-md);
-  color: var(--text-main);
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.input:focus, .select:focus {
-  border-color: var(--border-highlight);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
-}
-
-
-
-.button {
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.buttonSecondary {
-  background-color: transparent;
-  color: var(--text-muted);
-}
-
-.buttonSecondary:hover {
-  background-color: var(--bg-highlight);
-  color: var(--text-main);
-}
-
-.buttonPrimary {
-  background-color: var(--text-main);
-  color: var(--bg-app);
-}
-
-.buttonPrimary:hover {
-  opacity: 0.9;
-}
-
 .buttonDanger {
-  background-color: rgba(255, 50, 50, 0.1);
-  color: #ff4444;
   margin-right: auto;
-}
-
-.buttonDanger:hover {
-  background-color: rgba(255, 50, 50, 0.2);
 }
 
 /* Scrollbar styling */
@@ -167,33 +134,32 @@
   margin-bottom: 8px;
 }
 
-.removeButton {
-  background: rgba(255, 59, 48, 0.1);
-  color: #ff3b30;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 0 12px;
-  font-size: 16px;
-  transition: all 0.2s ease;
-}
+@media (max-width: 768px) {
+  .modalWithSidebar {
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: min(100dvh - 1.5rem, 100%) !important;
+  }
 
-.removeButton:hover {
-  background: rgba(255, 59, 48, 0.2);
-}
+  .sidebarHeader {
+    gap: 8px;
+  }
 
-.addButton {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 8px 12px;
-  font-size: 12px;
-  width: 100%;
-  transition: all 0.2s ease;
-}
+  .sidebarCloseButton {
+    width: 32px;
+    height: 32px;
+  }
 
-.addButton:hover {
-  background: rgba(255, 255, 255, 0.15);
+  .formContent {
+    padding: 16px;
+  }
+
+  .inputRow {
+    flex-direction: column;
+  }
+
+  .buttonDanger {
+    margin-right: 0;
+  }
 }

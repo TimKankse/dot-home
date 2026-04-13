@@ -49,6 +49,7 @@ interface DashboardPageContentProps {
   handleEditWidget: (w: Widget) => void;
   showWidgetNames: boolean;
   rowHeight: number;
+  columnWidth: number;
   gapSize: number;
 }
 
@@ -72,6 +73,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   handleEditWidget,
   showWidgetNames,
   rowHeight,
+  columnWidth,
   gapSize,
 }) => {
   const [windowHeight, setWindowHeight] = useState(0);
@@ -114,6 +116,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
         onWidgetDragStop={onWidgetDragStop}
         rowHeight={rowHeight}
         gap={gapSize}
+        columnWidth={columnWidth}
         gs-no-move={allowGridEditing ? "false" : "true"}
         gs-no-resize={allowGridEditing ? "false" : "true"}
         breakpoint={breakpoint}
@@ -178,7 +181,6 @@ export default function Home() {
     responsiveLayouts,
     updateLayout,
     moveShortcut,
-    getRenderableWidgetsByPage,
     getResponsiveLayoutState,
     materializeResponsiveLayout,
     resetResponsiveLayout,
@@ -201,6 +203,7 @@ export default function Home() {
   const updateDisplaySettings = useSettingsStore((state) => state.updateDisplay);
 
   const [rowHeight, setRowHeight] = useState(100);
+  const [columnWidth, setColumnWidth] = useState(150);
   const [gapSize, setGapSize] = useState(8);
   const [borderRadius, setBorderRadius] = useState(32);
   const [showWidgetNames, setShowWidgetNames] = useState(true);
@@ -212,11 +215,13 @@ export default function Home() {
   useEffect(() => {
     const loadGridSettings = () => {
       const storedRowHeight = localStorage.getItem('grid-row-height');
+      const storedColumnWidth = localStorage.getItem('grid-column-width');
       const storedGapSize = localStorage.getItem('grid-gap-size');
       const storedBorderRadius = localStorage.getItem('grid-border-radius');
       const storedShowWidgetNames = localStorage.getItem('show-widget-names');
 
       if (storedRowHeight) setRowHeight(parseInt(storedRowHeight));
+      if (storedColumnWidth) setColumnWidth(parseInt(storedColumnWidth));
       if (storedGapSize) setGapSize(parseInt(storedGapSize));
       if (storedBorderRadius) setBorderRadius(parseInt(storedBorderRadius));
       if (storedShowWidgetNames !== null) setShowWidgetNames(storedShowWidgetNames === 'true');
@@ -226,6 +231,7 @@ export default function Home() {
 
     const handleChange = (event: CustomEvent) => {
       if (event.detail.rowHeight !== undefined) setRowHeight(event.detail.rowHeight);
+      if (event.detail.columnWidth !== undefined) setColumnWidth(event.detail.columnWidth);
       if (event.detail.gapSize !== undefined) setGapSize(event.detail.gapSize);
       if (event.detail.borderRadius !== undefined) setBorderRadius(event.detail.borderRadius);
       if (event.detail.showWidgetNames !== undefined) setShowWidgetNames(event.detail.showWidgetNames);
@@ -260,8 +266,18 @@ export default function Home() {
   const renderedBreakpoint = canEditFromDesktopPreview ? layoutTargetBreakpoint : viewportBreakpoint;
   const isPreviewingResponsiveLayout = canEditFromDesktopPreview && renderedBreakpoint !== 'desktop';
   const pageLayouts = useMemo(() => {
+    const hiddenShortcutIds = new Set<string>();
+
+    widgets.forEach((widget) => {
+      if (widget.type === 'section' && widget.config?.shortcutIds) {
+        (widget.config.shortcutIds as string[]).forEach((shortcutId) => hiddenShortcutIds.add(shortcutId));
+      }
+    });
+
     return pages.map((page, basePageIndex) => {
-      const pageWidgets = getRenderableWidgetsByPage(page.id);
+      const pageWidgets = widgets.filter((widget) =>
+        widget.pageId === page.id && !hiddenShortcutIds.has(widget.id),
+      );
       const resolvedLayout = resolveResponsivePageLayout(
         pageWidgets,
         page.id,
@@ -275,7 +291,7 @@ export default function Home() {
         resolvedLayout,
       };
     });
-  }, [getRenderableWidgetsByPage, pages, renderedBreakpoint, responsiveLayouts]);
+  }, [pages, renderedBreakpoint, responsiveLayouts, widgets]);
 
   const renderedPages = useMemo<RenderedDashboardPage[]>(() => {
     if (renderedBreakpoint === 'desktop') {
@@ -550,11 +566,14 @@ export default function Home() {
               maxRows,
             );
             const pageContentHeight = usedRows * rowHeight;
+            const isScrollablePage =
+              renderedBreakpoint !== 'desktop' ||
+              usedRows > maxRows;
 
             return (
               <div
                 key={page.id}
-                className={`${styles.pageContainer} ${renderedBreakpoint !== 'desktop' ? styles.scrollable : ''}`}
+                className={`${styles.pageContainer} ${isScrollablePage ? styles.scrollable : ''}`}
               >
                 <DashboardPageContent
                   pageId={page.basePageId}
@@ -571,6 +590,7 @@ export default function Home() {
                   handleEditWidget={handleEditWidget}
                   showWidgetNames={showWidgetNames}
                   rowHeight={rowHeight}
+                  columnWidth={columnWidth}
                   gapSize={gapSize}
                 />
               </div>

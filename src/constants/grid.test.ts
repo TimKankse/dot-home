@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   BREAKPOINT_THRESHOLD_GAP,
   DEFAULT_BREAKPOINT_THRESHOLDS,
+  DEFAULT_GRID_COLUMN_WIDTH,
   getBreakpointFromViewport,
+  getGridContentWidth,
+  getGridDimensions,
   getResponsivePreviewWidth,
   normalizeBreakpointThresholds,
 } from './grid';
@@ -52,5 +55,22 @@ describe('getResponsivePreviewWidth', () => {
 
     expect(getResponsivePreviewWidth('mobile', thresholds)).toBe(600);
     expect(getResponsivePreviewWidth('tablet', thresholds)).toBe(920);
+  });
+});
+
+describe('getGridDimensions', () => {
+  it('keeps the default column and row counts for each breakpoint', () => {
+    expect(getGridDimensions('desktop')).toEqual({ maxCols: 8, maxRows: 8 });
+    expect(getGridDimensions('tablet')).toEqual({ maxCols: 4, maxRows: 16 });
+    expect(getGridDimensions('mobile')).toEqual({ maxCols: 2, maxRows: 32 });
+  });
+});
+
+describe('getGridContentWidth', () => {
+  it('scales the rendered grid width without changing the layout dimensions', () => {
+    expect(getGridContentWidth('desktop', DEFAULT_GRID_COLUMN_WIDTH)).toBe(1200);
+    expect(getGridContentWidth('desktop', 240)).toBe(1920);
+    expect(getGridContentWidth('tablet', 100)).toBe(400);
+    expect(getGridContentWidth('mobile', 220)).toBe(440);
   });
 });

@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Modal, ModalSidebar, ModalSidebarItem, ModalContent, ModalHeader, ModalBody, ModalFooter } from '../primitives/modal';
+import { Modal, ModalSidebar, ModalSidebarItem, ModalContent, ModalBody, ModalFooter } from '../primitives/modal';
 import { Select } from '../primitives/select';
+import { Button } from '../primitives/button';
+import { IconButton } from '../primitives/icon-button';
 import styles from './ItemEditorDialog.module.css';
 import { ShortcutForm } from './forms/ShortcutForm';
 import { WidgetForm } from './forms/WidgetForm';
 import { NewItem } from './types';
-import { Settings, Palette } from 'lucide-react';
+import { Settings, Palette, X } from 'lucide-react';
 
 interface ItemEditorDialogProps {
   isOpen: boolean;
@@ -103,7 +105,16 @@ export const ItemEditorDialog: React.FC<ItemEditorDialogProps> = ({
       <ModalSidebar
         title={
           <div className={styles.sidebarHeader}>
-             <label className={styles.label} style={{ marginBottom: '8px' }}>Item Type</label>
+             <IconButton
+               type="button"
+               variant="solid"
+               size="md"
+               icon={<X size={18} />}
+               className={styles.sidebarCloseButton}
+               onClick={handleClose}
+               aria-label="Close item editor"
+             />
+             <label className={`${styles.label} ${styles.sidebarLabel}`}>Item Type</label>
              <Select 
                options={[
                  { value: 'shortcut', label: 'Shortcut' },
@@ -143,11 +154,6 @@ export const ItemEditorDialog: React.FC<ItemEditorDialogProps> = ({
       </ModalSidebar>
 
       <ModalContent>
-        <ModalHeader 
-          title={activeTab === 'configuration' ? 'Configuration' : activeTab === 'appearance' ? 'Appearance' : 'Advanced (YAML)'}
-          onClose={handleClose}
-        />
-
         <ModalBody className={styles.formContent}>
           {selectedType === 'shortcut' ? (
              <ShortcutForm 
@@ -177,29 +183,30 @@ export const ItemEditorDialog: React.FC<ItemEditorDialogProps> = ({
         </ModalBody>
         <ModalFooter>
            {mode === 'edit' && onDelete && (
-             <button 
-               type="button" 
-               className={`${styles.button} ${styles.buttonDanger}`}
+             <Button
+               type="button"
+               variant="danger"
+               className={styles.buttonDanger}
                onClick={handleDelete}
              >
                Delete
-             </button>
+             </Button>
            )}
-           <button 
-             type="button" 
-             className={`${styles.button} ${styles.buttonSecondary}`}
+           <Button
+             type="button"
+             variant="ghost"
              onClick={handleClose}
            >
              Cancel
-           </button>
-           <button 
-             type="submit" 
+           </Button>
+           <Button
+             type="submit"
              form={formId}
-             className={`${styles.button} ${styles.buttonPrimary}`}
+             variant="primary"
              disabled={!isFormValid}
            >
              {mode === 'edit' ? 'Save Changes' : (selectedType === 'shortcut' ? 'Add Shortcut' : 'Add Widget')}
-           </button>
+           </Button>
         </ModalFooter>
       </ModalContent>
     </Modal>

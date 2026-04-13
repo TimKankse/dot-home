@@ -234,12 +234,30 @@
 /* Modal Styles (Folder View)                                                */
 /* ========================================================================= */
 
+.folderModalInner {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.folderModalContent {
+  width: 100%;
+  min-width: 0;
+}
+
+.folderModalBody {
+  min-width: 0;
+}
+
 .modalShortcutGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  width: 100%;
+  min-width: 0;
   gap: 16px;
   align-content: start;
-  padding: 16px 0;
+  padding: 12px 0 0;
   min-height: 200px;
 }
 
@@ -252,6 +270,7 @@
 .modalShortcutSlot {
   position: relative;
   aspect-ratio: 1 / 1;
+  min-width: 0;
 }
 
 .modalEmptyState {
@@ -318,4 +337,40 @@
 
 .paginationDot:hover:not(.active) {
   background: var(--color-fg-muted);
+}
+
+@media (max-width: 900px) {
+  .modalShortcutGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .folderModalBody {
+    padding: 0.875rem;
+  }
+
+  .modalShortcutGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    min-height: 0;
+    padding-top: 8px;
+  }
+
+  .modalShortcutGrid .emptyState {
+    min-height: 180px;
+  }
+
+  .pagination {
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    justify-content: space-between;
+  }
+
+  .paginationDots {
+    flex: 1;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
 }

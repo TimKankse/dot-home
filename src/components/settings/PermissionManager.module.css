@@ -203,3 +203,28 @@
   transform: none;
   box-shadow: none;
 }
+
+@media (max-width: 768px) {
+  .userItem {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .permissionSelect {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .removeButton {
+    margin-left: auto;
+  }
+
+  .addUser {
+    flex-direction: column;
+  }
+
+  .addButton {
+    width: 100%;
+    height: 44px;
+  }
+}

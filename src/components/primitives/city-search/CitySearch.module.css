@@ -15,29 +15,34 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: var(--bg-app);
-  border: 1px solid var(--border-dim);
+  background-color: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: var(--radius-md);
   color: var(--text-main);
   font-family: var(--font-mono);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   min-height: 38px;
 }
 
 .trigger:hover {
-  border-color: var(--text-muted);
+  border-color: var(--field-border-hover);
+  background-color: var(--field-bg-hover);
 }
 
 .trigger.active {
-  border-color: var(--text-main);
-  background-color: var(--bg-highlight);
+  border-color: var(--field-border-focus);
+  background-color: var(--field-bg-focus);
+  box-shadow: 0 0 0 2px var(--surface-overlay-active);
 }
 
 .icon {
   margin-right: 8px;
-  color: var(--text-muted);
+  color: var(--field-icon);
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -76,7 +81,7 @@
 }
 
 .placeholder {
-  color: var(--text-dim);
+  color: var(--field-placeholder);
 }
 
 .clearBtn {
@@ -95,7 +100,7 @@
 
 .clearBtn:hover {
   color: var(--accent-red);
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: var(--field-danger-bg);
 }
 
 .dropdown {
@@ -103,8 +108,8 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-dim);
+  background-color: var(--field-popover-bg);
+  border: 1px solid var(--field-popover-border);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 20px var(--shadow-sm);
   z-index: 100;
@@ -118,16 +123,20 @@
   width: 100%;
   padding: 8px 12px;
   border: none;
-  border-bottom: 1px solid var(--border-dim);
-  background-color: var(--bg-app);
+  border-bottom: 1px solid var(--field-popover-border);
+  background-color: var(--field-bg);
   color: var(--text-main);
   font-family: var(--font-body);
   font-size: 0.85rem;
   outline: none;
 }
 
+.searchInput:focus {
+  background-color: var(--field-bg-focus);
+}
+
 .searchInput::placeholder {
-  color: var(--text-dim);
+  color: var(--field-placeholder);
 }
 
 .optionsList {
@@ -140,16 +149,17 @@
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  color: var(--text-muted);
-  transition: all 0.1s ease;
+  color: var(--text-main);
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .option:hover {
-  background-color: var(--bg-highlight);
-  color: var(--text-main);
+  background-color: var(--field-option-hover-bg);
 }
 
 .optionInfo {

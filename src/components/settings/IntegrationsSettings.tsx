@@ -9,7 +9,6 @@ import {
   INTEGRATION_TYPE_META,
   getIntegrationTypeMeta 
 } from '@/types/integration';
-import { usePersistenceStore } from '@/store/usePersistenceStore';
 import { v4 as uuidv4 } from 'uuid';
 import { IconSelector } from '../ui/IconSelector';
 import styles from './SettingsDialog.module.css';
@@ -396,7 +395,7 @@ export const IntegrationsSettings: React.FC = () => {
 
         {renderFormFields()}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+        <div className={styles.formActions}>
           <Button 
             onClick={resetForm} 
             variant="secondary"
@@ -420,7 +419,7 @@ export const IntegrationsSettings: React.FC = () => {
   // Render list view
   const renderList = () => (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+      <div className={styles.listToolbar}>
         <Button 
           onClick={() => setViewMode('add-select-type')} 
           variant="primary"
@@ -439,10 +438,10 @@ export const IntegrationsSettings: React.FC = () => {
             <Card 
               key={integration.id} 
               className={styles.integrationItem} 
-              style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              style={{ padding: '16px' }}
             >
               <div className={styles.integrationInfo}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className={styles.integrationTitleRow}>
                   <Link2 size={16} style={{ color: 'var(--text-muted)' }} />
                   <span className={styles.integrationName}>{integration.name}</span>
                 </div>

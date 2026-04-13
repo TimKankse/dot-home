@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Palette, Users, Puzzle, Keyboard, Layout, LogOut, LayoutGrid, Info } from 'lucide-react';
+import { Settings, Palette, Users, Puzzle, Keyboard, Layout, LogOut, LayoutGrid, Info, X } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import styles from './SettingsDialog.module.css';
@@ -47,25 +47,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     return role.charAt(0).toUpperCase() + role.slice(1);
   };
 
+  const renderAccountFooter = () => (
+    <div className={styles.sidebarFooterContent}>
+      <div className={styles.accountInfo}>
+        <span className={styles.displayName}>
+          {session?.user?.name || session?.user?.email || 'User'}
+        </span>
+        <span className={styles.roleBadge}>
+          {formatRole(session?.user?.role || 'member')}
+        </span>
+      </div>
+      <button className={styles.logoutButton} onClick={handleSignOut}>
+        <LogOut size={16} />
+        Sign Out
+      </button>
+    </div>
+  );
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="lg" className={styles.modalWithSidebar}>
       <ModalSidebar
-        title="Settings"
-        icon={<Settings size={20} />}
-        footer={
-          <div className={styles.sidebarFooterContent}>
-            <div className={styles.accountInfo}>
-              <span className={styles.displayName}>
-                {session?.user?.name || session?.user?.email || 'User'}
-              </span>
-              <span className={styles.roleBadge}>
-                {formatRole(session?.user?.role || 'member')}
-              </span>
+        title={
+          <div className={styles.sidebarTitleRow}>
+            <div className={styles.sidebarTitleContent}>
+              <Settings size={20} />
+              <span className={styles.sidebarTitleText}>Settings</span>
             </div>
-            <button className={styles.logoutButton} onClick={handleSignOut}>
-              <LogOut size={16} />
-              Sign Out
+            <button
+              type="button"
+              className={styles.mobileCloseButton}
+              onClick={handleClose}
+              aria-label="Close settings"
+            >
+              <X size={18} />
             </button>
+          </div>
+        }
+        footer={
+          <div className={styles.desktopSidebarFooter}>
+            {renderAccountFooter()}
           </div>
         }
       >
@@ -121,15 +141,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       </ModalSidebar>
 
       <ModalContent>
-        <ModalHeader title={
-          activeTab === 'general' ? 'General Settings' :
-          activeTab === 'appearance' ? 'Appearance' :
-          activeTab === 'boards' ? 'Boards' :
-          activeTab === 'users' ? 'Users' :
-          activeTab === 'integrations' ? 'Integrations' :
-          activeTab === 'shortcuts' ? 'Keyboard Shortcuts' :
-          'About'
-        } onClose={handleClose} />
+        <div className={styles.desktopOnlyHeader}>
+          <ModalHeader title={
+            activeTab === 'general' ? 'General Settings' :
+            activeTab === 'appearance' ? 'Appearance' :
+            activeTab === 'boards' ? 'Boards' :
+            activeTab === 'users' ? 'Users' :
+            activeTab === 'integrations' ? 'Integrations' :
+            activeTab === 'shortcuts' ? 'Keyboard Shortcuts' :
+            'About'
+          } onClose={handleClose} />
+        </div>
         
         <ModalBody>
           {activeTab === 'general' && <FormErrorBoundary sectionName="General Settings"><GeneralSettings /></FormErrorBoundary>}
@@ -141,6 +163,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {activeTab === 'about' && <FormErrorBoundary sectionName="About Settings"><AboutSettings /></FormErrorBoundary>}
         </ModalBody>
       </ModalContent>
+
+      <div className={styles.compactFooter}>
+        {renderAccountFooter()}
+      </div>
     </Modal>
   );
 };

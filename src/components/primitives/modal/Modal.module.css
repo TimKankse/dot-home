@@ -13,6 +13,7 @@
   z-index: 1000;
   animation: fadeIn 0.2s ease-out;
   padding: 1rem;
+  overflow-y: auto;
 }
 
 .modal {
@@ -27,7 +28,8 @@
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100dvh - 2rem);
+  min-height: 0;
 }
 
 /* Modal Content Layout */
@@ -36,7 +38,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0; /* Prevent flex overflow */
-  width: 600px;
+  min-height: 0;
+  width: min(600px, 100%);
   max-height: 100%;
   position: relative;
 }
@@ -50,6 +53,16 @@
   justify-content: space-between;
   background-color: var(--bg-card);
   z-index: 10;
+  gap: 1rem;
+}
+
+.header > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.header > :last-child {
+  flex-shrink: 0;
 }
 
 .title {
@@ -86,7 +99,7 @@
 
 /* Sidebar */
 .sidebar {
-  width: 260px;
+  width: min(260px, 100%);
   background-color: var(--bg-dim);
   border-right: 1px solid var(--border-dim);
   display: flex;
@@ -115,6 +128,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .sidebarItem {
@@ -175,6 +189,85 @@
 .lg { width: 800px; }
 .xl { width: 1000px; }
 .full { width: 95vw; height: 90vh; }
+
+@media (max-width: 768px) {
+  .overlay {
+    align-items: stretch;
+    padding: 0.75rem;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+    border-radius: var(--radius-lg);
+  }
+
+  .content,
+  .sm,
+  .md,
+  .lg,
+  .xl,
+  .full {
+    width: 100%;
+  }
+
+  .full {
+    height: auto;
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .header {
+    padding: 1rem;
+    align-items: flex-start;
+  }
+
+  .title {
+    font-size: 1.25rem;
+  }
+
+  .body {
+    padding: 1rem;
+  }
+
+  .footer {
+    padding: 1rem;
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .footer > * {
+    flex: 1 1 100%;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-dim);
+  }
+
+  .sidebarHeader {
+    padding: 1rem 1rem 0.75rem;
+  }
+
+  .sidebarNav {
+    padding: 0 1rem 1rem;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0.5rem;
+  }
+
+  .sidebarItem {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .sidebarFooter {
+    padding: 0 1rem 1rem;
+    border-top: none;
+  }
+}
 
 @keyframes fadeIn {
   from { opacity: 0; }

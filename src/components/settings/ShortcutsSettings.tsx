@@ -78,8 +78,8 @@ export const ShortcutsSettings: React.FC = () => {
 
   return (
     <div className={styles.section}>
-      <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className={styles.sectionTitle}>Keyboard Shortcuts</div>
+      <div className={styles.sectionTitle}>
+        <span>Keyboard Shortcuts</span>
         <Button variant="ghost" size="icon" onClick={handleReset} title="Reset to Defaults" leftIcon={<RotateCcw size={16} />} />
       </div>
 
@@ -90,22 +90,9 @@ export const ShortcutsSettings: React.FC = () => {
               <span className={styles.settingLabel}>{SHORTCUT_LABELS[action as keyof ShortcutBindings]}</span>
             </div>
             <button 
+                type="button"
                 onClick={() => setRecordingKey(action as keyof ShortcutBindings)}
-                style={{
-                    background: recordingKey === action ? 'var(--accent-red)' : 'var(--bg-card-lighter)',
-                    color: recordingKey === action ? '#fff' : 'var(--text-main)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '4px',
-                    padding: '4px 12px',
-                    minWidth: '100px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
-                }}
+                className={`${styles.shortcutButton} ${recordingKey === action ? styles.shortcutButtonRecording : ''}`}
             >
                 {recordingKey === action ? (
                     <span>Press keys...</span>
@@ -120,7 +107,7 @@ export const ShortcutsSettings: React.FC = () => {
         ))}
       </div>
     
-        <div className={styles.note} style={{ marginTop: '16px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+        <div className={styles.note}>
             <p><strong>Mod</strong> represents ⌘ Command on macOS and Ctrl on Windows/Linux.</p>
         </div>
     </div>

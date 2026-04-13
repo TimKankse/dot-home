@@ -5,6 +5,13 @@
   width: 100%;
 }
 
+.label {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .wrapper {
   position: relative;
   display: flex;
@@ -15,28 +22,47 @@
   width: 100%;
   height: 36px;
   padding: 0 12px;
-  background-color: var(--bg-highlight);
-  border: 1px solid transparent;
+  background-color: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: var(--radius-sm);
   color: var(--text-main);
   font-family: var(--font-ui);
   font-size: 0.9rem;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
   outline: none;
 }
 
-.input:focus {
-  border-color: var(--accent-blue);
-  background-color: var(--bg-card);
+.input:hover:not(:disabled) {
+  border-color: var(--field-border-hover);
+  background-color: var(--field-bg-hover);
+}
+
+.input:focus,
+.input:focus-visible {
+  border-color: var(--field-border-focus);
+  background-color: var(--field-bg-focus);
+  box-shadow: 0 0 0 2px var(--surface-overlay-active);
 }
 
 .input:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  background-color: color-mix(in srgb, var(--field-bg) 88%, var(--bg-app));
 }
 
 .errorInput {
   border-color: var(--accent-red);
+}
+
+.errorInput:hover:not(:disabled),
+.errorInput:focus,
+.errorInput:focus-visible {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 2px var(--field-danger-bg);
 }
 
 .hasLeftIcon {
@@ -52,7 +78,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: var(--field-icon);
   pointer-events: none;
   height: 100%;
   width: 36px;
@@ -72,7 +98,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: var(--field-icon);
   height: 100%;
   width: 36px;
   cursor: pointer;

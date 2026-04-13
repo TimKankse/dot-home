@@ -818,18 +818,21 @@ export function resolveResponsivePageLayout(
   responsiveLayouts: ResponsiveLayouts,
 ): ResolvedPageLayout {
   const sortedPageWidgets = sortWidgetsByGrid(pageWidgets);
+  const { maxCols, maxRows } = getGridDimensions(breakpoint);
 
   if (breakpoint === 'desktop') {
+    const packed = packResponsiveCustomLayout(
+      sortedPageWidgets,
+      getLayoutItemsFromWidgets(sortedPageWidgets),
+      maxCols,
+      maxRows,
+    );
+
     return {
-      widgets: sortedPageWidgets,
+      widgets: packed.widgets,
       isCustom: false,
       sourceBreakpoint: 'desktop',
-      diagnostics: {
-        fitWithinPage: true,
-        segmentCount: 1,
-        adjustedWidgetIds: [],
-        unplaceableWidgetIds: [],
-      },
+      diagnostics: packed.diagnostics,
     };
   }
 
@@ -841,7 +844,6 @@ export function resolveResponsivePageLayout(
     responsiveLayouts,
   );
   const explicitLayout = responsiveLayouts[breakpoint]?.[pageId];
-  const { maxCols, maxRows } = getGridDimensions(breakpoint);
 
   if (!explicitLayout?.length) {
     const packed = packResponsiveAutoLayout(parentResolved.widgets, maxCols, maxRows);

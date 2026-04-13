@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  align-items: center;
   width: 100%;
-  max-width: 1200px;
   margin: 0 auto;
   box-sizing: border-box;
   position: relative;
@@ -12,22 +12,14 @@
 
 /* Responsive adjustments */
 @media (max-width: 950px) {
-
-  
   /* Reset spans on mobile */
-  .span2x2, .span4x2, .span4x4 {
+  .span2x2,
+  .span4x2,
+  .span4x4 {
     grid-column: auto;
     grid-row: auto;
   }
 }
-
-@media (orientation: portrait) {
-  .dashboard {
-    padding: 0 80px;
-  }
-}
-
-
 
 /* Main container for the entire app */
 .mainContainer {
@@ -42,7 +34,11 @@
   height: var(--dashboard-shell-height, 100dvh);
   margin: 0 auto;
   position: relative;
-  transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    width 0.2s ease,
+    height 0.2s ease,
+    border-radius 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .previewViewport {
@@ -50,8 +46,11 @@
   border-radius: 36px;
   overflow: hidden;
   border: 1px solid var(--border-dim);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 92%, transparent), color-mix(in srgb, var(--bg-app) 96%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-card) 92%, transparent),
+    color-mix(in srgb, var(--bg-app) 96%, transparent)
+  );
   box-shadow:
     0 24px 80px var(--shadow-md),
     inset 0 1px 0 color-mix(in srgb, var(--bg-highlight) 80%, transparent);
@@ -60,7 +59,7 @@
 /* Wrapper for the sliding pages */
 .pagesWrapper {
   display: flex;
-  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 /* Horizontal layout (desktop default) */
@@ -68,7 +67,9 @@
   flex-direction: row;
   width: calc(var(--total-pages) * var(--dashboard-shell-width, 100%));
   height: var(--dashboard-shell-height, 100dvh);
-  transform: translateX(calc(var(--current-page-index) * -100% / var(--total-pages)));
+  transform: translateX(
+    calc(var(--current-page-index) * -100% / var(--total-pages))
+  );
 }
 
 /* Vertical layout (mobile/portrait/preference) */
@@ -76,7 +77,9 @@
   flex-direction: column;
   width: var(--dashboard-shell-width, 100%);
   height: calc(var(--total-pages) * var(--dashboard-shell-height, 100dvh));
-  transform: translateY(calc(var(--current-page-index) * -100% / var(--total-pages)));
+  transform: translateY(
+    calc(var(--current-page-index) * -100% / var(--total-pages))
+  );
 }
 
 /* Individual page container */

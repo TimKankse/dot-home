@@ -61,7 +61,7 @@ export const Select: React.FC<SelectProps> = ({
       ref={containerRef}
     >
       <div
-        className={`${styles.trigger} ${isOpen ? styles.active : ''}`}
+        className={`${styles.trigger} ${isOpen ? styles.active : ''} ${disabled ? styles.disabled : ''}`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         role="combobox"
         aria-expanded={isOpen}
@@ -79,7 +79,7 @@ export const Select: React.FC<SelectProps> = ({
                 {selectedOption.label}
               </span>
             ) : (
-              <span style={{ color: 'var(--text-muted)' }}>{placeholder}</span>
+              <span className={styles.placeholder}>{placeholder}</span>
             )}
           </span>
         </div>

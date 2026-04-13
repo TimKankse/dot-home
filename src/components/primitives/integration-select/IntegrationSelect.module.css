@@ -8,29 +8,35 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: var(--bg-app);
-  border: 1px solid var(--border-dim);
+  background-color: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: var(--radius-md);
   color: var(--text-main);
   font-family: var(--font-mono);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   min-height: 38px;
 }
 
-.trigger:hover {
-  border-color: var(--text-muted);
+.trigger:hover:not(.disabled) {
+  border-color: var(--field-border-hover);
+  background-color: var(--field-bg-hover);
 }
 
 .trigger.active {
-  border-color: var(--text-main);
-  background-color: var(--bg-highlight);
+  border-color: var(--field-border-focus);
+  background-color: var(--field-bg-focus);
+  box-shadow: 0 0 0 2px var(--surface-overlay-active);
 }
 
 .trigger.disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .triggerContent {
@@ -42,7 +48,7 @@
 }
 
 .icon {
-  color: var(--text-muted);
+  color: var(--field-icon);
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -72,20 +78,20 @@
 }
 
 .placeholder {
-  color: var(--text-dim);
+  color: var(--field-placeholder);
 }
 
 .customBadge {
   font-size: 0.65rem;
   padding: 2px 6px;
-  background: var(--bg-highlight);
+  background: var(--field-option-selected-bg);
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--text-main);
   margin-left: auto;
 }
 
 .chevron {
-  color: var(--text-muted);
+  color: var(--field-icon);
   transition: transform 0.2s ease;
   flex-shrink: 0;
 }
@@ -99,8 +105,8 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-dim);
+  background-color: var(--field-popover-bg);
+  border: 1px solid var(--field-popover-border);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 20px var(--shadow-sm);
   z-index: 100;
@@ -118,18 +124,21 @@
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  transition: all 0.1s ease;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
   display: flex;
   align-items: center;
   gap: 10px;
+  color: var(--text-main);
 }
 
 .option:hover {
-  background-color: var(--bg-highlight);
+  background-color: var(--field-option-hover-bg);
 }
 
 .option.selected {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--field-option-selected-bg);
 }
 
 .optionInfo {
@@ -152,7 +161,7 @@
 
 .divider {
   height: 1px;
-  background: var(--border-dim);
+  background: var(--field-popover-border);
   margin: 4px 0;
 }
 

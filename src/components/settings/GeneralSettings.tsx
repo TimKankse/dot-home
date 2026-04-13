@@ -5,7 +5,7 @@ import { Globe, RefreshCw } from 'lucide-react';
 
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { SearchableSelect } from '../primitives/searchable-select';
-import { Select, Switch, ToggleGroup, Badge, CitySearch } from '../primitives';
+import { Select, Switch, ToggleGroup, CitySearch } from '../primitives';
 import { TIMEZONES, CITIES, extractCityFromTimezone } from '@/constants/cities';
 import type { CityData } from '@/types';
 import styles from './SettingsDialog.module.css';
@@ -82,7 +82,7 @@ export const GeneralSettings: React.FC = () => {
             <span className={styles.settingLabel}>Timezone</span>
             <span className={styles.settingDesc}>System timezone</span>
           </div>
-          <div style={{ width: '240px' }}>
+          <div className={styles.controlLg}>
              <SearchableSelect
                options={TIMEZONES}
                value={settings?.display?.timezone || ''}
@@ -99,7 +99,7 @@ export const GeneralSettings: React.FC = () => {
             <span className={styles.settingLabel}>City</span>
             <span className={styles.settingDesc}>Location for weather & display</span>
           </div>
-          <div style={{ width: '240px' }}>
+          <div className={styles.controlLg}>
             <CitySearch
               value={settings?.display?.city}
               onChange={handleCityChange}
@@ -118,7 +118,7 @@ export const GeneralSettings: React.FC = () => {
             <span className={styles.settingLabel}>Refresh Interval</span>
             <span className={styles.settingDesc}>Global widget refresh rate</span>
           </div>
-          <div style={{ width: '140px' }}>
+          <div className={styles.controlSm}>
             <Select 
               value={(settings?.behavior?.refreshInterval ?? 10).toString()}
               onChange={(val) => updateSettings({ refreshInterval: parseInt(val) }, 'behavior')}

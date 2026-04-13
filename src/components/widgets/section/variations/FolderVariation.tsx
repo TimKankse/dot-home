@@ -469,12 +469,16 @@ export const FolderVariation: React.FC<FolderVariationProps> = ({
       >
         <div
           ref={modalContentRef}
+          className={styles.folderModalInner}
           data-widget-type="section"
           data-widget-id={sectionId}
         >
-          <ModalContent style={{ borderRadius: "var(--widget-radius, 24px)" }}>
+          <ModalContent
+            className={styles.folderModalContent}
+            style={{ borderRadius: "var(--widget-radius, 24px)" }}
+          >
             <ModalHeader title={title} onClose={() => setIsModalOpen(false)} />
-            <ModalBody>
+            <ModalBody className={styles.folderModalBody}>
               {shortcuts.length === 0 ? (
                 <ShortcutCollection
                   sectionId={sectionId || ""}

@@ -17,6 +17,36 @@
   background-color: var(--bg-card-lighter);
 }
 
+.configButton {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-highlight);
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--shadow-sm);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.configButton:hover {
+  background-color: var(--bg-card-lighter);
+  border-color: var(--border-highlight);
+}
+
+.configButton:focus-visible {
+  outline: 2px solid var(--text-main);
+  outline-offset: 2px;
+}
+
 .header {
   display: flex;
   align-items: center;

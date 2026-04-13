@@ -200,7 +200,7 @@ export const UsersSettings: React.FC = () => {
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
+          <div className={styles.formActions}>
             <Button
               type="button"
               variant="secondary"
@@ -255,7 +255,7 @@ export const UsersSettings: React.FC = () => {
         <div className={styles.integrationList}>
           {users.map((user) => (
             <div key={user.id} className={styles.integrationItem}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div className={styles.userSummary}>
                 <div className={styles.userAvatar}>
                   {getRoleIcon(user.role)}
                 </div>
@@ -270,7 +270,7 @@ export const UsersSettings: React.FC = () => {
               </div>
 
               <div className={styles.actions}>
-                <div style={{ width: '120px' }}>
+                <div className={styles.selectControlCompact}>
                   <Select
                     value={user.role}
                     onChange={(val) => handleRoleChange(user.id, val)}

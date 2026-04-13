@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { FormProps } from '../types';
 import styles from '../ItemEditorDialog.module.css';
 import { IconSelector } from '../../ui/IconSelector';
+import { Input } from '../../primitives/input';
 import { Select } from '../../primitives/select';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 
@@ -90,8 +91,7 @@ export const ShortcutForm: React.FC<FormProps> = ({
               <h3 className={styles.sectionTitle}>Shortcut Settings</h3>
               <div className={styles.formGroup}>
                 <label className={styles.label}>Name</label>
-                <input 
-                  className={styles.input}
+                <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. YouTube"
@@ -100,8 +100,7 @@ export const ShortcutForm: React.FC<FormProps> = ({
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label}>External URL</label>
-                <input 
-                  className={styles.input}
+                <Input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
@@ -110,8 +109,7 @@ export const ShortcutForm: React.FC<FormProps> = ({
               </div>
               <div className={styles.formGroup}>
                 <label className={styles.label}>Internal URL</label>
-                <input 
-                  className={styles.input}
+                <Input
                   value={internalUrl}
                   onChange={(e) => setInternalUrl(e.target.value)}
                   placeholder="http://192.168.1.x:port"

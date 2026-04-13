@@ -3,6 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Monitor } from 'lucide-react';
+import {
+  DEFAULT_GRID_COLUMN_WIDTH,
+  GRID_COLUMN_WIDTH_STORAGE_KEY,
+  MAX_GRID_COLUMN_WIDTH,
+  MIN_GRID_COLUMN_WIDTH,
+} from '@/constants/grid';
 import { Slider, Switch } from '../primitives';
 import styles from './SettingsDialog.module.css';
 
@@ -32,6 +38,7 @@ export const AppearanceSettings: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   
   const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  const [columnWidth, setColumnWidth] = useState(DEFAULT_GRID_COLUMN_WIDTH);
   const [gapSize, setGapSize] = useState(DEFAULT_GAP_SIZE);
   const [borderRadius, setBorderRadius] = useState(DEFAULT_BORDER_RADIUS);
   const [showWidgetNames, setShowWidgetNames] = useState(DEFAULT_SHOW_WIDGET_NAMES);
@@ -42,11 +49,13 @@ export const AppearanceSettings: React.FC = () => {
     setMounted(true);
     
     const storedRowHeight = localStorage.getItem(LS_ROW_HEIGHT);
+    const storedColumnWidth = localStorage.getItem(GRID_COLUMN_WIDTH_STORAGE_KEY);
     const storedGapSize = localStorage.getItem(LS_GAP_SIZE);
     const storedBorderRadius = localStorage.getItem(LS_BORDER_RADIUS);
     const storedShowWidgetNames = localStorage.getItem(LS_SHOW_WIDGET_NAMES);
     
     if (storedRowHeight) setRowHeight(parseInt(storedRowHeight));
+    if (storedColumnWidth) setColumnWidth(parseInt(storedColumnWidth));
     if (storedGapSize) setGapSize(parseInt(storedGapSize));
     if (storedBorderRadius) setBorderRadius(parseInt(storedBorderRadius));
     if (storedShowWidgetNames !== null) setShowWidgetNames(storedShowWidgetNames === 'true');
@@ -56,6 +65,12 @@ export const AppearanceSettings: React.FC = () => {
     setRowHeight(value);
     localStorage.setItem(LS_ROW_HEIGHT, value.toString());
     window.dispatchEvent(new CustomEvent('grid-appearance-change', { detail: { rowHeight: value } }));
+  };
+
+  const updateColumnWidth = (value: number) => {
+    setColumnWidth(value);
+    localStorage.setItem(GRID_COLUMN_WIDTH_STORAGE_KEY, value.toString());
+    window.dispatchEvent(new CustomEvent('grid-appearance-change', { detail: { columnWidth: value } }));
   };
 
   const updateGapSize = (value: number) => {
@@ -112,8 +127,8 @@ export const AppearanceSettings: React.FC = () => {
             <span className={styles.settingLabel}>Row Height</span>
             <span className={styles.settingDesc}>Grid vertical spacing ({rowHeight}px)</span>
           </div>
-          <div style={{ width: '200px' }}>
-            <Slider 
+          <div className={styles.controlMd}>
+            <Slider
               min={50}
               max={200}
               step={2}
@@ -125,10 +140,26 @@ export const AppearanceSettings: React.FC = () => {
 
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
+            <span className={styles.settingLabel}>Column Width</span>
+            <span className={styles.settingDesc}>Width of the centered grid columns across all layouts ({columnWidth}px)</span>
+          </div>
+          <div className={styles.controlMd}>
+            <Slider
+              min={MIN_GRID_COLUMN_WIDTH}
+              max={MAX_GRID_COLUMN_WIDTH}
+              step={4}
+              value={columnWidth}
+              onChange={(e) => updateColumnWidth(parseInt(e.target.value))}
+            />
+          </div>
+        </div>
+
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
             <span className={styles.settingLabel}>Gap Size</span>
             <span className={styles.settingDesc}>Spacing between widgets ({gapSize}px)</span>
           </div>
-          <div style={{ width: '200px' }}>
+          <div className={styles.controlMd}>
             <Slider 
               min={0}
               max={32}
@@ -144,7 +175,7 @@ export const AppearanceSettings: React.FC = () => {
             <span className={styles.settingLabel}>Border Radius</span>
             <span className={styles.settingDesc}>Widget corner roundness ({borderRadius}px)</span>
           </div>
-          <div style={{ width: '200px' }}>
+          <div className={styles.controlMd}>
             <Slider 
               min={0}
               max={48}
