@@ -3,6 +3,7 @@ import styles from './JellyfinWidget.module.css';
 import { JellyfinSession, LibraryStats, JellyfinWidgetConfig } from './types';
 import { NowPlayingVariation } from './variations/NowPlayingVariation';
 import { LibrariesVariation } from './variations/LibrariesVariation';
+import { mergeSessionsPreservingOrder } from './utils';
 import { fetchJellyfinData, createJellyfinWebSocket, fetchJellyfinLibraryCounts } from '@/services/jellyfin';
 import isEqual from 'lodash/isEqual';
 
@@ -36,7 +37,7 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
         const data = await fetchJellyfinData({ config, integrationId });
         if (!isSubscribed) return;
 
-        setSessions(data.sessions);
+        setSessions((previousSessions) => mergeSessionsPreservingOrder(previousSessions, data.sessions));
         setLibraries(data.libraries);
         setLoading(false);
 
@@ -66,7 +67,9 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
           }
 
           const ws = createJellyfinWebSocket(config, (newSessions) => {
-            if (isSubscribed) setSessions(newSessions);
+            if (isSubscribed) {
+              setSessions((previousSessions) => mergeSessionsPreservingOrder(previousSessions, newSessions));
+            }
           });
           
           if (ws) {

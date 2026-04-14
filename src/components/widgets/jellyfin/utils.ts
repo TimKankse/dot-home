@@ -1,3 +1,5 @@
+import type { JellyfinSession } from './types';
+
 export const formatTime = (ticks: number) => {
     const seconds = ticks / 10000000;
     const h = Math.floor(seconds / 3600);
@@ -28,4 +30,58 @@ export const getResolutionLabel = (width?: number, height?: number): string => {
   if (height >= 480 || width >= 640) return '480p';
   
   return `${width}x${height}`;
+};
+
+const formatEpisodeNumberPart = (prefix: 'S' | 'E', value?: number): string | null => {
+  if (!Number.isInteger(value) || value === undefined || value < 0) {
+    return null;
+  }
+
+  return `${prefix}${value.toString().padStart(2, '0')}`;
+};
+
+export const formatEpisodeTitle = (item?: JellyfinSession['NowPlayingItem']): string => {
+  const title = item?.EpisodeTitle || item?.Name || '';
+
+  if (item?.Type !== 'Episode' || !title) {
+    return title;
+  }
+
+  const seasonLabel = formatEpisodeNumberPart('S', item.ParentIndexNumber);
+  const episodeLabel = formatEpisodeNumberPart('E', item.IndexNumber);
+  const numberingLabel = [seasonLabel, episodeLabel].filter(Boolean).join(':');
+
+  if (!numberingLabel) {
+    return title;
+  }
+
+  return `${numberingLabel} | ${title}`;
+};
+
+export const mergeSessionsPreservingOrder = (
+  previousSessions: JellyfinSession[],
+  incomingSessions: JellyfinSession[],
+): JellyfinSession[] => {
+  if (incomingSessions.length === 0) {
+    return [];
+  }
+
+  if (previousSessions.length === 0) {
+    return incomingSessions;
+  }
+
+  const incomingById = new Map(incomingSessions.map((session) => [session.Id, session]));
+  const previousIds = new Set(previousSessions.map((session) => session.Id));
+
+  const mergedSessions = previousSessions
+    .map((session) => incomingById.get(session.Id))
+    .filter((session): session is JellyfinSession => Boolean(session));
+
+  for (const session of incomingSessions) {
+    if (!previousIds.has(session.Id)) {
+      mergedSessions.push(session);
+    }
+  }
+
+  return mergedSessions;
 };

@@ -32,6 +32,8 @@ export interface JellyfinSession {
     Name: string;
     SeriesName?: string;
     EpisodeTitle?: string;
+    ParentIndexNumber?: number;
+    IndexNumber?: number;
     RunTimeTicks?: number;
     Type: 'Movie' | 'Episode' | 'TvChannel';
     ImageTags?: {

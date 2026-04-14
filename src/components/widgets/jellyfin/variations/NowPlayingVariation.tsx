@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Play, Film, Tv, Info } from 'lucide-react';
 import styles from '../JellyfinWidget.module.css';
 import { JellyfinSession, JellyfinWidgetConfig } from '../types';
-import { formatTime, formatBitrate, getResolutionLabel } from '../utils';
+import { formatTime, formatBitrate, formatEpisodeTitle, getResolutionLabel } from '../utils';
 
 interface NowPlayingVariationProps {
   sessions: JellyfinSession[];
@@ -13,6 +13,7 @@ export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessio
   const [activeIndex, setActiveIndex] = useState(0);
   const [showTechInfo, setShowTechInfo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const visibleIndex = Math.min(activeIndex, Math.max(sessions.length - 1, 0));
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -47,7 +48,7 @@ export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessio
           {/* Indicator Sidebar */}
           <div className={styles.indicatorSidebar}>
               <div className={`font-mono text-muted ${styles.indicatorText}`}>
-                  <span className={styles.indicatorCurrent}>{activeIndex + 1}</span>
+                  <span className={styles.indicatorCurrent}>{visibleIndex + 1}</span>
                   <span className={styles.indicatorSeparator}>/</span>
                   <span>{sessions.length}</span>
               </div>
@@ -106,7 +107,7 @@ export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessio
                                             </h3>
                                             {item?.SeriesName && (
                                                 <div className={styles.episodeTitle}>
-                                                    {item.Name} 
+                                                    {formatEpisodeTitle(item)}
                                                 </div>
                                             )}
                                         </div>
