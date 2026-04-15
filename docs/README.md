@@ -14,6 +14,12 @@ Welcome to the dotHome technical documentation.
 | [Authentication](./authentication.md) | Session management and permissions |
 | [Primitives](./primitives.md) | Reusable UI component library |
 
+## Release Notes
+
+| Document | Description |
+|----------|-------------|
+| [v0.1.21](./releases/v0.1.21.md) | Release notes for changes from `v0.1.2` to `v0.1.21` |
+
 ---
 
 ## Quick Reference

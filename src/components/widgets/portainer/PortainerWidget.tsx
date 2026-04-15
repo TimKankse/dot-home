@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, RefreshCw, AlertCircle, Play, Square, RotateCw, Info } from 'lucide-react';
+import { RefreshCw, AlertCircle, Play, Square, RotateCw, Info } from 'lucide-react';
 import styles from './PortainerWidget.module.css';
 import { ContainerInfoModal } from './components/ContainerInfoModal';
 import type { PortainerWidgetConfig } from '@/types';

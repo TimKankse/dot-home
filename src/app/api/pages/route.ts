@@ -9,6 +9,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { parseCreatePageRequest } from '@/lib/request-parsers';
+import { ValidationError } from '@/lib/validation';
 import { canView, canEdit, type AccessLevel } from '@/utils/permissions';
 
 export const dynamic = 'force-dynamic';
@@ -79,8 +81,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { dashboardId, name, accessLevel } = body;
+    const { dashboardId, name, accessLevel } = parseCreatePageRequest(
+      await request.json(),
+    );
 
     if (!dashboardId) {
       return NextResponse.json(
@@ -123,14 +126,18 @@ export async function POST(request: Request) {
     const page = await prisma.page.create({
       data: {
         dashboardId,
-        name: name || 'Page',
-        accessLevel: accessLevel || 'PRIVATE',
+        name,
+        accessLevel,
         sortOrder: (maxSortOrder._max.sortOrder ?? -1) + 1,
       },
     });
 
     return NextResponse.json({ page });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error creating page:', error);
     return NextResponse.json(
       { error: 'Failed to create page' },

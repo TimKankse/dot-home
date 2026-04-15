@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fetchInfo, fetchChartsList } from './utils/netdata-client';
-import { getRequestedScopes, createScopeChecker } from './utils/scope-manager';
+import { fetchInfo } from './utils/netdata-client';
+import { createScopeChecker } from './utils/scope-manager';
 import { fetchFunctionsData } from './utils/function-fetcher';
 import { fetchAllMetrics, extractChartFromAllMetrics, getChartsByPrefix, getChartsByPattern, AllMetricsData } from './utils/allmetrics-fetcher';
 
@@ -14,8 +14,6 @@ import { processGpu } from './processors/gpu-processor';
 import { processNetwork } from './processors/network-processor';
 import { processSensors } from './processors/sensor-processor';
 import { processSystemInfo, processCpuModel } from './processors/system-processor';
-import { NetdataChartResponse } from './types';
-
 import { prisma } from '@/lib/db';
 import { decryptSensitiveFields } from '@/utils/crypto';
 
@@ -277,7 +275,7 @@ export async function GET(request: Request) {
             try {
                 const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-            } catch (e) {
+            } catch {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
             }
             
@@ -286,7 +284,7 @@ export async function GET(request: Request) {
                 try {
                     const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-                } catch (e) {
+                } catch {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
                 }
             }, interval);

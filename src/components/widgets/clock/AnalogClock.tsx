@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import type { ClockWidgetConfig, CityData } from '@/types';
+import type { ClockWidgetConfig } from '@/types';
 import { getCityById } from '@/constants/cities';
 
 interface AnalogClockProps {
@@ -98,7 +98,8 @@ export const AnalogClock: React.FC<AnalogClockProps> = ({ config }) => {
     const cityData = getEffectiveCityData();
     
     // Determine timezone to use
-    const timeZone = cityData?.timezone || settings?.display?.timezone || undefined;
+    const configuredTimeZone = cityData?.timezone || settings?.display?.timezone || undefined;
+    const timeZone = configuredTimeZone === 'auto' ? undefined : configuredTimeZone;
 
     const getParts = (date: Date) => {
         const options: Intl.DateTimeFormatOptions = {

@@ -636,3 +636,13 @@ pre[class*="language-"] {
 .token.entity {
   cursor: help;
 }
+
+.grid-stack-item.ui-draggable-dragging,
+.grid-stack-item-dragging {
+  z-index: 9999999 !important;
+  pointer-events: none !important;
+}
+
+body.gs-over-section .grid-stack-placeholder {
+  display: none !important;
+}

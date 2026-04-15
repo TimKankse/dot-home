@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { v4 as uuidv4 } from 'uuid';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import {
+  createEmptyDashboardLayout,
+  parseStoredDashboardLayout,
+  serializeDashboardLayout,
+} from '@/lib/dashboard-layout';
+import { parseDashboardSaveRequest } from '@/lib/request-parsers';
+import { ValidationError, tryParseJsonString } from '@/lib/validation';
 import { decryptSensitiveFields } from '@/utils/crypto';
 import { resolvePermission, type AccessLevel } from '@/utils/permissions';
 
@@ -80,44 +86,6 @@ async function getUserIntegrations(userId: string) {
   }
 }
 
-// Default dashboard layout for new users
-function createDefaultDashboardLayout() {
-  const defaultPageId = uuidv4();
-  return {
-    widgets: [],
-    responsiveLayouts: {},
-    scrollDirection: 'vertical',
-    pages: [{ id: defaultPageId }],
-    defaultPageId: defaultPageId,
-    settings: {
-      behavior: {
-        confirmEdit: false,
-        autoSave: true,
-        refreshInterval: 10,
-        autoDetectLocation: true,
-      },
-      display: {
-        is24Hour: true,
-        temperatureUnit: 'C',
-        dateFormat: 'DD/MM',
-        language: 'en',
-        timezone: 'auto',
-        location: '',
-        mobileBreakpointMaxWidth: 767,
-        tabletBreakpointMaxWidth: 975,
-      },
-      shortcuts: {
-        toggleEdit: 'Alt+E',
-        openSettings: 'Alt+,',
-        addItem: 'Alt+N',
-        saveChanges: 'Alt+S',
-        prevPage: 'Alt+ArrowLeft',
-        nextPage: 'Alt+ArrowRight',
-      },
-    },
-  };
-}
-
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -128,7 +96,7 @@ export async function GET(request: Request) {
     // If no session, return default layout with empty integrations
     if (!session?.user) {
       return NextResponse.json({
-        ...createDefaultDashboardLayout(),
+        ...createEmptyDashboardLayout(),
         integrations: [],
         permissions,
       });
@@ -230,24 +198,25 @@ export async function GET(request: Request) {
 
     // 3. If still no dashboard, create one
     if (!dashboard) {
-      const defaultLayout = createDefaultDashboardLayout();
+      const defaultLayout = createEmptyDashboardLayout();
       dashboard = await prisma.dashboard.create({
         data: {
           userId,
           name: 'Main',
-          layout: JSON.stringify(defaultLayout),
+          layout: serializeDashboardLayout(defaultLayout),
           isDefault: true,
         },
       });
     }
 
     // Parse the dashboard layout
-    const dashboardData = JSON.parse(dashboard.layout);
-    dashboardData.responsiveLayouts = dashboardData.responsiveLayouts ?? dashboardData.mediumLayouts ?? {};
+    const dashboardData = parseStoredDashboardLayout(
+      tryParseJsonString(dashboard.layout, {}),
+    );
 
     // Decrypt sensitive fields in widget configs
-    if (dashboardData.widgets && Array.isArray(dashboardData.widgets)) {
-      dashboardData.widgets = dashboardData.widgets.map((widget: Record<string, unknown>) => {
+    if (dashboardData.widgets.length > 0) {
+      dashboardData.widgets = dashboardData.widgets.map((widget) => {
         if (widget.config && typeof widget.config === 'object') {
           return {
             ...widget,
@@ -259,8 +228,8 @@ export async function GET(request: Request) {
 
       // Fetch per-user configs for widgets with syncConfig: false
       const widgetIds = dashboardData.widgets
-        .filter((w: Record<string, unknown>) => w.syncConfig === false)
-        .map((w: Record<string, unknown>) => w.id as string);
+        .filter((widget) => widget.syncConfig === false)
+        .map((widget) => widget.id);
 
       if (widgetIds.length > 0) {
         const userConfigs = await prisma.widgetUserConfig.findMany({
@@ -276,9 +245,9 @@ export async function GET(request: Request) {
         );
 
         // Merge user configs into widgets
-        dashboardData.widgets = dashboardData.widgets.map((widget: Record<string, unknown>) => {
-          if (widget.syncConfig === false && userConfigMap.has(widget.id as string)) {
-            const userConfig = userConfigMap.get(widget.id as string) as Record<string, unknown>;
+        dashboardData.widgets = dashboardData.widgets.map((widget) => {
+          if (widget.syncConfig === false && userConfigMap.has(widget.id)) {
+            const userConfig = userConfigMap.get(widget.id) as Record<string, unknown>;
             return {
               ...widget,
               config: {
@@ -336,34 +305,16 @@ export async function POST(request: Request) {
     }
 
     const userId = session.user.id;
-    const body = await request.json();
-
-    // Validate that we have widgets
-    if (!body.widgets || !Array.isArray(body.widgets)) {
-      console.error('Invalid configuration format: missing widgets array');
-      return NextResponse.json(
-        { error: 'Invalid configuration format' },
-        { status: 400 }
-      );
-    }
-
-    // Extract dashboard-specific data (not global config)
-    const dashboardData = {
-      widgets: body.widgets,
-      responsiveLayouts: body.responsiveLayouts || {},
-      pages: body.pages,
-      scrollDirection: body.scrollDirection,
-      defaultPageId: body.defaultPageId,
-      settings: body.settings,
-    };
+    const parsedRequest = parseDashboardSaveRequest(await request.json());
+    const dashboardData = parsedRequest.layout;
 
     // Find or create dashboard
     let existingDashboard = null;
 
-    if (body.dashboardId) {
+    if (parsedRequest.dashboardId) {
        // Best case: we have a specific ID
        existingDashboard = await prisma.dashboard.findUnique({
-         where: { id: body.dashboardId },
+         where: { id: parsedRequest.dashboardId },
        });
        
        // Verify ownership or permission
@@ -398,10 +349,10 @@ export async function POST(request: Request) {
 
     if (existingDashboard) {
       // Update existing dashboard
-      await prisma.dashboard.update({
+          await prisma.dashboard.update({
         where: { id: existingDashboard.id },
         data: {
-          layout: JSON.stringify(dashboardData),
+          layout: serializeDashboardLayout(dashboardData),
           updatedAt: new Date(),
         },
       });
@@ -411,7 +362,7 @@ export async function POST(request: Request) {
         data: {
           userId,
           name: 'Main',
-          layout: JSON.stringify(dashboardData),
+          layout: serializeDashboardLayout(dashboardData),
           isDefault: true,
         },
       });
@@ -419,6 +370,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error saving config:', error);
     return NextResponse.json(
       { error: 'Failed to save configuration' },

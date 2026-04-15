@@ -7,26 +7,16 @@ interface JellyfinLibrary {
   Counts: { Series?: number; Episodes?: number; Movies?: number };
 }
 
-async function getItemCount(baseUrl: string, apiKey: string, viewId: string, includeItemTypes: string[]): Promise<number> {
-  const countsUrl = `${baseUrl}/Items/Counts?ParentId=${viewId}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}`;
-  const response = await fetch(countsUrl, {
-    headers: { 'X-Emby-Token': apiKey }
-  });
-  
-  if (!response.ok) return 0;
-  
-  const data = await response.json();
-  return (data.MovieCount || 0) + (data.SeriesCount || 0) + (data.EpisodeCount || 0);
+interface JellyfinView {
+  Id: string;
+  Name: string;
+  CollectionType: string;
 }
-
-
 
 export async function GET(request: NextRequest) {
   const url = request.headers.get('x-jellyfin-url');
   const apiKey = request.headers.get('x-jellyfin-apikey');
   const userId = request.headers.get('x-jellyfin-userid');
-  const { searchParams } = new URL(request.url);
-  const mode = searchParams.get('mode');
 
   if (!url || !apiKey || !userId) {
     return NextResponse.json({ error: 'Missing configuration' }, { status: 400 });
@@ -44,9 +34,9 @@ export async function GET(request: NextRequest) {
       throw new Error(`Failed to fetch views: ${viewsResponse.statusText}`);
     }
 
-    const viewsData = await viewsResponse.json();
+    const viewsData = await viewsResponse.json() as { Items?: JellyfinView[] };
     
-    const libraries = await Promise.all(viewsData.Items.map(async (view: any) => {
+    const libraries = await Promise.all((viewsData.Items || []).map(async (view) => {
       const libraryInfo: JellyfinLibrary = {
         Id: view.Id,
         Name: view.Name,

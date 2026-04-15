@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { FieldRenderProps } from '@/components/item-editor/forms/config-form-builder/types';
 import { JellyfinWidgetConfig } from '@/types';
 import { Checkbox } from '@/components/primitives/checkbox';
-import { fetchJellyfinData } from '@/services/jellyfin';
 import { LibraryStats } from '../types';
 
 export const LibrarySelector: React.FC<FieldRenderProps<JellyfinWidgetConfig>> = ({

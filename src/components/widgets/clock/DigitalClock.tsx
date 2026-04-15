@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import styles from './DigitalClock.module.css';
-import type { ClockWidgetConfig, CityData } from '@/types';
+import type { ClockWidgetConfig } from '@/types';
 import { getCityById } from '@/constants/cities';
 
 interface DigitalClockProps {
@@ -71,7 +71,9 @@ export const DigitalClock: React.FC<DigitalClockProps> = ({ config }) => {
   const cityFormat = config?.cityFormat || 'long';
   
   // Determine timezone to use
-  const effectiveTimezone = cityData?.timezone || settings?.display?.timezone || undefined;
+  const effectiveTimezoneCandidate = cityData?.timezone || settings?.display?.timezone || undefined;
+  const effectiveTimezone =
+    effectiveTimezoneCandidate === 'auto' ? undefined : effectiveTimezoneCandidate;
 
   const formatTime = (date: Date) => {
     // Use browser locale since language setting was removed

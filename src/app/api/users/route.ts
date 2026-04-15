@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth';
 import bcrypt from 'bcrypt';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import {
+  createEmptyDashboardLayout,
+  serializeDashboardLayout,
+} from '@/lib/dashboard-layout';
+import { parseCreateUserRequest } from '@/lib/request-parsers';
+import { ValidationError } from '@/lib/validation';
 
 const SALT_ROUNDS = 12;
 
@@ -54,8 +60,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { email, displayName, password, role = 'member' } = body;
+    const { email, displayName, password, role } = parseCreateUserRequest(
+      await request.json(),
+    );
 
     // Validation
     if (!email || !password) {
@@ -109,36 +116,7 @@ export async function POST(request: Request) {
       data: {
         userId: user.id,
         name: 'Main',
-        layout: JSON.stringify({
-          widgets: [],
-          responsiveLayouts: {},
-          pages: [{ id: 'default-page' }],
-          scrollDirection: 'vertical',
-          settings: {
-            behavior: {
-              confirmEdit: false,
-              autoSave: true,
-              refreshInterval: 10,
-              autoDetectLocation: true,
-            },
-            display: {
-              is24Hour: true,
-              temperatureUnit: 'C',
-              dateFormat: 'DD/MM',
-              language: 'en',
-              timezone: 'auto',
-              location: '',
-            },
-            shortcuts: {
-              toggleEdit: 'Alt+E',
-              openSettings: 'Alt+,',
-              addItem: 'Alt+N',
-              saveChanges: 'Alt+S',
-              prevPage: 'Alt+ArrowLeft',
-              nextPage: 'Alt+ArrowRight',
-            },
-          },
-        }),
+        layout: serializeDashboardLayout(createEmptyDashboardLayout()),
         isDefault: true,
       },
     });
@@ -153,6 +131,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error creating user:', error);
     return NextResponse.json(
       { error: 'Failed to create user' },

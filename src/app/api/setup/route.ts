@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
 import { prisma } from '@/lib/db';
-import { getDefaultDashboardLayout } from '@/constants/default-dashboard';
+import {
+  createStarterDashboardLayout,
+  serializeDashboardLayout,
+} from '@/lib/dashboard-layout';
+import { parseSetupRequest } from '@/lib/request-parsers';
+import { ValidationError } from '@/lib/validation';
 
 const SALT_ROUNDS = 12;
 
@@ -16,8 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
-    const { email, displayName, password } = body;
+    const { email, displayName, password } = parseSetupRequest(await request.json());
 
     // Validation
     if (!email || !password) {
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
       data: {
         userId: user.id,
         name: 'Main',
-        layout: JSON.stringify(getDefaultDashboardLayout()),
+        layout: serializeDashboardLayout(createStarterDashboardLayout()),
         isDefault: true,
       },
     });
@@ -66,6 +70,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error during setup:', error);
     return NextResponse.json(
       { error: 'Failed to create account' },

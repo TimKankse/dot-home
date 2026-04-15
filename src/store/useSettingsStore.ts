@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { GeneralSettings } from '../types';
-import { DEFAULT_BREAKPOINT_THRESHOLDS } from '@/constants/grid';
+import {
+  createDefaultSettings,
+  mergeGeneralSettings,
+} from '@/constants/default-settings';
 
 interface SettingsState {
   settings: GeneralSettings;
@@ -13,28 +16,7 @@ interface SettingsState {
   setSettings: (settings: GeneralSettings) => void;
 }
 
-const defaultSettings: GeneralSettings = {
-  behavior: {
-    refreshInterval: 10,
-    autoDetectLocation: false
-  },
-  display: {
-    is24Hour: true,
-    temperatureUnit: 'C',
-    timezone: 'UTC',
-    city: undefined,
-    mobileBreakpointMaxWidth: DEFAULT_BREAKPOINT_THRESHOLDS.mobileMaxWidth,
-    tabletBreakpointMaxWidth: DEFAULT_BREAKPOINT_THRESHOLDS.tabletMaxWidth,
-  },
-  shortcuts: {
-    toggleEdit: 'Mod+E',
-    openSettings: 'Mod+,',
-    addItem: 'Mod+K',
-    saveChanges: 'Mod+S',
-    prevPage: 'Alt+ArrowLeft',
-    nextPage: 'Alt+ArrowRight'
-  }
-};
+const defaultSettings: GeneralSettings = createDefaultSettings();
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   settings: defaultSettings,
@@ -79,7 +61,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     }
   })),
 
-  resetSettings: () => set({ settings: defaultSettings }),
+  resetSettings: () => set({ settings: createDefaultSettings() }),
 
-  setSettings: (settings) => set({ settings })
+  setSettings: (settings) => set({ settings: mergeGeneralSettings(settings) })
 }));

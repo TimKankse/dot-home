@@ -12,6 +12,18 @@ import path from 'path';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const ENCRYPTED_PREFIX = 'enc:';
+let hasLoggedDecryptFailure = false;
+
+function warnDecryptFailure() {
+  if (hasLoggedDecryptFailure) {
+    return;
+  }
+
+  hasLoggedDecryptFailure = true;
+  console.warn(
+    'Some stored sensitive values could not be decrypted. Returning encrypted payloads as-is. Check CONFIG_ENCRYPTION_SECRET if integrations were migrated or restored.',
+  );
+}
 
 /**
  * Get or create the encryption key
@@ -91,7 +103,7 @@ export function decryptValue(encryptedValue: string): string {
   const parts = encryptedValue.slice(ENCRYPTED_PREFIX.length).split(':');
   
   if (parts.length !== 3) {
-    console.error('Invalid encrypted value format');
+    warnDecryptFailure();
     return encryptedValue;
   }
   
@@ -107,8 +119,8 @@ export function decryptValue(encryptedValue: string): string {
     decrypted += decipher.final('utf8');
     
     return decrypted;
-  } catch (error) {
-    console.error('Failed to decrypt value:', error);
+  } catch {
+    warnDecryptFailure();
     return encryptedValue;
   }
 }

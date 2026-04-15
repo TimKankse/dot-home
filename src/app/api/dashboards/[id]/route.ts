@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import {
+  getDashboardLayoutSummary,
+  parseStoredDashboardLayout,
+} from '@/lib/dashboard-layout';
+import { parseUpdateDashboardRequest } from '@/lib/request-parsers';
+import { ValidationError, tryParseJsonString } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +16,7 @@ interface RouteParams {
 }
 
 // GET /api/dashboards/[id] - Get single dashboard
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = await params;
@@ -30,7 +36,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Dashboard not found' }, { status: 404 });
     }
 
-    const layout = JSON.parse(dashboard.layout);
+    const layout = parseStoredDashboardLayout(tryParseJsonString(dashboard.layout, {}));
 
     return NextResponse.json({
       dashboard: {
@@ -39,8 +45,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         isDefault: dashboard.isDefault,
         createdAt: dashboard.createdAt,
         updatedAt: dashboard.updatedAt,
-        pageCount: layout.pages?.length || 0,
-        widgetCount: layout.widgets?.length || 0,
+        ...getDashboardLayoutSummary(layout),
       },
     });
   } catch (error) {
@@ -70,7 +75,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const userId = session.user.id;
-    const body = await request.json();
+    const body = parseUpdateDashboardRequest(await request.json());
 
     // Check dashboard exists and belongs to user
     const existing = await prisma.dashboard.findFirst({
@@ -92,7 +97,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     // Update dashboard
     const updated = await prisma.dashboard.update({
       where: { id },
-      data: {
+        data: {
         name: body.name ?? existing.name,
         isDefault: body.isDefault ?? existing.isDefault,
         accessLevel: body.accessLevel ?? existing.accessLevel,
@@ -100,7 +105,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       },
     });
 
-    const layout = JSON.parse(updated.layout);
+    const layout = parseStoredDashboardLayout(tryParseJsonString(updated.layout, {}));
 
     return NextResponse.json({
       dashboard: {
@@ -109,11 +114,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
         isDefault: updated.isDefault,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
-        pageCount: layout.pages?.length || 0,
-        widgetCount: layout.widgets?.length || 0,
+        ...getDashboardLayoutSummary(layout),
       },
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error updating dashboard:', error);
     return NextResponse.json(
       { error: 'Failed to update dashboard' },
@@ -123,7 +131,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 }
 
 // DELETE /api/dashboards/[id] - Delete dashboard
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = await params;

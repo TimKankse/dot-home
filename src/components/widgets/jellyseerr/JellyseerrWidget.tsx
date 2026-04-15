@@ -57,7 +57,7 @@ export default function JellyseerrWidget({ config, integrationId }: JellyseerrWi
     return () => {
       isMounted = false;
     };
-  }, [config?.url, config?.apiKey, integrationId]);
+  }, [config, config?.url, config?.apiKey, integrationId]);
 
   const handleManageRequest = async (requestId: number, action: 'approve' | 'decline') => {
     if (!config?.url || !config?.apiKey) return;

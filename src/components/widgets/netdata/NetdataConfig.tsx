@@ -10,7 +10,6 @@ import { IntegrationSelect } from '@/components/primitives';
 
 export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = ({ config, onChange, styles }) => {
   const { settings } = useSettingsStore();
-  const metricType = config.metricType || 'cpu';
 
   const fields: FieldDefinition<NetdataWidgetConfig>[] = [
     // Integration selector

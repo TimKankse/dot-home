@@ -1,7 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface WidgetConfigProps<T = Record<string, any>> {
+export type WidgetConfigValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | object;
+
+export interface WidgetConfigProps<T = Record<string, unknown>> {
   config: Partial<T>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onChange: (key: string, value: any) => void;
+  onChange: (key: string, value: WidgetConfigValue) => void;
   styles: Record<string, string>;
 }

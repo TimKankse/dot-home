@@ -50,11 +50,7 @@ interface YamlEditorTabProps {
   isActive: boolean;
   currentState: Record<string, unknown>;
   onUpdate: (parsedState: Record<string, unknown>) => void;
-  formStyles: {
-    section: string;
-    sectionTitle: string;
-    formGroup: string;
-  };
+  formStyles: Record<string, string>;
 }
 
 export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
@@ -69,24 +65,29 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
   const initializedRef = useRef(false);
   // Track current state for syncing - always use latest value
   const currentStateRef = useRef(currentState);
-  currentStateRef.current = currentState;
   // Track last synced content to avoid unnecessary updates
   const lastSyncedRef = useRef<string>('');
 
   // Use a ref for the change handler to avoid recreating the editor
   const handleChangeRef = useRef<((val: string) => void) | undefined>(undefined);
-  handleChangeRef.current = (val: string) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed: any = load(val);
-      if (typeof parsed === 'object' && parsed !== null) {
-        setYamlError(null);
-        onUpdate(parsed);
+  useEffect(() => {
+    currentStateRef.current = currentState;
+  }, [currentState]);
+
+  useEffect(() => {
+    handleChangeRef.current = (val: string) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsed: any = load(val);
+        if (typeof parsed === 'object' && parsed !== null) {
+          setYamlError(null);
+          onUpdate(parsed);
+        }
+      } catch (e) {
+        setYamlError((e as Error).message);
       }
-    } catch (e) {
-      setYamlError((e as Error).message);
-    }
-  };
+    };
+  }, [onUpdate]);
 
   // Stable string representation of current state for comparison
   const currentStateJson = JSON.stringify(currentState);
@@ -143,8 +144,9 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
       currentStateJsonRef.current = currentStateJson;
       initializedRef.current = true;
     } catch {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setYamlError('Failed to generate YAML.');
+      window.setTimeout(() => {
+        setYamlError('Failed to generate YAML.');
+      }, 0);
     }
 
     return () => {
@@ -155,7 +157,6 @@ export const YamlEditorTab: React.FC<YamlEditorTabProps> = ({
         lastSyncedRef.current = '';
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, currentStateJson]); // Sync when tab becomes active OR state changes
 
   if (!isActive) return null;

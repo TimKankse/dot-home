@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import type { WidgetConfigValue } from '@/components/item-editor/forms/types';
 
 /**
  * Field types supported by the config form builder.
@@ -123,7 +124,7 @@ export interface CustomField<T> extends BaseField<T> {
  */
 export interface FieldRenderProps<T> {
   config: Partial<T>;
-  onChange: (key: keyof T & string, value: unknown) => void;
+  onChange: (key: keyof T & string, value: WidgetConfigValue) => void;
   styles: Record<string, string>;
 }
 

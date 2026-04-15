@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import type { WidgetConfigValue } from '@/components/item-editor/forms/types';
 import { Input } from '@/components/primitives/input';
 import { Select } from '@/components/primitives/select';
 import { SearchableSelect } from '@/components/primitives/searchable-select';
@@ -25,7 +26,7 @@ import type {
 interface FieldRendererProps<T> {
   field: FieldDefinition<T>;
   config: Partial<T>;
-  onChange: (key: string, value: unknown) => void;
+  onChange: (key: string, value: WidgetConfigValue) => void;
   styles: Record<string, string>;
 }
 
@@ -35,7 +36,7 @@ interface FieldRendererProps<T> {
 function renderInputField<T>(
   field: InputField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -66,7 +67,7 @@ function renderInputField<T>(
 function renderSelectField<T>(
   field: SelectField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -93,7 +94,7 @@ function renderSelectField<T>(
 function renderSearchableSelectField<T>(
   field: SearchableSelectField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -117,7 +118,7 @@ function renderSearchableSelectField<T>(
 function renderAppSettingsSelectField<T>(
   field: AppSettingsSelectField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -158,7 +159,7 @@ function renderAppSettingsSelectField<T>(
 function renderAppSettingsBooleanSelectField<T>(
   field: AppSettingsBooleanSelectField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -205,7 +206,7 @@ function renderAppSettingsBooleanSelectField<T>(
 function renderSwitchField<T>(
   field: SwitchField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -244,7 +245,7 @@ function renderSwitchField<T>(
 function renderToggleField<T>(
   field: ToggleField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -267,7 +268,7 @@ function renderToggleField<T>(
 function renderUrlListField<T>(
   field: UrlListField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   const value = config[field.key as keyof T];
@@ -352,14 +353,14 @@ function renderUrlListField<T>(
 function renderCustomField<T>(
   field: CustomField<T>,
   config: Partial<T>,
-  onChange: (key: string, value: unknown) => void,
+  onChange: (key: string, value: WidgetConfigValue) => void,
   styles: Record<string, string>
 ): React.ReactNode {
   return (
     <React.Fragment key={field.key}>
       {field.render({ 
         config, 
-        onChange: onChange as (key: keyof T & string, value: unknown) => void, 
+        onChange: onChange as (key: keyof T & string, value: WidgetConfigValue) => void, 
         styles 
       })}
     </React.Fragment>

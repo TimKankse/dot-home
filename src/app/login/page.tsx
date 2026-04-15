@@ -64,7 +64,7 @@ function LoginContent() {
         <div className={styles.card}>
           <div className={styles.header}>
             <h1 className={styles.logo}>dotHome</h1>
-            <p className={styles.subtitle}>Welcome! Let's set up your dashboard.</p>
+            <p className={styles.subtitle}>Welcome! Let&apos;s set up your dashboard.</p>
           </div>
           <Link 
             href="/setup" 

@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { v4 as uuidv4 } from 'uuid';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import {
+  createEmptyDashboardLayout,
+  getDashboardLayoutSummary,
+  parseStoredDashboardLayout,
+  serializeDashboardLayout,
+} from '@/lib/dashboard-layout';
+import { parseCreateDashboardRequest } from '@/lib/request-parsers';
+import { ValidationError, tryParseJsonString } from '@/lib/validation';
 import {
   batchResolvePermissions,
   type AccessLevel,
@@ -25,42 +32,6 @@ interface DashboardWithStats {
   updatedAt: Date;
   pageCount: number;
   widgetCount: number;
-}
-
-// Default dashboard layout for new dashboards
-function createDefaultDashboardLayout() {
-  const defaultPageId = uuidv4();
-  return {
-    widgets: [],
-    responsiveLayouts: {},
-    scrollDirection: 'vertical',
-    pages: [{ id: defaultPageId }],
-    defaultPageId: defaultPageId,
-    settings: {
-      behavior: {
-        confirmEdit: false,
-        autoSave: true,
-        refreshInterval: 10,
-        autoDetectLocation: true,
-      },
-      display: {
-        is24Hour: true,
-        temperatureUnit: 'C',
-        dateFormat: 'DD/MM',
-        language: 'en',
-        timezone: 'auto',
-        location: '',
-      },
-      shortcuts: {
-        toggleEdit: 'Alt+E',
-        openSettings: 'Alt+,',
-        addItem: 'Alt+N',
-        saveChanges: 'Alt+S',
-        prevPage: 'Alt+ArrowLeft',
-        nextPage: 'Alt+ArrowRight',
-      },
-    },
-  };
 }
 
 // GET /api/dashboards - List all accessible dashboards for current user
@@ -154,7 +125,7 @@ export async function GET() {
     // Parse layouts and compute stats
     const dashboardsWithStats: DashboardWithStats[] = accessibleDashboards.map(
       (d: typeof accessibleDashboards[number]) => {
-        const layout = JSON.parse(d.layout);
+        const layout = parseStoredDashboardLayout(tryParseJsonString(d.layout, {}));
         const isOwner = d.userId === userId;
         // Determine if this is the user's default
         // If user has explicit preference, use that
@@ -175,8 +146,7 @@ export async function GET() {
           isOwner,
           createdAt: d.createdAt,
           updatedAt: d.updatedAt,
-          pageCount: layout.pages?.length || 0,
-          widgetCount: layout.widgets?.length || 0,
+          ...getDashboardLayoutSummary(layout),
         };
       }
     );
@@ -208,21 +178,20 @@ export async function POST(request: Request) {
     }
 
     const userId = session.user.id;
-    const body = await request.json();
-    const name = body.name || 'New Dashboard';
+    const { name } = parseCreateDashboardRequest(await request.json());
 
-    const defaultLayout = createDefaultDashboardLayout();
+    const defaultLayout = createEmptyDashboardLayout();
 
     const dashboard = await prisma.dashboard.create({
       data: {
         userId,
         name,
-        layout: JSON.stringify(defaultLayout),
+        layout: serializeDashboardLayout(defaultLayout),
         isDefault: false, // New dashboards are not default
       },
     });
 
-    const layout = JSON.parse(dashboard.layout);
+    const layout = parseStoredDashboardLayout(tryParseJsonString(dashboard.layout, {}));
 
     return NextResponse.json({
       dashboard: {
@@ -231,11 +200,14 @@ export async function POST(request: Request) {
         isDefault: dashboard.isDefault,
         createdAt: dashboard.createdAt,
         updatedAt: dashboard.updatedAt,
-        pageCount: layout.pages?.length || 0,
-        widgetCount: layout.widgets?.length || 0,
+        ...getDashboardLayoutSummary(layout),
       },
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error creating dashboard:', error);
     return NextResponse.json(
       { error: 'Failed to create dashboard' },

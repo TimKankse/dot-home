@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { FormProps } from '../types';
 import styles from '../ItemEditorDialog.module.css';
 import { IconSelector } from '../../ui/IconSelector';
@@ -9,6 +9,7 @@ import { useIntegrationStore } from '@/store/useIntegrationStore';
 import { YamlEditorTab } from './YamlEditorTab';
 import { SyncConfigToggle } from '../../widgets/SyncConfigToggle';
 import { FormErrorBoundary } from '../FormErrorBoundary';
+import type { WidgetConfigProps, WidgetConfigValue } from './types';
 import { CalendarConfig } from '@/components/widgets/calendar/CalendarConfig';
 import { ClockConfig } from '@/components/widgets/clock/ClockConfig';
 import { JellyfinConfig } from '@/components/widgets/jellyfin/JellyfinConfig';
@@ -26,9 +27,7 @@ import { SearchConfig } from '@/components/widgets/search/SearchConfig';
 import { ImageConfig } from '@/components/widgets/image/ImageConfig';
 import { SectionConfig } from '@/components/widgets/section/SectionConfig';
 
-
-
-const CONFIG_COMPONENTS: Record<string, React.ComponentType<any>> = {
+const CONFIG_COMPONENTS: Record<string, React.ComponentType<WidgetConfigProps>> = {
   calendar: CalendarConfig,
   clock: ClockConfig,
   jellyfin: JellyfinConfig,
@@ -57,20 +56,12 @@ export const WidgetForm: React.FC<FormProps> = ({
 }) => {
   const [name, setName] = useState(initialData?.name || '');
   const [iconUrl, setIconUrl] = useState(initialData?.iconUrl || '');
-  
-  // Single source of truth: config.integrationId
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [config, setConfig] = useState<Record<string, any>>(() => {
-    const baseConfig = initialData?.config || {};
-    // Inject top-level integrationId into config for widget components
-    if (initialData?.integrationId) {
-      return {
-        ...baseConfig,
-        integrationId: initialData.integrationId
-      };
-    }
-    return baseConfig;
-  });
+  const [config, setConfig] = useState<Record<string, unknown>>(
+    () => ({ ...(initialData?.config || {}) }),
+  );
+  const [selectedIntegrationId, setSelectedIntegrationId] = useState(
+    initialData?.integrationId || '',
+  );
   
   // Track last synced integration to avoid re-syncing on every render
   const lastSyncedIntegrationId = useRef<string | null>(null);
@@ -78,32 +69,14 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const widgetType = selectedType || initialData?.widgetType || 'clock';
   const { integrations } = useIntegrationStore();
-
-  // Sync integration config ONLY when integrationId changes to a NEW non-empty value
-  useEffect(() => {
-    const currentIntegrationId = config.integrationId || '';
-    
-    // Skip if: no integration selected, or we already synced this ID
-    if (!currentIntegrationId || lastSyncedIntegrationId.current === currentIntegrationId) {
-      // If cleared, update tracking but don't sync
-      if (!currentIntegrationId) {
-        lastSyncedIntegrationId.current = '';
-      }
-      return;
-    }
-    
-    const integration = integrations.find(i => i.id === currentIntegrationId);
-    if (integration && integration.config) {
-      // Mark as synced BEFORE updating to prevent loops
-      lastSyncedIntegrationId.current = currentIntegrationId;
-      
-      setConfig(prev => ({
-        ...prev,
-        ...integration.config,
-        integrationId: currentIntegrationId
-      }));
-    }
-  }, [config.integrationId, integrations]);
+  const resolvedConfig = useMemo<Record<string, unknown>>(
+    () => (
+      selectedIntegrationId
+        ? { ...config, integrationId: selectedIntegrationId }
+        : config
+    ),
+    [config, selectedIntegrationId],
+  );
 
   useEffect(() => {
     onValidityChange?.(true);
@@ -111,12 +84,8 @@ export const WidgetForm: React.FC<FormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Extract integrationId from config (single source of truth)
-    const finalIntegrationId = config.integrationId || '';
-    
-    // Remove integrationId from config blob to avoid duplication
+    const finalIntegrationId = selectedIntegrationId || '';
     const finalConfig = { ...config };
-    delete finalConfig.integrationId;
 
     // specific dimensions logic
     let finalW = initialData?.w;
@@ -142,8 +111,32 @@ export const WidgetForm: React.FC<FormProps> = ({
     });
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleConfigChange = (key: string, value: any) => {
+  const handleConfigChange = (key: string, value: WidgetConfigValue) => {
+    if (key === 'integrationId') {
+      const nextIntegrationId = typeof value === 'string' ? value : '';
+      setSelectedIntegrationId(nextIntegrationId);
+
+      if (!nextIntegrationId) {
+        lastSyncedIntegrationId.current = '';
+        return;
+      }
+
+      if (lastSyncedIntegrationId.current === nextIntegrationId) {
+        return;
+      }
+
+      const integration = integrations.find((candidate) => candidate.id === nextIntegrationId);
+      lastSyncedIntegrationId.current = nextIntegrationId;
+
+      if (integration?.config) {
+        setConfig((prev) => ({
+          ...prev,
+          ...integration.config,
+        }));
+      }
+      return;
+    }
+
     setConfig(prev => ({
       ...prev,
       [key]: value
@@ -153,17 +146,14 @@ export const WidgetForm: React.FC<FormProps> = ({
   const ConfigComponent = CONFIG_COMPONENTS[widgetType];
 
   const getCurrentStateObject = () => {
-    // Create a clean config without integrationId (it goes at top level)
     const cleanConfig = { ...config };
-    const effectiveIntegrationId = cleanConfig.integrationId || '';
-    delete cleanConfig.integrationId;
-    
+
     return {
       name,
       type: 'widget',
       widgetType,
       iconUrl,
-      integrationId: effectiveIntegrationId || undefined,
+      integrationId: selectedIntegrationId || undefined,
       syncConfig,
       config: cleanConfig,
       w: initialData?.w || 1,
@@ -193,7 +183,7 @@ export const WidgetForm: React.FC<FormProps> = ({
               <div className={styles.section}>
                 <h3 className={styles.sectionTitle}>Widget Settings</h3>
                 <ConfigComponent 
-                  config={config} 
+                  config={resolvedConfig}
                   onChange={handleConfigChange}
                   styles={styles}
                 />
@@ -234,10 +224,8 @@ export const WidgetForm: React.FC<FormProps> = ({
               if ('integrationId' in parsed) {
                 const rawId = parsed.integrationId;
                 const newId = typeof rawId === 'string' ? rawId : '';
-                setConfig(prev => ({
-                  ...prev,
-                  integrationId: newId || undefined
-                }));
+                setSelectedIntegrationId(newId);
+                lastSyncedIntegrationId.current = newId || '';
               }
               if (parsed.config && typeof parsed.config === 'object') {
                 // Merge YAML config
@@ -248,8 +236,7 @@ export const WidgetForm: React.FC<FormProps> = ({
                 }));
               }
             }}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formStyles={styles as any}
+            formStyles={styles}
           />
         </div>
 

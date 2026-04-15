@@ -63,7 +63,7 @@ export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Pr
   const tvIds = [...new Set(rawRequests.filter(r => r.type === 'tv').map(r => r.media.tmdbId))];
 
   // Use batch endpoint to fetch all details at once
-  let detailsMap = new Map<string, MediaDetails>();
+  const detailsMap = new Map<string, MediaDetails>();
   
   if (movieIds.length > 0 || tvIds.length > 0) {
     try {

@@ -46,6 +46,7 @@ export const usePageStore = create<PageState>((set, get) => ({
     
     // Remove widgets on this page via useWidgetStore
     useWidgetStore.getState().removeWidgetsByPage(pageToRemoveId);
+    useWidgetStore.getState().removeResponsiveLayoutsByPage(pageToRemoveId);
     
     // Remove the page
     const newPages = pages.filter((_, index) => index !== currentPageIndex);

@@ -9,6 +9,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { parseWidgetUserConfigRequest } from '@/lib/request-parsers';
+import { ValidationError, tryParseJsonString } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +19,7 @@ interface RouteParams {
 }
 
 // GET - Get current user's config for a widget
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -41,7 +43,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     return NextResponse.json({
-      config: JSON.parse(userConfig.config),
+      config: tryParseJsonString(userConfig.config, null),
     });
   } catch (error) {
     console.error('Error fetching widget user config:', error);
@@ -61,15 +63,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { id: widgetId } = await params;
-    const body = await request.json();
-    const { config } = body;
-
-    if (config === undefined) {
-      return NextResponse.json(
-        { error: 'config is required' },
-        { status: 400 }
-      );
-    }
+    const { config } = parseWidgetUserConfigRequest(await request.json());
 
     // Upsert the user's config
     const userConfig = await prisma.widgetUserConfig.upsert({
@@ -90,9 +84,13 @@ export async function PUT(request: Request, { params }: RouteParams) {
     });
 
     return NextResponse.json({
-      config: JSON.parse(userConfig.config),
+      config: tryParseJsonString(userConfig.config, null),
     });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error saving widget user config:', error);
     return NextResponse.json(
       { error: 'Failed to save config' },
@@ -102,7 +100,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 }
 
 // DELETE - Remove user's personal config (revert to shared config)
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

@@ -47,7 +47,7 @@ export async function fetchJellyfinData(params: JellyfinFetchParams): Promise<Je
 }
 
 export async function fetchJellyfinLibraryCounts(params: JellyfinFetchParams): Promise<LibraryStats[]> {
-  const { config, integrationId } = params;
+  const { config, integrationId: _integrationId } = params;
 
   if (config?.userId && config?.url && config?.apiKey) {
     const libRes = await fetch('/api/jellyfin/libraries?mode=counts', {

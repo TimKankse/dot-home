@@ -156,9 +156,6 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
         newScopes[scope] = (newScopes[scope] || 0) + 1;
         
         const newIntervals = [...instance.intervals, refreshInterval];
-        const newMinInterval = Math.min(...newIntervals);
-        const currentMinInterval = Math.min(...instance.intervals);
-
         return {
           instances: {
             ...state.instances,
@@ -187,7 +184,7 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
           if (instance.eventSource) {
               instance.eventSource.close();
           }
-          const eventSource = startSSE(key, newMinInterval);
+          startSSE(key, newMinInterval);
       }
     }
   },

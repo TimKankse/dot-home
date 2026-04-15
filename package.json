@@ -1,12 +1,16 @@
 {
   "name": "dot-home",
-  "version": "0.1.13",
+  "version": "0.1.21",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "node server.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "check:full": "npm run check && npm run build"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.2",

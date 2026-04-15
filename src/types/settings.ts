@@ -1,6 +1,8 @@
 export interface BehaviorSettings {
   refreshInterval: number; // in minutes
   autoDetectLocation: boolean;
+  confirmEdit: boolean;
+  autoSave: boolean;
 }
 
 export interface CityData {
@@ -18,6 +20,9 @@ export interface DisplaySettings {
   temperatureUnit: 'C' | 'F';
   timezone: string;
   city?: CityData;        // Structured city data for weather, location display, etc.
+  dateFormat: string;
+  language: string;
+  location: string;
   rowHeight?: number;
   gapSize?: number;
   borderRadius?: number;

@@ -21,7 +21,7 @@ export const SystemVariation: React.FC<SystemVariationProps> = ({ data, title })
         );
     }
 
-    const { hostname, uptime, os, kernel, ip, virtualization } = data.systemInfo;
+    const { hostname: _hostname, uptime, os, kernel, ip, virtualization } = data.systemInfo;
 
     // Format uptime
     const formatUptime = (seconds: number) => {

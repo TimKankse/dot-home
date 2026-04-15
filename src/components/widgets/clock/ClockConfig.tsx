@@ -9,7 +9,6 @@ import type { FieldDefinition } from '@/components/item-editor/forms/config-form
 
 export const ClockConfig: React.FC<WidgetConfigProps<ClockWidgetConfig>> = ({ config, onChange, styles }) => {
   const variant = config.variant || 'digital';
-  const city = config.city || '';
 
   const cityOptions = [
     { value: '', label: 'Use App Settings' },

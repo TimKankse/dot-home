@@ -10,6 +10,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { parseUpdatePageRequest } from '@/lib/request-parsers';
+import { ValidationError } from '@/lib/validation';
 import { canView, canEdit, type AccessLevel } from '@/utils/permissions';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +21,7 @@ interface RouteParams {
 }
 
 // GET - Get a single page
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -71,8 +73,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     const { id } = await params;
-    const body = await request.json();
-    const { name, accessLevel, sortOrder } = body;
+    const { name, accessLevel, sortOrder } = parseUpdatePageRequest(
+      await request.json(),
+    );
 
     const page = await prisma.page.findUnique({
       where: { id },
@@ -109,6 +112,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ page: updatedPage });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error updating page:', error);
     return NextResponse.json(
       { error: 'Failed to update page' },
@@ -118,7 +125,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 }
 
 // DELETE - Delete a page
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {

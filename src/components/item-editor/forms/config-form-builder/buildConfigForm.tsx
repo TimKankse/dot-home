@@ -80,7 +80,7 @@ export function buildTabbedConfigForm<T>(
         <div style={{ marginBottom: '16px' }}>
           <ToggleGroup
             value={activeTab}
-            onChange={(val) => setActiveTab(val)}
+            onChange={(val) => setActiveTab(val as string)}
             options={tabs.map((tab) => ({ value: tab.value, label: tab.label }))}
           />
         </div>

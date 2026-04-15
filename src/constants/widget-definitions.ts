@@ -76,7 +76,7 @@ export const WIDGET_DEFINITIONS: Record<string, WidgetDefinition> = {
   }
 };
 
-export const getMinDimensions = (type: string, config: Record<string, any> = {}) => {
+export const getMinDimensions = (type: string, _config: Record<string, unknown> = {}) => {
   const def = WIDGET_DEFINITIONS[type];
   if (!def) return { w: 1, h: 1 };
 

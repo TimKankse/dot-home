@@ -44,7 +44,8 @@ export const Sparkline: React.FC<SparklineProps> = ({
     const defaultFormatX = (value: number) => {
         const locale = typeof navigator !== 'undefined' ? navigator.language : 'en-GB';
         const is24Hour = settings?.display?.is24Hour ?? true;
-        const configuredTimezone = settings?.display?.timezone || undefined;
+        const timezonePreference = settings?.display?.timezone || undefined;
+        const configuredTimezone = timezonePreference === 'auto' ? undefined : timezonePreference;
 
         const timeString = new Date(value).toLocaleTimeString(locale, {
             hour: '2-digit',
