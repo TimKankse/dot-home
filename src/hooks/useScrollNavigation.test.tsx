@@ -123,6 +123,56 @@ describe('useScrollNavigation', () => {
     });
   });
 
+  it('keeps retrying the initial default-page scroll until the viewport has a real size', () => {
+    const viewportWidths = [0, 0, 1000];
+
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+      if (this.dataset.testid === 'viewport') {
+        const width = viewportWidths.length > 1 ? viewportWidths.shift() ?? 0 : viewportWidths[0];
+
+        return {
+          ...viewportRect,
+          right: width,
+          width,
+        } as DOMRect;
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+
+    render(
+      <ScrollNavigationHarness
+        currentPageIndex={2}
+        pagesLength={4}
+        setPageIndex={vi.fn()}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+      />
+    );
+
+    expect(scrollToMock).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(scrollToMock).toHaveBeenCalledWith({
+      top: 0,
+      left: 2000,
+      behavior: 'auto',
+    });
+  });
+
   it('uses smooth scrolling for later programmatic page changes', () => {
     const { rerender } = render(
       <ScrollNavigationHarness

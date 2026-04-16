@@ -211,6 +211,7 @@ export default function Home() {
   const [isLayoutControlsOpen, setIsLayoutControlsOpen] = useState(false);
   const [layoutTargetBreakpoint, setLayoutTargetBreakpoint] = useState<BreakpointKey>('desktop');
   const [requestedRenderedPageIndex, setRequestedRenderedPageIndex] = useState(0);
+  const [pendingRenderedBasePageIndex, setPendingRenderedBasePageIndex] = useState<number | null>(null);
   const dashboardViewportRef = useRef<HTMLDivElement>(null);
   const pagesWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -327,13 +328,21 @@ export default function Home() {
       return 0;
     }
 
+    const clampedRequestedIndex = Math.max(0, Math.min(requestedRenderedPageIndex, renderedPages.length - 1));
+
     if (renderedBreakpoint === 'desktop') {
-      return Math.min(currentPageIndex, renderedPages.length - 1);
+      return clampedRequestedIndex;
     }
 
-    const activeRenderedPage = renderedPages[requestedRenderedPageIndex];
-    if (activeRenderedPage?.basePageIndex === currentPageIndex) {
-      return requestedRenderedPageIndex;
+    const activeRenderedPage = renderedPages[clampedRequestedIndex];
+    if (
+      activeRenderedPage &&
+      (
+        activeRenderedPage.basePageIndex === currentPageIndex ||
+        activeRenderedPage.basePageIndex === pendingRenderedBasePageIndex
+      )
+    ) {
+      return clampedRequestedIndex;
     }
 
     const nextIndex = renderedPages.findIndex((page) => page.basePageIndex === currentPageIndex);
@@ -341,8 +350,8 @@ export default function Home() {
       return nextIndex;
     }
 
-    return Math.min(requestedRenderedPageIndex, renderedPages.length - 1);
-  }, [currentPageIndex, renderedBreakpoint, renderedPages, requestedRenderedPageIndex]);
+    return clampedRequestedIndex;
+  }, [currentPageIndex, pendingRenderedBasePageIndex, renderedBreakpoint, renderedPages, requestedRenderedPageIndex]);
 
   const setActiveRenderedPage = useCallback((index: number) => {
     if (renderedPages.length === 0) return;
@@ -351,11 +360,60 @@ export default function Home() {
     const nextRenderedPage = renderedPages[clampedIndex];
 
     setRequestedRenderedPageIndex(clampedIndex);
+    setPendingRenderedBasePageIndex(nextRenderedPage?.basePageIndex ?? null);
 
     if (nextRenderedPage && nextRenderedPage.basePageIndex !== currentPageIndex) {
       setPageIndex(nextRenderedPage.basePageIndex);
     }
   }, [currentPageIndex, renderedPages, setPageIndex]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const scheduleStateSync = (callback: () => void) => {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          callback();
+        }
+      });
+    };
+
+    if (renderedPages.length === 0) {
+      if (pendingRenderedBasePageIndex !== null) {
+        scheduleStateSync(() => setPendingRenderedBasePageIndex(null));
+      }
+      if (requestedRenderedPageIndex !== 0) {
+        scheduleStateSync(() => setRequestedRenderedPageIndex(0));
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (pendingRenderedBasePageIndex === currentPageIndex) {
+      scheduleStateSync(() => setPendingRenderedBasePageIndex(null));
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (pendingRenderedBasePageIndex !== null) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const nextRenderedIndex = renderedBreakpoint === 'desktop'
+      ? Math.max(0, Math.min(currentPageIndex, renderedPages.length - 1))
+      : renderedPages.findIndex((page) => page.basePageIndex === currentPageIndex);
+
+    if (nextRenderedIndex >= 0 && nextRenderedIndex !== requestedRenderedPageIndex) {
+      scheduleStateSync(() => setRequestedRenderedPageIndex(nextRenderedIndex));
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPageIndex, pendingRenderedBasePageIndex, renderedBreakpoint, renderedPages, requestedRenderedPageIndex]);
 
   const currentRenderedPage = renderedPages[renderedPageIndex] ?? renderedPages[0];
   const currentPageId = currentRenderedPage?.basePageId ?? pages[currentPageIndex]?.id;

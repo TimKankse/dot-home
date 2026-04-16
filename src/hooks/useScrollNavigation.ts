@@ -13,6 +13,9 @@ interface UseScrollNavigationProps {
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 
 export const SCROLL_SNAP_SETTLE_MS = 120;
+const AUTO_SCROLL_SYNC_RETRY_MS = 32;
+const MAX_AUTO_SCROLL_SYNC_RETRIES = 8;
+const SCROLL_POSITION_TOLERANCE_PX = 1;
 
 export const useScrollNavigation = ({
   currentPageIndex,
@@ -21,6 +24,7 @@ export const useScrollNavigation = ({
   isModalOpen,
   effectiveScrollDirection,
   viewportRef,
+  wrapperRef,
 }: UseScrollNavigationProps) => {
   const currentPageIndexRef = useRef(currentPageIndex);
   const pagesLengthRef = useRef(pagesLength);
@@ -30,6 +34,7 @@ export const useScrollNavigation = ({
   const hasSyncedInitialPageRef = useRef(false);
   const lastLayoutKeyRef = useRef(`${effectiveScrollDirection}:${pagesLength}`);
   const scrollSettleTimeoutRef = useRef<TimeoutHandle | null>(null);
+  const scrollSyncRetryTimeoutRef = useRef<TimeoutHandle | null>(null);
   const suppressScrollSyncRef = useRef(false);
   const skipNextScrollToIndexRef = useRef<number | null>(null);
 
@@ -40,6 +45,25 @@ export const useScrollNavigation = ({
 
     clearTimeout(scrollSettleTimeoutRef.current);
     scrollSettleTimeoutRef.current = null;
+  };
+
+  const clearScrollSyncRetryTimeout = () => {
+    if (!scrollSyncRetryTimeoutRef.current) {
+      return;
+    }
+
+    clearTimeout(scrollSyncRetryTimeoutRef.current);
+    scrollSyncRetryTimeoutRef.current = null;
+  };
+
+  const getScrollPositionPx = () => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return null;
+    }
+
+    return scrollDirectionRef.current === 'vertical' ? viewport.scrollTop : viewport.scrollLeft;
   };
 
   const getPageSizePx = () => {
@@ -53,20 +77,81 @@ export const useScrollNavigation = ({
     return scrollDirectionRef.current === 'vertical' ? rect.height : rect.width;
   };
 
+  const getPageTargetPositionPx = (pageIndex: number) => {
+    const clampedIndex = Math.max(0, Math.min(pageIndex, pagesLengthRef.current - 1));
+    const pageElement = wrapperRef.current?.children.item(clampedIndex) as HTMLElement | null;
+
+    if (pageElement) {
+      const pageSizePx =
+        scrollDirectionRef.current === 'vertical' ? pageElement.offsetHeight : pageElement.offsetWidth;
+      const pageOffsetPx =
+        scrollDirectionRef.current === 'vertical' ? pageElement.offsetTop : pageElement.offsetLeft;
+
+      if (pageSizePx > 0) {
+        if (clampedIndex === 0 || pageOffsetPx > 0) {
+          return pageOffsetPx;
+        }
+
+        return clampedIndex * pageSizePx;
+      }
+    }
+
+    const pageSizePx = getPageSizePx();
+    if (pageSizePx <= 0) {
+      return null;
+    }
+
+    return clampedIndex * pageSizePx;
+  };
+
   const scrollViewportToPage = (pageIndex: number, behavior: ScrollBehavior) => {
     const viewport = viewportRef.current;
-    const pageSizePx = getPageSizePx();
+    const targetPositionPx = getPageTargetPositionPx(pageIndex);
 
-    if (!viewport || pageSizePx <= 0) {
+    if (!viewport || targetPositionPx === null) {
+      return null;
+    }
+
+    viewport.scrollTo({
+      top: scrollDirectionRef.current === 'vertical' ? targetPositionPx : 0,
+      left: scrollDirectionRef.current === 'horizontal' ? targetPositionPx : 0,
+      behavior,
+    });
+
+    return targetPositionPx;
+  };
+
+  const syncViewportToPage = (pageIndex: number, attempt = 0) => {
+    const targetPositionPx = scrollViewportToPage(pageIndex, 'auto');
+
+    if (targetPositionPx === null) {
+      if (attempt >= MAX_AUTO_SCROLL_SYNC_RETRIES) {
+        return;
+      }
+
+      scrollSyncRetryTimeoutRef.current = setTimeout(() => {
+        scrollSyncRetryTimeoutRef.current = null;
+        syncViewportToPage(currentPageIndexRef.current, attempt + 1);
+      }, AUTO_SCROLL_SYNC_RETRY_MS);
       return;
     }
 
-    const clampedIndex = Math.max(0, Math.min(pageIndex, pagesLengthRef.current - 1));
-    viewport.scrollTo({
-      top: scrollDirectionRef.current === 'vertical' ? clampedIndex * pageSizePx : 0,
-      left: scrollDirectionRef.current === 'horizontal' ? clampedIndex * pageSizePx : 0,
-      behavior,
-    });
+    const currentPositionPx = getScrollPositionPx();
+    if (
+      currentPositionPx !== null &&
+      Math.abs(currentPositionPx - targetPositionPx) <= SCROLL_POSITION_TOLERANCE_PX
+    ) {
+      return;
+    }
+
+    if (attempt >= MAX_AUTO_SCROLL_SYNC_RETRIES) {
+      return;
+    }
+
+    scrollSyncRetryTimeoutRef.current = setTimeout(() => {
+      scrollSyncRetryTimeoutRef.current = null;
+      syncViewportToPage(currentPageIndexRef.current, attempt + 1);
+    }, AUTO_SCROLL_SYNC_RETRY_MS);
   };
 
   useLayoutEffect(() => {
@@ -96,9 +181,19 @@ export const useScrollNavigation = ({
         : 'auto';
 
     suppressScrollSyncRef.current = behavior === 'smooth';
-    scrollViewportToPage(currentPageIndex, behavior);
+    clearScrollSyncRetryTimeout();
+
+    if (behavior === 'smooth') {
+      scrollViewportToPage(currentPageIndex, behavior);
+    } else {
+      syncViewportToPage(currentPageIndex);
+    }
+
     hasSyncedInitialPageRef.current = true;
     lastLayoutKeyRef.current = layoutKey;
+    return () => {
+      clearScrollSyncRetryTimeout();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPageIndex, effectiveScrollDirection, pagesLength]);
 
@@ -161,6 +256,7 @@ export const useScrollNavigation = ({
 
     return () => {
       clearScrollSettleTimeout();
+      clearScrollSyncRetryTimeout();
       viewport.removeEventListener('scroll', handleScroll);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

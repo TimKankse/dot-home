@@ -35,6 +35,7 @@
   margin: 0 auto;
   position: relative;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   scrollbar-width: none;
@@ -83,7 +84,6 @@
 /* Horizontal layout (desktop default) */
 .pagesWrapper[data-scroll="horizontal"] {
   flex-direction: row;
-  touch-action: pan-y;
   width: calc(var(--total-pages) * var(--dashboard-shell-width, 100%));
   height: var(--dashboard-shell-height, 100dvh);
 }
@@ -91,7 +91,6 @@
 /* Vertical layout (mobile/portrait/preference) */
 .pagesWrapper[data-scroll="vertical"] {
   flex-direction: column;
-  touch-action: pan-x;
   width: var(--dashboard-shell-width, 100%);
   height: calc(var(--total-pages) * var(--dashboard-shell-height, 100dvh));
 }
@@ -99,13 +98,22 @@
 /* Individual page container */
 .pageContainer {
   position: relative;
-  flex: 0 0 auto;
-  width: var(--dashboard-shell-width, 100%);
-  height: var(--dashboard-shell-height, 100dvh);
   scroll-snap-align: start;
   scroll-snap-stop: always;
   overflow-x: hidden;
   overflow-y: hidden;
+}
+
+.pagesWrapper[data-scroll="horizontal"] > .pageContainer {
+  flex: 0 0 calc(100% / var(--total-pages));
+  width: calc(100% / var(--total-pages));
+  height: 100%;
+}
+
+.pagesWrapper[data-scroll="vertical"] > .pageContainer {
+  flex: 0 0 calc(100% / var(--total-pages));
+  width: 100%;
+  height: calc(100% / var(--total-pages));
 }
 
 /* Allow scrolling on mobile/tablet screens */
