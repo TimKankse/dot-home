@@ -5,6 +5,7 @@ import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
 import { CustomDragGhost } from "@/components/core/CustomDragGhost";
+import { TouchHoldGridItemContent } from "@/components/core/TouchHoldGridItemContent";
 import { UIControls } from "@/components/ui/UIControls";
 import { LayoutTargetControls } from "@/components/ui/LayoutTargetControls";
 import { ItemEditorDialog } from "@/components/item-editor/ItemEditorDialog";
@@ -143,7 +144,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
               data-widget-type={widget.type}
               data-widget-id={widget.id}
             >
-              <div className="grid-stack-item-content">
+              <TouchHoldGridItemContent isEditing={allowGridEditing}>
                 <WidgetRenderer
                   widget={widget}
                   isEditing={allowGridEditing}
@@ -151,7 +152,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
                   onEdit={handleEditWidget}
                   showWidgetNames={showWidgetNames}
                 />
-              </div>
+              </TouchHoldGridItemContent>
             </div>
           );
         })}
@@ -331,7 +332,7 @@ export default function Home() {
     const clampedRequestedIndex = Math.max(0, Math.min(requestedRenderedPageIndex, renderedPages.length - 1));
 
     if (renderedBreakpoint === 'desktop') {
-      return clampedRequestedIndex;
+      return Math.max(0, Math.min(currentPageIndex, renderedPages.length - 1));
     }
 
     const activeRenderedPage = renderedPages[clampedRequestedIndex];

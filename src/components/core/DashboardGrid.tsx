@@ -94,6 +94,13 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
   );
 };
 
+const GRID_TOUCH_DRAG_CANCEL_SELECTOR = [
+  '.nodrag',
+  '[data-shortcut-id]',
+  '[data-shortcut-dropzone]',
+  '[role="dialog"]',
+].join(', ');
+
 export const DashboardGrid: React.FC<DashboardGridProps> = (props) => {
   const breakpoint = props.breakpoint || 'desktop';
   const { maxCols, maxRows } = getGridDimensions(breakpoint);
@@ -105,6 +112,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = (props) => {
     margin: `${props.gap}px`,
     disableResize: !props.isEditing,
     disableDrag: !props.isEditing,
+    draggable: {
+      cancel: GRID_TOUCH_DRAG_CANCEL_SELECTOR,
+    },
     float: true, 
     animate: true,
     disableOneColumnMode: true,

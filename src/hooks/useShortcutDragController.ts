@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
-import { useWidgetStore } from '@/store/useWidgetStore';
 import { useShortcutDragStore } from '@/store/useShortcutDragStore';
+import { finishActiveShortcutDrag } from '@/utils/shortcutDragSession';
 
 export function useShortcutDragController(enabled: boolean) {
   const activeShortcutId = useShortcutDragStore(state => state.activeDrag?.shortcutId);
-  const moveShortcut = useWidgetStore(state => state.moveShortcut);
 
   useEffect(() => {
     if (!enabled || !activeShortcutId) return;
@@ -25,45 +24,17 @@ export function useShortcutDragController(enabled: boolean) {
       });
     };
 
-    const finishDrag = (shouldCommit: boolean) => {
-      const dragStore = useShortcutDragStore.getState();
-      const activeDrag = dragStore.activeDrag;
-      if (!activeDrag) return;
-
-      if (shouldCommit && activeDrag.target) {
-        if (activeDrag.target.kind === 'section') {
-          moveShortcut(activeDrag.shortcutId, {
-            container: {
-              type: 'section',
-              sectionId: activeDrag.target.sectionId,
-            },
-            index: activeDrag.target.index,
-          });
-        } else {
-          moveShortcut(activeDrag.shortcutId, {
-            container: {
-              type: 'dashboard',
-              pageId: activeDrag.target.pageId,
-            },
-            grid: activeDrag.target.grid,
-          });
-        }
-      }
-
-      dragStore.endDrag();
-    };
-
     const handlePointerUp = () => {
-      finishDrag(true);
+      finishActiveShortcutDrag(true);
     };
 
     const handlePointerCancel = () => {
-      finishDrag(false);
+      finishActiveShortcutDrag(false);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        finishDrag(false);
+        finishActiveShortcutDrag(false);
       }
     };
 
@@ -80,5 +51,5 @@ export function useShortcutDragController(enabled: boolean) {
       window.removeEventListener('pointercancel', handlePointerCancel, true);
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [activeShortcutId, enabled, moveShortcut]);
+  }, [activeShortcutId, enabled]);
 }

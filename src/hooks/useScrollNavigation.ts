@@ -260,5 +260,5 @@ export const useScrollNavigation = ({
       viewport.removeEventListener('scroll', handleScroll);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [effectiveScrollDirection, pagesLength, viewportRef]);
 };

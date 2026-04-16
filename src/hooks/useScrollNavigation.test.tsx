@@ -10,6 +10,7 @@ interface HarnessProps {
   setPageIndex: (index: number) => void;
   isModalOpen: boolean;
   effectiveScrollDirection: 'vertical' | 'horizontal';
+  showViewport?: boolean;
 }
 
 const ScrollNavigationHarness = (props: HarnessProps) => {
@@ -21,6 +22,10 @@ const ScrollNavigationHarness = (props: HarnessProps) => {
     viewportRef,
     wrapperRef,
   });
+
+  if (props.showViewport === false) {
+    return null;
+  }
 
   return (
     <div data-testid="viewport" ref={viewportRef}>
@@ -121,6 +126,40 @@ describe('useScrollNavigation', () => {
       left: 2000,
       behavior: 'auto',
     });
+  });
+
+  it('attaches scroll syncing when the viewport appears after the hook mounts', () => {
+    const setPageIndex = vi.fn();
+    const { rerender } = render(
+      <ScrollNavigationHarness
+        currentPageIndex={0}
+        pagesLength={0}
+        setPageIndex={setPageIndex}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+        showViewport={false}
+      />
+    );
+
+    rerender(
+      <ScrollNavigationHarness
+        currentPageIndex={0}
+        pagesLength={4}
+        setPageIndex={setPageIndex}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+        showViewport
+      />
+    );
+
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollLeft = 1200;
+
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(setPageIndex).toHaveBeenCalledWith(1);
   });
 
   it('keeps retrying the initial default-page scroll until the viewport has a real size', () => {
