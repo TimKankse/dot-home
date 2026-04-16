@@ -34,6 +34,10 @@
   height: var(--dashboard-shell-height, 100dvh);
   margin: 0 auto;
   position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
   transition:
     width 0.2s ease,
     height 0.2s ease,
@@ -41,10 +45,25 @@
     box-shadow 0.2s ease;
 }
 
+.dashboardViewport::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboardViewport[data-scroll="horizontal"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+}
+
+.dashboardViewport[data-scroll="vertical"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+}
+
 .previewViewport {
   margin: 40px auto;
   border-radius: 36px;
-  overflow: hidden;
   border: 1px solid var(--border-dim);
   background: linear-gradient(
     180deg,
@@ -59,34 +78,32 @@
 /* Wrapper for the sliding pages */
 .pagesWrapper {
   display: flex;
-  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 /* Horizontal layout (desktop default) */
 .pagesWrapper[data-scroll="horizontal"] {
   flex-direction: row;
+  touch-action: pan-y;
   width: calc(var(--total-pages) * var(--dashboard-shell-width, 100%));
   height: var(--dashboard-shell-height, 100dvh);
-  transform: translateX(
-    calc(var(--current-page-index) * -100% / var(--total-pages))
-  );
 }
 
 /* Vertical layout (mobile/portrait/preference) */
 .pagesWrapper[data-scroll="vertical"] {
   flex-direction: column;
+  touch-action: pan-x;
   width: var(--dashboard-shell-width, 100%);
   height: calc(var(--total-pages) * var(--dashboard-shell-height, 100dvh));
-  transform: translateY(
-    calc(var(--current-page-index) * -100% / var(--total-pages))
-  );
 }
 
 /* Individual page container */
 .pageContainer {
   position: relative;
+  flex: 0 0 auto;
   width: var(--dashboard-shell-width, 100%);
   height: var(--dashboard-shell-height, 100dvh);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   overflow-x: hidden;
   overflow-y: hidden;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
 import { DashboardGrid } from "@/components/core/DashboardGrid";
@@ -211,6 +211,8 @@ export default function Home() {
   const [isLayoutControlsOpen, setIsLayoutControlsOpen] = useState(false);
   const [layoutTargetBreakpoint, setLayoutTargetBreakpoint] = useState<BreakpointKey>('desktop');
   const [requestedRenderedPageIndex, setRequestedRenderedPageIndex] = useState(0);
+  const dashboardViewportRef = useRef<HTMLDivElement>(null);
+  const pagesWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadGridSettings = () => {
@@ -408,6 +410,8 @@ export default function Home() {
     setPageIndex: setActiveRenderedPage,
     isModalOpen: isAddModalOpen || isSettingsOpen,
     effectiveScrollDirection,
+    viewportRef: dashboardViewportRef,
+    wrapperRef: pagesWrapperRef,
   });
 
   const handleToggleEdit = () => {
@@ -550,12 +554,16 @@ export default function Home() {
         onRenderedPageChange={setActiveRenderedPage}
       />
 
-      <div className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}>
+      <div
+        ref={dashboardViewportRef}
+        className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}
+        data-scroll={effectiveScrollDirection}
+      >
         <div
+          ref={pagesWrapperRef}
           className={styles.pagesWrapper}
           data-scroll={effectiveScrollDirection}
           style={{
-            ['--current-page-index' as string]: renderedPageIndex,
             ['--total-pages' as string]: renderedPages.length,
           } as React.CSSProperties}
         >

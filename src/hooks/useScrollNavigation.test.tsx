@@ -1,6 +1,8 @@
-import { act, render } from '@testing-library/react';
+import type React from 'react';
+import { act, render, screen } from '@testing-library/react';
+import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PAGE_NAVIGATION_LOCK_MS, useScrollNavigation } from './useScrollNavigation';
+import { SCROLL_SNAP_SETTLE_MS, useScrollNavigation } from './useScrollNavigation';
 
 interface HarnessProps {
   currentPageIndex: number;
@@ -11,84 +13,197 @@ interface HarnessProps {
 }
 
 const ScrollNavigationHarness = (props: HarnessProps) => {
-  useScrollNavigation(props);
-  return <div data-testid="scroll-navigation-harness" />;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useScrollNavigation({
+    ...props,
+    viewportRef,
+    wrapperRef,
+  });
+
+  return (
+    <div data-testid="viewport" ref={viewportRef}>
+      <div
+        data-testid="wrapper"
+        ref={wrapperRef}
+        style={{
+          ['--total-pages' as string]: props.pagesLength,
+        } as React.CSSProperties}
+      >
+        {Array.from({ length: props.pagesLength }, (_, index) => (
+          <div key={index} data-testid={`page-${index}`} />
+        ))}
+      </div>
+    </div>
+  );
 };
 
-const dispatchWheel = (target: HTMLElement, deltaY: number) => {
-  act(() => {
-    target.dispatchEvent(new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      deltaY,
-    }));
-  });
+const viewportRect = {
+  x: 0,
+  y: 0,
+  top: 0,
+  left: 0,
+  right: 1000,
+  bottom: 800,
+  width: 1000,
+  height: 800,
+  toJSON: () => ({}),
 };
 
 describe('useScrollNavigation', () => {
+  let scrollToMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.useFakeTimers({
-      toFake: ['Date', 'setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+      toFake: ['setTimeout', 'clearTimeout'],
     });
-    document.body.style.overflow = '';
+
+    scrollToMock = vi.fn(function scrollTo(
+      this: HTMLElement,
+      options?: ScrollToOptions | number,
+      maybeTop?: number,
+    ) {
+      if (typeof options === 'number') {
+        this.scrollLeft = options;
+        this.scrollTop = maybeTop ?? 0;
+        return;
+      }
+
+      this.scrollLeft = options?.left ?? this.scrollLeft;
+      this.scrollTop = options?.top ?? this.scrollTop;
+    });
+
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollToMock,
+    });
+
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function(this: HTMLElement) {
+      if (this.dataset.testid === 'viewport') {
+        return viewportRect as DOMRect;
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
     document.body.innerHTML = '';
   });
 
-  it('locks wheel navigation to one page change per transition', () => {
-    const setPageIndex = vi.fn();
-    const wheelTarget = document.createElement('div');
-    document.body.appendChild(wheelTarget);
+  it('scrolls to the default page immediately on first render', () => {
+    render(
+      <ScrollNavigationHarness
+        currentPageIndex={2}
+        pagesLength={4}
+        setPageIndex={vi.fn()}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+      />
+    );
 
+    expect(scrollToMock).toHaveBeenCalledWith({
+      top: 0,
+      left: 2000,
+      behavior: 'auto',
+    });
+  });
+
+  it('uses smooth scrolling for later programmatic page changes', () => {
     const { rerender } = render(
       <ScrollNavigationHarness
         currentPageIndex={0}
         pagesLength={4}
-        setPageIndex={setPageIndex}
+        setPageIndex={vi.fn()}
         isModalOpen={false}
-        effectiveScrollDirection="vertical"
+        effectiveScrollDirection="horizontal"
       />
     );
 
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(1);
-    expect(setPageIndex).toHaveBeenLastCalledWith(1);
+    scrollToMock.mockClear();
 
     rerender(
       <ScrollNavigationHarness
         currentPageIndex={1}
         pagesLength={4}
-        setPageIndex={setPageIndex}
+        setPageIndex={vi.fn()}
         isModalOpen={false}
-        effectiveScrollDirection="vertical"
+        effectiveScrollDirection="horizontal"
       />
     );
 
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      vi.advanceTimersByTime(PAGE_NAVIGATION_LOCK_MS + 32);
+    expect(scrollToMock).toHaveBeenCalledWith({
+      top: 0,
+      left: 1000,
+      behavior: 'smooth',
     });
-
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(2);
-    expect(setPageIndex).toHaveBeenLastCalledWith(2);
   });
 
-  it('keeps the lock alive while trackpad inertia is still sending wheel events', () => {
+  it('tracks the snapped page after horizontal scrolling settles', () => {
     const setPageIndex = vi.fn();
-    const wheelTarget = document.createElement('div');
-    document.body.appendChild(wheelTarget);
 
-    const { rerender } = render(
+    render(
+      <ScrollNavigationHarness
+        currentPageIndex={0}
+        pagesLength={4}
+        setPageIndex={setPageIndex}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+      />
+    );
+
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollLeft = 1900;
+
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
+    });
+
+    expect(setPageIndex).toHaveBeenCalledWith(2);
+  });
+
+  it('updates the active page immediately while manually scrolling', () => {
+    const setPageIndex = vi.fn();
+
+    render(
+      <ScrollNavigationHarness
+        currentPageIndex={0}
+        pagesLength={4}
+        setPageIndex={setPageIndex}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+      />
+    );
+
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollLeft = 1200;
+
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(setPageIndex).toHaveBeenCalledWith(1);
+  });
+
+  it('tracks the snapped page after vertical scrolling settles', () => {
+    const setPageIndex = vi.fn();
+
+    render(
       <ScrollNavigationHarness
         currentPageIndex={0}
         pagesLength={4}
@@ -98,110 +213,75 @@ describe('useScrollNavigation', () => {
       />
     );
 
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(1);
-    expect(setPageIndex).toHaveBeenLastCalledWith(1);
-
-    rerender(
-      <ScrollNavigationHarness
-        currentPageIndex={1}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="vertical"
-      />
-    );
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollTop = 1700;
 
     act(() => {
-      vi.advanceTimersByTime(PAGE_NAVIGATION_LOCK_MS - 10);
+      viewport.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
     });
 
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      vi.advanceTimersByTime(20);
-    });
-
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      vi.advanceTimersByTime(32);
-    });
-
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).toHaveBeenCalledTimes(2);
-    expect(setPageIndex).toHaveBeenLastCalledWith(2);
+    expect(setPageIndex).toHaveBeenCalledWith(2);
   });
 
-  it('does not navigate before the first page or past the last page', () => {
+  it('ignores scroll-settle navigation while a modal is open', () => {
     const setPageIndex = vi.fn();
-    const wheelTarget = document.createElement('div');
-    document.body.appendChild(wheelTarget);
 
-    const { rerender } = render(
+    render(
       <ScrollNavigationHarness
         currentPageIndex={0}
-        pagesLength={3}
+        pagesLength={4}
         setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="vertical"
+        isModalOpen={true}
+        effectiveScrollDirection="horizontal"
       />
     );
 
-    dispatchWheel(wheelTarget, -120);
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollLeft = 1000;
+
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
+    });
 
     expect(setPageIndex).not.toHaveBeenCalled();
+  });
+
+  it('does not feed scroll updates back through programmatic smooth scrolling', () => {
+    const setPageIndex = vi.fn();
+    const { rerender } = render(
+      <ScrollNavigationHarness
+        currentPageIndex={0}
+        pagesLength={4}
+        setPageIndex={setPageIndex}
+        isModalOpen={false}
+        effectiveScrollDirection="horizontal"
+      />
+    );
 
     rerender(
       <ScrollNavigationHarness
         currentPageIndex={2}
-        pagesLength={3}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="vertical"
-      />
-    );
-
-    dispatchWheel(wheelTarget, 120);
-
-    expect(setPageIndex).not.toHaveBeenCalled();
-  });
-
-  it('keeps nested vertical scrollers working', () => {
-    const setPageIndex = vi.fn();
-    const scrollContainer = document.createElement('div');
-    const scrollChild = document.createElement('div');
-
-    scrollContainer.style.overflowY = 'auto';
-    Object.defineProperty(scrollContainer, 'scrollHeight', {
-      configurable: true,
-      value: 400,
-    });
-    Object.defineProperty(scrollContainer, 'clientHeight', {
-      configurable: true,
-      value: 100,
-    });
-
-    scrollContainer.appendChild(scrollChild);
-    document.body.appendChild(scrollContainer);
-
-    render(
-      <ScrollNavigationHarness
-        currentPageIndex={1}
         pagesLength={4}
         setPageIndex={setPageIndex}
         isModalOpen={false}
-        effectiveScrollDirection="vertical"
+        effectiveScrollDirection="horizontal"
       />
     );
 
-    dispatchWheel(scrollChild, 120);
+    const viewport = screen.getByTestId('viewport');
+    viewport.scrollLeft = 1500;
+
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(setPageIndex).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
+    });
 
     expect(setPageIndex).not.toHaveBeenCalled();
   });
