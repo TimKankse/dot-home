@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { TouchHoldFeedback } from '@/components/core/TouchHoldFeedback';
 import {
   createTouchHoldDragController,
   type TouchDragPoint,
@@ -14,6 +15,13 @@ import {
 interface TouchHoldGridItemContentProps {
   children: React.ReactNode;
   isEditing?: boolean;
+}
+
+interface TouchHoldFeedbackState {
+  origin: TouchDragPoint | null;
+  phase: 'idle' | 'pending' | 'armed';
+  holdSequence: number;
+  readySequence: number;
 }
 
 const TOUCH_DRAG_IGNORE_SELECTOR = [
@@ -58,13 +66,31 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
   isEditing = false,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const [feedback, setFeedback] = useState<TouchHoldFeedbackState>({
+    origin: null,
+    phase: 'idle',
+    holdSequence: 0,
+    readySequence: 0,
+  });
 
   useEffect(() => {
     const content = contentRef.current;
     if (!content || !isEditing) return;
 
     const touchHold = createTouchHoldDragController({
+      onArm: () => {
+        setFeedback((current) => current.origin ? {
+          ...current,
+          phase: 'armed',
+          readySequence: current.readySequence + 1,
+        } : current);
+      },
       onDragStart: (startPoint, point) => {
+        setFeedback((current) => current.phase === 'idle' ? current : {
+          ...current,
+          phase: 'idle',
+          origin: null,
+        });
         dispatchSyntheticMouseDown(content, startPoint);
         dispatchSyntheticMouseMove(point);
       },
@@ -85,6 +111,16 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
       if (!touch) return;
 
       activeTouchId = touch.identifier;
+      const rect = content.getBoundingClientRect();
+      setFeedback((current) => ({
+        origin: {
+          x: touch.clientX - rect.left,
+          y: touch.clientY - rect.top,
+        },
+        phase: 'pending',
+        holdSequence: current.holdSequence + 1,
+        readySequence: current.readySequence,
+      }));
       touchHold.start({
         x: touch.clientX,
         y: touch.clientY,
@@ -108,6 +144,11 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
 
       if (moveState === 'canceled') {
         activeTouchId = null;
+        setFeedback((current) => current.phase === 'idle' ? current : {
+          ...current,
+          phase: 'idle',
+          origin: null,
+        });
       }
     };
 
@@ -127,6 +168,11 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
       }
 
       activeTouchId = null;
+      setFeedback((current) => current.phase === 'idle' ? current : {
+        ...current,
+        phase: 'idle',
+        origin: null,
+      });
     };
 
     const handleTouchCancel = (event: TouchEvent) => {
@@ -151,6 +197,11 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
     return () => {
       touchHold.cancel();
       activeTouchId = null;
+      setFeedback((current) => current.phase === 'idle' ? current : {
+        ...current,
+        phase: 'idle',
+        origin: null,
+      });
       content.removeEventListener('touchstart', handleTouchStart, true);
       content.removeEventListener('touchmove', handleTouchMove, true);
       content.removeEventListener('touchend', finishTouch, true);
@@ -167,6 +218,12 @@ export const TouchHoldGridItemContent: React.FC<TouchHoldGridItemContentProps> =
       style={isEditing ? EDITING_TOUCH_SURFACE_STYLE : undefined}
     >
       {children}
+      <TouchHoldFeedback
+        origin={isEditing ? feedback.origin : null}
+        phase={isEditing ? feedback.phase : 'idle'}
+        holdSequence={feedback.holdSequence}
+        readySequence={feedback.readySequence}
+      />
     </div>
   );
 };

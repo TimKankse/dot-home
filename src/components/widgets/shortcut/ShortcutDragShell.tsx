@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ShortcutContainer } from '@/types';
 import type { Widget } from '@/types/widget';
 import { useShortcutDragStore } from '@/store/useShortcutDragStore';
+import { TouchHoldFeedback } from '@/components/core/TouchHoldFeedback';
 import { finishActiveShortcutDrag } from '@/utils/shortcutDragSession';
 import {
   createTouchHoldDragController,
@@ -18,6 +19,13 @@ interface ShortcutDragShellProps {
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
+}
+
+interface TouchHoldFeedbackState {
+  origin: TouchDragPoint | null;
+  phase: 'idle' | 'pending' | 'armed';
+  holdSequence: number;
+  readySequence: number;
 }
 
 const DRAGGED_STYLE: React.CSSProperties = {
@@ -36,6 +44,7 @@ const TOUCH_DRAG_IGNORE_SELECTOR = [
 ].join(', ');
 
 const EDITING_TOUCH_SURFACE_STYLE: React.CSSProperties = {
+  position: 'relative',
   userSelect: 'none',
   WebkitUserSelect: 'none',
   WebkitTouchCallout: 'none',
@@ -74,6 +83,12 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
 }) => {
   const shellRef = useRef<HTMLDivElement>(null);
   const startDrag = useShortcutDragStore(state => state.startDrag);
+  const [feedback, setFeedback] = useState<TouchHoldFeedbackState>({
+    origin: null,
+    phase: 'idle',
+    holdSequence: 0,
+    readySequence: 0,
+  });
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') return;
@@ -107,7 +122,19 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
     if (!shell || !isEditing) return;
 
     const touchHold = createTouchHoldDragController({
+      onArm: () => {
+        setFeedback((current) => current.origin ? {
+          ...current,
+          phase: 'armed',
+          readySequence: current.readySequence + 1,
+        } : current);
+      },
       onDragStart: (_startPoint, point) => {
+        setFeedback((current) => current.phase === 'idle' ? current : {
+          ...current,
+          phase: 'idle',
+          origin: null,
+        });
         if (useShortcutDragStore.getState().activeDrag) return;
 
         const rect = shell.getBoundingClientRect();
@@ -145,6 +172,16 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
       if (!touch) return;
 
       activeTouchId = touch.identifier;
+      const rect = shell.getBoundingClientRect();
+      setFeedback((current) => ({
+        origin: {
+          x: touch.clientX - rect.left,
+          y: touch.clientY - rect.top,
+        },
+        phase: 'pending',
+        holdSequence: current.holdSequence + 1,
+        readySequence: current.readySequence,
+      }));
       touchHold.start({
         x: touch.clientX,
         y: touch.clientY,
@@ -166,6 +203,11 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
 
       if (moveState === 'canceled') {
         activeTouchId = null;
+        setFeedback((current) => current.phase === 'idle' ? current : {
+          ...current,
+          phase: 'idle',
+          origin: null,
+        });
       }
     };
 
@@ -180,6 +222,11 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
       }
 
       activeTouchId = null;
+      setFeedback((current) => current.phase === 'idle' ? current : {
+        ...current,
+        phase: 'idle',
+        origin: null,
+      });
     };
 
     const handleTouchCancel = (event: TouchEvent) => {
@@ -204,6 +251,11 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
     return () => {
       touchHold.cancel();
       activeTouchId = null;
+      setFeedback((current) => current.phase === 'idle' ? current : {
+        ...current,
+        phase: 'idle',
+        origin: null,
+      });
       shell.removeEventListener('touchstart', handleTouchStart);
       shell.removeEventListener('touchmove', handleTouchMove);
       shell.removeEventListener('touchend', finishTouch);
@@ -227,6 +279,12 @@ export const ShortcutDragShell: React.FC<ShortcutDragShellProps> = ({
       data-dragged={isDragged ? 'true' : 'false'}
     >
       {children}
+      <TouchHoldFeedback
+        origin={isEditing ? feedback.origin : null}
+        phase={isEditing ? feedback.phase : 'idle'}
+        holdSequence={feedback.holdSequence}
+        readySequence={feedback.readySequence}
+      />
     </div>
   );
 };
