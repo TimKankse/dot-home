@@ -23,7 +23,7 @@ export function SabnzbdWidget({ config, integrationId }: SabnzbdWidgetProps) {
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if ((!config?.url || !config?.apiKey) && !integrationId) {
+    if (!integrationId) {
       setLoading(false);
       return;
     }
@@ -56,7 +56,7 @@ export function SabnzbdWidget({ config, integrationId }: SabnzbdWidgetProps) {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  if ((!config?.url || !config?.apiKey) && !integrationId) {
+  if (!integrationId) {
     return (
       <div className={styles.widgetContainer}>
         <div className={styles.emptyState}>

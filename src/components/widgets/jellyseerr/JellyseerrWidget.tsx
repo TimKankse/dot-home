@@ -27,7 +27,7 @@ export default function JellyseerrWidget({ config, integrationId }: JellyseerrWi
     let isMounted = true;
     
     async function loadRequests() {
-      if ((!config?.url || !config?.apiKey) && !integrationId) {
+      if (!integrationId) {
         setLoading(false);
         return;
       }
@@ -57,16 +57,16 @@ export default function JellyseerrWidget({ config, integrationId }: JellyseerrWi
     return () => {
       isMounted = false;
     };
-  }, [config, config?.url, config?.apiKey, integrationId]);
+  }, [config, integrationId]);
 
   const handleManageRequest = async (requestId: number, action: 'approve' | 'decline') => {
-    if (!config?.url || !config?.apiKey) return;
+    if (!integrationId) return;
     
     setRequests(current => current.map(req => 
       req.id === requestId ? { ...req, status: action === 'approve' ? 2 : 3 } : req
     ));
 
-    const success = await manageJellyseerrRequest(requestId, action, config);
+    const success = await manageJellyseerrRequest(requestId, action, integrationId);
     if (!success) {
       console.error('Failed to update request');
     }

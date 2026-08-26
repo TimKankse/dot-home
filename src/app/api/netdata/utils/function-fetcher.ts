@@ -1,3 +1,5 @@
+import { fetchOutbound } from '@/lib/outbound-http';
+
 export interface ProcessInfo {
     pid: number;
     name: string;
@@ -69,10 +71,11 @@ export const fetchFunctionsData = async (
         availableFunctions = cachedFunctionsList.availableFunctions;
     } else {
         try {
-            const functionsRes = await fetch(`${cleanUrl}/api/v1/functions`, {
-                signal: AbortSignal.timeout(2000),
-                cache: 'no-store'
-            });
+            const functionsRes = await fetchOutbound(
+                `${cleanUrl}/api/v1/functions`,
+                { cache: 'no-store' },
+                { policy: 'trusted-integration', timeoutMs: 2000 },
+            );
 
             if (functionsRes.ok) {
                 const functions = await functionsRes.json();
@@ -142,10 +145,11 @@ export const fetchFunctionsData = async (
 // ========================================
 async function fetchProcessesList(cleanUrl: string): Promise<ProcessInfo[]> {
     try {
-        const procRes = await fetch(`${cleanUrl}/api/v1/function?function=processes`, {
-            signal: AbortSignal.timeout(5000),
-            cache: 'no-store'
-        });
+        const procRes = await fetchOutbound(
+            `${cleanUrl}/api/v1/function?function=processes`,
+            { cache: 'no-store' },
+            { policy: 'trusted-integration', timeoutMs: 5000 },
+        );
         
         if (!procRes.ok) return [];
         
@@ -180,10 +184,11 @@ async function fetchProcessesList(cleanUrl: string): Promise<ProcessInfo[]> {
 // ========================================
 async function fetchMountPointsList(cleanUrl: string): Promise<MountPointInfo[]> {
     try {
-        const mountRes = await fetch(`${cleanUrl}/api/v1/function?function=mount-points`, {
-            signal: AbortSignal.timeout(5000),
-            cache: 'no-store'
-        });
+        const mountRes = await fetchOutbound(
+            `${cleanUrl}/api/v1/function?function=mount-points`,
+            { cache: 'no-store' },
+            { policy: 'trusted-integration', timeoutMs: 5000 },
+        );
         
         if (!mountRes.ok) return [];
         

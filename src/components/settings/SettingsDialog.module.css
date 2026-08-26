@@ -76,13 +76,20 @@
 }
 
 .accountInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  min-width: 0;
   padding: 0 8px;
 }
 
+.accountHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .displayName {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-ui);
   font-size: 0.95rem;
   font-weight: 600;
@@ -93,7 +100,7 @@
 }
 
 .roleBadge {
-  align-self: flex-start;
+  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--text-muted);
@@ -525,6 +532,17 @@
   font-family: var(--font-body);
 }
 
+.successBanner {
+  background-color: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #22c55e;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+}
+
 
 
 /* Inline Form Header with Back Button */
@@ -718,6 +736,13 @@
   margin-bottom: 0;
 }
 
+.helperText {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 .controlSm {
   width: 100%;
   max-width: 140px;
@@ -766,6 +791,43 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.userMetaRow {
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.userMetaRow .integrationMetaItem {
+  white-space: nowrap;
+}
+
+.userActions {
+  align-items: center;
+}
+
+.noticeBanner {
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.noticeBannerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.noticeBannerTitle {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
 }
 
 .userSummary {
@@ -852,6 +914,11 @@
     padding: 0;
   }
 
+  .accountHeader {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
   .displayName {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -896,6 +963,10 @@
 
   .shortcutButton {
     width: 100%;
+    justify-content: flex-start;
+  }
+
+  .userActions {
     justify-content: flex-start;
   }
 

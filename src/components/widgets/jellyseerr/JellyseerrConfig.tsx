@@ -21,20 +21,5 @@ export const JellyseerrConfig = buildConfigForm<JellyseerrWidgetConfig>([
         />
       </div>
     )
-  },
-  { 
-    type: 'input', 
-    key: 'url', 
-    label: 'URL', 
-    placeholder: 'http://...',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'apiKey', 
-    label: 'API Key', 
-    inputType: 'password',
-    placeholder: 'API Key',
-    condition: (c) => !c.integrationId
   }
 ]);

@@ -28,24 +28,14 @@ export interface SabnzbdFetchParams {
 }
 
 function buildHeaders(params: SabnzbdFetchParams): Record<string, string> {
-  const { config, integrationId } = params;
-  const headers: Record<string, string> = {
-    'x-sabnzbd-url': config?.url || '',
-  };
-  
-  if (integrationId) {
-    headers['x-integration-id'] = integrationId;
-  } else {
-    headers['x-sabnzbd-apikey'] = config?.apiKey || '';
-  }
-  
-  return headers;
+  return params.integrationId
+    ? { 'x-integration-id': params.integrationId }
+    : {};
 }
 
 export async function fetchSabnzbdQueue(params: SabnzbdFetchParams): Promise<QueueData | null> {
-  const { config, integrationId } = params;
-  
-  if ((!config?.url || !config?.apiKey) && !integrationId) {
+  const { integrationId } = params;
+  if (!integrationId) {
     return null;
   }
 
@@ -60,8 +50,14 @@ export async function fetchSabnzbdQueue(params: SabnzbdFetchParams): Promise<Que
 }
 
 export async function toggleSabnzbdPause(paused: boolean, params: SabnzbdFetchParams): Promise<void> {
-  const mode = paused ? 'resume' : 'pause';
-  await fetch(`/api/sabnzbd?mode=${mode}`, { headers: buildHeaders(params) });
+  if (!params.integrationId) return;
+  const action = paused ? 'resume' : 'pause';
+  const response = await fetch('/api/sabnzbd', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...buildHeaders(params) },
+    body: JSON.stringify({ action }),
+  });
+  if (!response.ok) throw new Error('Failed to update SABnzbd queue');
 }
 
 export function formatSize(mbString: string): string {

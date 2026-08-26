@@ -10,7 +10,7 @@ export type { TwitchChannelData, TwitchFetchParams } from './twitch';
 export { fetchRssFeed, formatTimeAgo } from './rss';
 export type { RssItem, RssData } from './rss';
 
-export { fetchJellyfinData, createJellyfinWebSocket } from './jellyfin';
+export { fetchJellyfinData, fetchJellyfinLibraryCounts } from './jellyfin';
 export type { JellyfinFetchParams, JellyfinData } from './jellyfin';
 
 export { 

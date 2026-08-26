@@ -24,29 +24,6 @@ export const JellyfinConfig = buildConfigForm<JellyfinWidgetConfig>([
       </div>
     )
   },
-  // Connection fields - only shown when NOT using integration
-  { 
-    type: 'input', 
-    key: 'url', 
-    label: 'URL', 
-    placeholder: 'http://...',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'apiKey', 
-    label: 'API Key', 
-    inputType: 'password',
-    placeholder: 'API Key',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'userId', 
-    label: 'User ID (Optional)', 
-    placeholder: 'Jellyfin User ID',
-    condition: (c) => !c.integrationId
-  },
   // Widget-specific config - always shown
   { 
     type: 'toggle', 

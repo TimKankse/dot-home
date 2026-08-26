@@ -1,130 +1,89 @@
 import { NextResponse } from 'next/server';
 
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
+import {
+  buildIntegrationUrl,
+  requireIntegrationConfigString,
+  resolveIntegrationBaseUrl,
+  resolveRequestIntegration,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
 
-async function getCredentials(req: Request) {
-    const integrationId = req.headers.get('x-integration-id');
-    let url = req.headers.get('x-jellyseerr-url');
-    let apiKey = req.headers.get('x-jellyseerr-apikey');
+const REQUEST_ACTIONS = new Set(['approve', 'decline']);
 
-    if (integrationId) {
-        const integration = await prisma.integration.findUnique({
-            where: { id: integrationId }
-        });
-        
-        if (integration) {
-            const config = decryptSensitiveFields(JSON.parse(integration.config));
-            url = (config.externalUrl || config.url) as string;
-            apiKey = config.apiKey as string;
-        }
-    }
-    return { url, apiKey };
-}
+const jellyseerrHeaders = (apiKey: string) => ({
+  'X-Api-Key': apiKey,
+  'Content-Type': 'application/json',
+});
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const path = searchParams.get('path');
-
-  if (!path) {
-    return NextResponse.json({ error: 'Path is required' }, { status: 400 });
-  }
-
-  const { url: jellyseerrUrl, apiKey: jellyseerrApiKey } = await getCredentials(request);
-
-  if (!jellyseerrUrl || !jellyseerrApiKey) {
-    return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
-  }
-
   try {
-    const targetUrl = new URL(`${jellyseerrUrl}/api/v1${path}`);
-    
-    // Fix: Only append parameters that actually exist in the incoming request.
-    // Do not force defaults like 'take' or 'filter' here, because they break 
-    // single-item requests (like /movie/123).
-    searchParams.forEach((value, key) => {
-      if (key !== 'path') {
-        targetUrl.searchParams.append(key, value);
-      }
-    });
+    const integration = await resolveRequestIntegration(request, 'jellyseerr');
+    const baseUrl = await resolveIntegrationBaseUrl(integration);
+    const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+    const targetUrl = buildIntegrationUrl(baseUrl, '/api/v1/request');
+    targetUrl.searchParams.set('take', '25');
+    targetUrl.searchParams.set('filter', 'all');
+    targetUrl.searchParams.set('sort', 'added');
 
-    const response = await fetch(targetUrl.toString(), {
-      headers: {
-        'X-Api-Key': jellyseerrApiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await fetchOutbound(
+      targetUrl,
+      { headers: jellyseerrHeaders(apiKey), cache: 'no-store' },
+      { policy: 'trusted-integration' },
+    );
     if (!response.ok) {
-        // Log the actual error from Jellyseerr for easier debugging
-        console.error(`Jellyseerr Error: ${response.status} at ${targetUrl.toString()}`);
-        return NextResponse.json(
-            { error: response.statusText },
-            { status: response.status }
-        );
+      return NextResponse.json(
+        { error: `Jellyseerr API error (${response.status})` },
+        { status: response.status },
+      );
     }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(await response.json());
   } catch (error) {
-    console.error('Error fetching from Jellyseerr:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch Jellyseerr requests');
   }
 }
 
 export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const path = searchParams.get('path');
-
-  if (!path) {
-    return NextResponse.json({ error: 'Path is required' }, { status: 400 });
-  }
-
-  const { url: jellyseerrUrl, apiKey: jellyseerrApiKey } = await getCredentials(request);
-
-  if (!jellyseerrUrl || !jellyseerrApiKey) {
-    return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
-  }
-
   try {
-    const targetUrl = new URL(`${jellyseerrUrl}/api/v1${path}`);
-    
-    // Append any extra query params
-    searchParams.forEach((value, key) => {
-      if (key !== 'path') {
-        targetUrl.searchParams.append(key, value);
-      }
-    });
+    const integration = await resolveRequestIntegration(request, 'jellyseerr', 'edit');
+    const baseUrl = await resolveIntegrationBaseUrl(integration);
+    const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+    const body = await request.json() as { requestId?: unknown; action?: unknown };
+    const requestId = typeof body.requestId === 'number' ? body.requestId : Number.NaN;
+    const action = typeof body.action === 'string' ? body.action : '';
 
-    // Get body if present
-    let body;
-    try {
-        body = await request.json();
-    } catch {
-        // Body might be empty
+    if (!Number.isSafeInteger(requestId) || requestId <= 0 || !REQUEST_ACTIONS.has(action)) {
+      throw new ApiSecurityError('Invalid request action', 400, 'invalid_request_action');
     }
 
-    const response = await fetch(targetUrl.toString(), {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': jellyseerrApiKey,
-        'Content-Type': 'application/json',
+    const targetUrl = buildIntegrationUrl(
+      baseUrl,
+      `/api/v1/request/${requestId}/${action}`,
+    );
+    const response = await fetchOutbound(
+      targetUrl,
+      {
+        method: 'POST',
+        headers: jellyseerrHeaders(apiKey),
+        cache: 'no-store',
       },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
+      { policy: 'trusted-integration' },
+    );
     if (!response.ok) {
-        console.error(`Jellyseerr Error: ${response.status} at ${targetUrl.toString()}`);
-        return NextResponse.json(
-            { error: response.statusText },
-            { status: response.status }
-        );
+      return NextResponse.json(
+        { error: `Jellyseerr API error (${response.status})` },
+        { status: response.status },
+      );
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    const text = await response.text();
+    return text
+      ? new NextResponse(text, {
+          status: response.status,
+          headers: { 'Content-Type': response.headers.get('content-type') || 'application/json' },
+        })
+      : NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error posting to Jellyseerr:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to manage Jellyseerr request');
   }
 }

@@ -1,78 +1,94 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  const url = request.headers.get('x-portainer-url');
-  const apiKey = request.headers.get('x-portainer-apikey');
-  const endpointId = request.headers.get('x-portainer-endpoint-id') || '1';
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
+import {
+  buildIntegrationUrl,
+  requireIntegrationConfigString,
+  resolveIntegrationBaseUrl,
+  resolveRequestIntegration,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
 
-  if (!url || !apiKey) {
-    return NextResponse.json({ error: 'Missing configuration' }, { status: 400 });
+const CONTAINER_ACTIONS = new Set(['start', 'stop', 'restart']);
+const CONTAINER_ID_PATTERN = /^[a-zA-Z0-9_.-]{1,128}$/;
+const ENDPOINT_ID_PATTERN = /^[1-9]\d{0,9}$/;
+
+const getEndpointId = (request: Request, configured: unknown): string => {
+  const requested = new URL(request.url).searchParams.get('endpointId');
+  const value = requested || (typeof configured === 'string' ? configured : '') || '1';
+  if (!ENDPOINT_ID_PATTERN.test(value)) {
+    throw new ApiSecurityError('Invalid endpoint ID', 400, 'invalid_endpoint_id');
   }
+  return value;
+};
 
+export async function GET(request: Request) {
   try {
-    // Ensure URL doesn't end with slash
-    const baseUrl = url.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/api/endpoints/${endpointId}/docker/containers/json?all=1`;
+    const integration = await resolveRequestIntegration(request, 'portainer');
+    const baseUrl = await resolveIntegrationBaseUrl(integration);
+    const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+    const endpointId = getEndpointId(request, integration.config.endpointId);
+    const apiUrl = buildIntegrationUrl(
+      baseUrl,
+      `/api/endpoints/${endpointId}/docker/containers/json`,
+    );
+    apiUrl.searchParams.set('all', '1');
 
-    const res = await fetch(apiUrl, {
-      headers: {
-        'X-API-Key': apiKey,
-      },
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: `Portainer API error: ${res.statusText}` }, { status: res.status });
+    const response = await fetchOutbound(
+      apiUrl,
+      { headers: { 'X-API-Key': apiKey }, cache: 'no-store' },
+      { policy: 'trusted-integration' },
+    );
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: `Portainer API error (${response.status})` },
+        { status: response.status },
+      );
     }
 
-    const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(await response.json());
   } catch (error) {
-    console.error('Portainer proxy error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch Portainer containers');
   }
 }
 
-export async function POST(request: NextRequest) {
-  const url = request.headers.get('x-portainer-url');
-  const apiKey = request.headers.get('x-portainer-apikey');
-  const endpointId = request.headers.get('x-portainer-endpoint-id') || '1';
-
-  if (!url || !apiKey) {
-    return NextResponse.json({ error: 'Missing configuration' }, { status: 400 });
-  }
-
+export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { id, action } = body;
+    const integration = await resolveRequestIntegration(request, 'portainer', 'edit');
+    const baseUrl = await resolveIntegrationBaseUrl(integration);
+    const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+    const endpointId = getEndpointId(request, integration.config.endpointId);
+    const body = await request.json() as { id?: unknown; action?: unknown };
+    const id = typeof body.id === 'string' ? body.id : '';
+    const action = typeof body.action === 'string' ? body.action : '';
 
-    if (!id || !action) {
-        return NextResponse.json({ error: 'Missing container ID or action' }, { status: 400 });
+    if (!CONTAINER_ID_PATTERN.test(id) || !CONTAINER_ACTIONS.has(action)) {
+      throw new ApiSecurityError('Invalid container action', 400, 'invalid_container_action');
     }
 
-    // Ensure URL doesn't end with slash
-    const baseUrl = url.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/api/endpoints/${endpointId}/docker/containers/${id}/${action}`;
+    const apiUrl = buildIntegrationUrl(
+      baseUrl,
+      `/api/endpoints/${endpointId}/docker/containers/${encodeURIComponent(id)}/${action}`,
+    );
+    const response = await fetchOutbound(
+      apiUrl,
+      { method: 'POST', headers: { 'X-API-Key': apiKey }, cache: 'no-store' },
+      { policy: 'trusted-integration' },
+    );
 
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': apiKey,
-      },
-    });
-
-    if (!res.ok) {
-        // Try to read error message
-        try {
-            const errData = await res.json();
-             return NextResponse.json({ error: errData.message || res.statusText }, { status: res.status });
-        } catch {
-             return NextResponse.json({ error: `Portainer API error: ${res.statusText}` }, { status: res.status });
-        }
+    if (!response.ok) {
+      let message = `Portainer API error (${response.status})`;
+      try {
+        const data = await response.json() as { message?: unknown };
+        if (typeof data.message === 'string') message = data.message;
+      } catch {
+        // Upstream errors are not guaranteed to be JSON.
+      }
+      return NextResponse.json({ error: message }, { status: response.status });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Portainer action error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to perform Portainer action');
   }
 }

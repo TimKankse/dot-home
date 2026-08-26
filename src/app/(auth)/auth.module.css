@@ -302,6 +302,12 @@
   text-decoration-color: rgba(255, 255, 255, 0.6);
 }
 
+.inlineLinkRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
 /* Loading spinner */
 .spinner {
   width: 18px;

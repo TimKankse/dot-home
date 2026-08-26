@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { decryptSensitiveFields, encryptSensitiveFields } from '@/utils/crypto';
+import { encryptSensitiveFields } from '@/utils/crypto';
+import { redactSensitiveFields } from '@/utils/sensitive-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,27 +24,7 @@ export async function GET() {
     // Parse config JSON but DO NOT decrypt sensitive fields for the client
     // We only want to send non-sensitive config like 'url' or 'externalUrl'
     const parsed = integrations.map((i: typeof integrations[number]) => {
-      const config = JSON.parse(i.config); // Still encrypted values
-      
-      // We can iterate and mask or just send raw (encrypted) values.
-      // Better: Explicitly mask known sensitive fields so the UI shows '********'
-      // or simply don't send them if they are not needed by the UI (except for editing?)
-      // For editing, we usually want to show empty or placeholder if it's set.
-      
-      // Let's create a safe version of the config
-      const safeConfig: Record<string, unknown> = { ...config };
-      
-      // List of sensitive keys to remove/mask
-      const sensitiveKeys = ['apiKey', 'password', 'token', 'secret'];
-      
-      Object.keys(safeConfig).forEach(key => {
-        if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
-           // If it exists, replace with placeholder to indicate it's set
-           if (safeConfig[key]) {
-             safeConfig[key] = '********'; 
-           }
-        }
-      });
+      const safeConfig = redactSensitiveFields(JSON.parse(i.config), 'mask');
 
       return {
         id: i.id,
@@ -107,7 +88,7 @@ export async function POST(request: Request) {
       id: integration.id,
       name: integration.name,
       type: integration.type,
-      config: decryptSensitiveFields(JSON.parse(integration.config)),
+      config: redactSensitiveFields(JSON.parse(integration.config), 'mask'),
     });
   } catch (error) {
     console.error('Error creating integration:', error);
@@ -189,7 +170,7 @@ export async function PUT(request: Request) {
       id: updated.id,
       name: updated.name,
       type: updated.type,
-      config: decryptSensitiveFields(JSON.parse(updated.config)),
+      config: redactSensitiveFields(JSON.parse(updated.config), 'mask'),
     });
   } catch (error) {
     console.error('Error updating integration:', error);

@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
+
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
 import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
+import {
+  buildIntegrationUrl,
+  requireIntegrationConfigString,
+  resolveIntegrationBaseUrl,
+  resolveRequestIntegration,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
 
 const CACHE_TTL_HOURS = 24;
+const MAX_IDS_PER_TYPE = 50;
 
 interface MediaDetails {
   title?: string;
@@ -10,158 +19,96 @@ interface MediaDetails {
   posterPath?: string;
 }
 
-interface BatchRequest {
-  movies: number[];
-  tvShows: number[];
-}
-
-interface BatchResponse {
-  movies: Record<string, MediaDetails>;
-  tvShows: Record<string, MediaDetails>;
-}
-
-async function getCredentials(req: Request) {
-  const integrationId = req.headers.get('x-integration-id');
-  let url = req.headers.get('x-jellyseerr-url');
-  let apiKey = req.headers.get('x-jellyseerr-apikey');
-
-  if (integrationId) {
-    const integration = await prisma.integration.findUnique({
-      where: { id: integrationId }
-    });
-    
-    if (integration) {
-      const config = decryptSensitiveFields(JSON.parse(integration.config));
-      url = (config.externalUrl || config.url) as string;
-      apiKey = config.apiKey as string;
-    }
+const parseIds = (value: unknown): number[] => {
+  if (!Array.isArray(value) || value.length > MAX_IDS_PER_TYPE) {
+    throw new ApiSecurityError('Invalid media ID list', 400, 'invalid_media_ids');
   }
-  return { url, apiKey };
-}
+  const ids = [...new Set(value)];
+  if (ids.some((id) => !Number.isSafeInteger(id) || Number(id) <= 0)) {
+    throw new ApiSecurityError('Invalid media ID list', 400, 'invalid_media_ids');
+  }
+  return ids.map(Number);
+};
 
 async function fetchMediaDetails(
-  jellyseerrUrl: string, 
-  apiKey: string, 
-  mediaType: 'movie' | 'tv', 
-  id: number
+  baseUrl: URL,
+  apiKey: string,
+  mediaType: 'movie' | 'tv',
+  id: number,
 ): Promise<MediaDetails | null> {
-  try {
-    const response = await fetch(`${jellyseerrUrl}/api/v1/${mediaType}/${id}`, {
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    return {
-      title: data.title,
-      name: data.name,
-      posterPath: data.posterPath,
-    };
-  } catch {
-    return null;
-  }
+  const response = await fetchOutbound(
+    buildIntegrationUrl(baseUrl, `/api/v1/${mediaType}/${id}`),
+    {
+      headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
+      cache: 'no-store',
+    },
+    { policy: 'trusted-integration' },
+  );
+  if (!response.ok) return null;
+  const data = await response.json() as MediaDetails;
+  return {
+    title: data.title,
+    name: data.name,
+    posterPath: data.posterPath,
+  };
 }
 
 export async function POST(request: Request) {
-  const { url: jellyseerrUrl, apiKey } = await getCredentials(request);
-
-  if (!jellyseerrUrl || !apiKey) {
-    return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
-  }
-
   try {
-    const body: BatchRequest = await request.json();
-    const { movies = [], tvShows = [] } = body;
-
+    const integration = await resolveRequestIntegration(request, 'jellyseerr');
+    const baseUrl = await resolveIntegrationBaseUrl(integration);
+    const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+    const body = await request.json() as { movies?: unknown; tvShows?: unknown };
+    const movies = parseIds(body.movies ?? []);
+    const tvShows = parseIds(body.tvShows ?? []);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + CACHE_TTL_HOURS * 60 * 60 * 1000);
+    const result: {
+      movies: Record<string, MediaDetails>;
+      tvShows: Record<string, MediaDetails>;
+    } = { movies: {}, tvShows: {} };
 
-    const result: BatchResponse = {
-      movies: {},
-      tvShows: {},
+    // Include the integration ID to avoid one upstream instance populating
+    // another instance's cache entries.
+    const cacheId = (type: 'movie' | 'tv', id: number) =>
+      `${integration.id}:${type}-${id}`;
+    const allCacheIds = [
+      ...movies.map((id) => cacheId('movie', id)),
+      ...tvShows.map((id) => cacheId('tv', id)),
+    ];
+    const cachedItems = allCacheIds.length
+      ? await prisma.mediaCache.findMany({
+          where: { id: { in: allCacheIds }, expiresAt: { gt: now } },
+        })
+      : [];
+    const cached = new Map(
+      cachedItems.map((item) => [item.id, JSON.parse(item.details) as MediaDetails]),
+    );
+
+    const fetchOne = async (type: 'movie' | 'tv', id: number) => {
+      const key = cacheId(type, id);
+      const existing = cached.get(key);
+      const target = type === 'movie' ? result.movies : result.tvShows;
+      if (existing) {
+        target[id] = existing;
+        return;
+      }
+      const details = await fetchMediaDetails(baseUrl, apiKey, type, id);
+      if (!details) return;
+      target[id] = details;
+      await prisma.mediaCache.upsert({
+        where: { id: key },
+        update: { details: JSON.stringify(details), expiresAt },
+        create: { id: key, details: JSON.stringify(details), expiresAt },
+      }).catch(() => undefined);
     };
 
-    // Check cache for all IDs
-    const allCacheIds = [
-      ...movies.map(id => `movie-${id}`),
-      ...tvShows.map(id => `tv-${id}`)
-    ];
-
-    const cachedItems = await prisma.mediaCache.findMany({
-      where: {
-        id: { in: allCacheIds },
-        expiresAt: { gt: now }
-      }
-    });
-
-    const cachedMap = new Map(cachedItems.map(item => [item.id, JSON.parse(item.details)]));
-
-    // Collect IDs that need fetching
-    const movieIdsToFetch: number[] = [];
-    const tvIdsToFetch: number[] = [];
-
-    for (const id of movies) {
-      const cached = cachedMap.get(`movie-${id}`);
-      if (cached) {
-        result.movies[id] = cached;
-      } else {
-        movieIdsToFetch.push(id);
-      }
-    }
-
-    for (const id of tvShows) {
-      const cached = cachedMap.get(`tv-${id}`);
-      if (cached) {
-        result.tvShows[id] = cached;
-      } else {
-        tvIdsToFetch.push(id);
-      }
-    }
-
-    // Fetch missing items in parallel
-    const fetchPromises: Promise<void>[] = [];
-
-    for (const id of movieIdsToFetch) {
-      fetchPromises.push(
-        fetchMediaDetails(jellyseerrUrl, apiKey, 'movie', id).then(async (details) => {
-          if (details) {
-            result.movies[id] = details;
-            // Cache the result
-            await prisma.mediaCache.upsert({
-              where: { id: `movie-${id}` },
-              update: { details: JSON.stringify(details), expiresAt },
-              create: { id: `movie-${id}`, details: JSON.stringify(details), expiresAt }
-            }).catch(() => {}); // Ignore cache write errors
-          }
-        })
-      );
-    }
-
-    for (const id of tvIdsToFetch) {
-      fetchPromises.push(
-        fetchMediaDetails(jellyseerrUrl, apiKey, 'tv', id).then(async (details) => {
-          if (details) {
-            result.tvShows[id] = details;
-            // Cache the result
-            await prisma.mediaCache.upsert({
-              where: { id: `tv-${id}` },
-              update: { details: JSON.stringify(details), expiresAt },
-              create: { id: `tv-${id}`, details: JSON.stringify(details), expiresAt }
-            }).catch(() => {}); // Ignore cache write errors
-          }
-        })
-      );
-    }
-
-    await Promise.all(fetchPromises);
-
+    await Promise.all([
+      ...movies.map((id) => fetchOne('movie', id)),
+      ...tvShows.map((id) => fetchOne('tv', id)),
+    ]);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in Jellyseerr batch:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch Jellyseerr media details');
   }
 }

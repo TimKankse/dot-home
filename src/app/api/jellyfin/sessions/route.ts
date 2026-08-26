@@ -1,41 +1,22 @@
 import { NextResponse } from 'next/server';
 
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
+import { apiSecurityErrorResponse } from '@/lib/api-security';
+import { resolveJellyfinConnection } from '@/lib/jellyfin-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
 
 export async function GET(request: Request) {
-  const integrationId = request.headers.get('x-integration-id');
-  let JELLYFIN_URL = request.headers.get('x-jellyfin-url');
-  let JELLYFIN_API_KEY = request.headers.get('x-jellyfin-apikey');
-
-  if (integrationId) {
-      const integration = await prisma.integration.findUnique({
-          where: { id: integrationId }
-      });
-      
-      if (integration) {
-          const config = decryptSensitiveFields(JSON.parse(integration.config));
-          JELLYFIN_URL = (config.externalUrl || config.url) as string;
-          JELLYFIN_API_KEY = config.apiKey as string;
-      }
-  }
-
-  if (!JELLYFIN_URL || !JELLYFIN_API_KEY) {
-    return NextResponse.json(
-      { error: 'Jellyfin configuration missing' },
-      { status: 500 }
-    );
-  }
-
   try {
-    const response = await fetch(
-      `${JELLYFIN_URL}/Sessions?ActiveWithinSeconds=300`,
+    const connection = await resolveJellyfinConnection(request);
+    const baseUrl = connection.url.toString().replace(/\/$/, '');
+    const response = await fetchOutbound(
+      `${baseUrl}/Sessions?ActiveWithinSeconds=300`,
       {
         headers: {
-          'X-Emby-Token': JELLYFIN_API_KEY,
+          'X-Emby-Token': connection.apiKey,
         },
-        next: { revalidate: 10 }, // Cache for 10 seconds
-      }
+        cache: 'no-store',
+      },
+      { policy: 'trusted-integration', timeoutMs: 10_000 },
     );
 
     if (!response.ok) {
@@ -45,10 +26,6 @@ export async function GET(request: Request) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching Jellyfin sessions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch sessions' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to fetch Jellyfin sessions');
   }
 }

@@ -29,13 +29,6 @@ export const NetdataConfig: React.FC<WidgetConfigProps<NetdataWidgetConfig>> = (
         </div>
       )
     },
-    { 
-      type: 'input', 
-      key: 'url', 
-      label: 'URL', 
-      placeholder: 'http://...',
-      condition: (c) => !c.integrationId
-    },
     {
       type: 'input',
       key: 'refreshInterval',

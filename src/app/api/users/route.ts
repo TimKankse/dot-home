@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import bcrypt from 'bcrypt';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import {
   createEmptyDashboardLayout,
   serializeDashboardLayout,
 } from '@/lib/dashboard-layout';
+import { hashPassword, isValidPasswordLength, normalizeEmail } from '@/lib/passwords';
 import { parseCreateUserRequest } from '@/lib/request-parsers';
 import { ValidationError } from '@/lib/validation';
 
-const SALT_ROUNDS = 12;
-
 // GET /api/users - List all users (admin only)
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -23,6 +21,25 @@ export async function GET() {
 
     if (session.user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get('email');
+
+    if (email) {
+      const user = await prisma.user.findUnique({
+        where: { email: normalizeEmail(email) },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return NextResponse.json({ user });
     }
 
     const users = await prisma.user.findMany({
@@ -72,7 +89,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (!isValidPasswordLength(password)) {
       return NextResponse.json(
         { error: 'Password must be at least 8 characters' },
         { status: 400 }
@@ -88,7 +105,7 @@ export async function POST(request: Request) {
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizeEmail(email) },
     });
 
     if (existingUser) {
@@ -99,12 +116,12 @@ export async function POST(request: Request) {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await hashPassword(password);
 
     // Create user
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
+        email: normalizeEmail(email),
         displayName: displayName || null,
         passwordHash,
         role,

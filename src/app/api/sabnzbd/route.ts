@@ -1,64 +1,60 @@
 import { NextResponse } from 'next/server';
 
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
+import {
+  buildIntegrationUrl,
+  requireIntegrationConfigString,
+  resolveIntegrationBaseUrl,
+  resolveRequestIntegration,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
+
+async function callSabnzbd(request: Request, mode: 'queue' | 'pause' | 'resume') {
+  const integration = await resolveRequestIntegration(
+    request,
+    'sabnzbd',
+    mode === 'queue' ? 'view' : 'edit',
+  );
+  const baseUrl = await resolveIntegrationBaseUrl(integration);
+  const apiKey = requireIntegrationConfigString(integration, 'apiKey');
+  const targetUrl = buildIntegrationUrl(baseUrl, '/api');
+  targetUrl.searchParams.set('output', 'json');
+  targetUrl.searchParams.set('apikey', apiKey);
+  targetUrl.searchParams.set('mode', mode);
+  const response = await fetchOutbound(
+    targetUrl,
+    { cache: 'no-store' },
+    { policy: 'trusted-integration' },
+  );
+  if (!response.ok) {
+    return NextResponse.json(
+      { error: `SABnzbd API error (${response.status})` },
+      { status: response.status },
+    );
+  }
+  return NextResponse.json(await response.json());
+}
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const mode = searchParams.get('mode');
-
-  if (!mode) {
-    return NextResponse.json({ error: 'Mode is required' }, { status: 400 });
-  }
-
-  // Try to get Integration ID first
-  const integrationId = request.headers.get('x-integration-id');
-
-  let sabnzbdUrl = request.headers.get('x-sabnzbd-url');
-  let sabnzbdApiKey = request.headers.get('x-sabnzbd-apikey');
-
-  if (integrationId) {
-    const integration = await prisma.integration.findUnique({
-        where: { id: integrationId }
-    });
-    
-    if (integration) {
-        const config = decryptSensitiveFields(JSON.parse(integration.config));
-        sabnzbdUrl = (config.externalUrl || config.url) as string;
-        sabnzbdApiKey = config.apiKey as string;
-    }
-  }
-
-  if (!sabnzbdUrl || !sabnzbdApiKey) {
-    return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
-  }
-
   try {
-    // Construct the target URL
-    // SABnzbd API structure: /api?mode=...&output=json&apikey=...
-    const targetUrl = new URL(`${sabnzbdUrl}/api`);
-    targetUrl.searchParams.append('output', 'json');
-    targetUrl.searchParams.append('apikey', sabnzbdApiKey);
-    
-    // Append all other params from the request
-    searchParams.forEach((value, key) => {
-      targetUrl.searchParams.append(key, value);
-    });
-
-    const response = await fetch(targetUrl.toString());
-
-    if (!response.ok) {
-        console.error(`SABnzbd Error: ${response.status} at ${targetUrl.toString()}`);
-        return NextResponse.json(
-            { error: response.statusText },
-            { status: response.status }
-        );
+    const mode = new URL(request.url).searchParams.get('mode');
+    if (mode !== 'queue') {
+      throw new ApiSecurityError('Invalid mode', 400, 'invalid_mode');
     }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    return await callSabnzbd(request, mode);
   } catch (error) {
-    console.error('Error fetching from SABnzbd:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch SABnzbd queue');
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json() as { action?: unknown };
+    if (body.action !== 'pause' && body.action !== 'resume') {
+      throw new ApiSecurityError('Invalid queue action', 400, 'invalid_queue_action');
+    }
+    return await callSabnzbd(request, body.action);
+  } catch (error) {
+    return apiSecurityErrorResponse(error, 'Failed to update SABnzbd queue');
   }
 }

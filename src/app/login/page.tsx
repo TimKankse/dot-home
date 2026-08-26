@@ -11,12 +11,23 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/';
   const error = searchParams.get('error');
+  const message = searchParams.get('message');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(error ? 'Invalid email or password' : '');
   const [needsSetup, setNeedsSetup] = useState(false);
+
+  const successMessage = message === 'password-changed'
+    ? 'Password updated. Sign in with your new password.'
+    : message === 'profile-updated'
+      ? 'Account details updated. Please sign in again.'
+      : message === 'password-reset'
+        ? 'Password reset complete. Sign in with your new password.'
+        : message === 'session-expired'
+          ? 'Your session is no longer valid. Please sign in again.'
+        : '';
 
   useEffect(() => {
     // Check if any users exist
@@ -86,6 +97,10 @@ function LoginContent() {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
+          {successMessage && (
+            <div className={styles.success}>{successMessage}</div>
+          )}
+
           {errorMessage && (
             <div className={styles.error}>{errorMessage}</div>
           )}
@@ -117,6 +132,11 @@ function LoginContent() {
               required
               autoComplete="current-password"
             />
+            <div className={styles.inlineLinkRow}>
+              <Link href="/forgot-password" className={styles.link}>
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           <button type="submit" className={styles.button} disabled={isLoading}>

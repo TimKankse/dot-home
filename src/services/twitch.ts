@@ -23,9 +23,13 @@ interface TwitchApiResponse {
 }
 
 export async function fetchTwitchStreams(params: TwitchFetchParams): Promise<TwitchChannelData[]> {
-  const { channels, config, integrationId } = params;
+  const { channels, integrationId } = params;
   
   if (channels.length === 0) {
+    return [];
+  }
+
+  if (!integrationId) {
     return [];
   }
 
@@ -33,21 +37,12 @@ export async function fetchTwitchStreams(params: TwitchFetchParams): Promise<Twi
     'Content-Type': 'application/json',
   };
   
-  if (integrationId) {
-    headers['x-integration-id'] = integrationId;
-  }
-  
-  const body: Record<string, unknown> = { channels };
-  
-  if (!integrationId) {
-    body.clientId = config?.clientId;
-    body.clientSecret = config?.clientSecret;
-  }
+  headers['x-integration-id'] = integrationId;
 
   const response = await fetch('/api/twitch', {
     method: 'POST',
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify({ channels }),
   });
 
   if (!response.ok) {

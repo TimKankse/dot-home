@@ -15,9 +15,10 @@ import {
 interface PortainerWidgetProps {
   isEditing?: boolean;
   config?: PortainerWidgetConfig;
+  integrationId?: string;
 }
 
-export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }> = ({ isEditing = false, config, title }) => {
+export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }> = ({ isEditing = false, config, integrationId, title }) => {
   const [containers, setContainers] = useState<PortainerContainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +26,13 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
   const [selectedContainer, setSelectedContainer] = useState<PortainerContainer | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!config?.url || !config?.apiKey) {
+    if (!integrationId) {
       setLoading(false);
       return;
     }
 
     try {
-      const data = await fetchPortainerContainers({ config });
+      const data = await fetchPortainerContainers({ config, integrationId });
       setContainers(data);
       setError(null);
     } catch (err) {
@@ -40,7 +41,7 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
     } finally {
       setLoading(false);
     }
-  }, [config]);
+  }, [config, integrationId]);
 
   useEffect(() => {
     loadData();
@@ -49,11 +50,11 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
   }, [loadData]);
 
   const handleAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
-    if (!config) return;
+    if (!integrationId) return;
     
     setActionLoading(id);
     try {
-      await performContainerAction(id, action, config);
+      await performContainerAction(id, action, { config, integrationId });
       setTimeout(loadData, 1000);
     } catch (err) {
       console.error(err);
@@ -72,7 +73,7 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
         </div>
         <div className={styles.editContent}>
           <p className="font-mono text-muted" style={{ fontSize: '0.9rem' }}>
-            URL: {config?.url || 'Not set'}
+            Connection: {integrationId ? 'Configured' : 'Not set'}
           </p>
           <p className="font-mono text-muted" style={{ fontSize: '0.9rem' }}>
             Endpoint: {config?.endpointId || '1'}
@@ -82,7 +83,7 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
     );
   }
 
-  if (!config?.url || !config?.apiKey) {
+  if (!integrationId) {
     return (
       <div className={styles.widgetContainer}>
         <div className={styles.offlineState}>

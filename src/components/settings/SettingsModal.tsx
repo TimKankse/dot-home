@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Palette, Users, Puzzle, Keyboard, Layout, LogOut, LayoutGrid, Info, X } from 'lucide-react';
+import { Settings, Palette, Users, Puzzle, Keyboard, Layout, LogOut, LayoutGrid, Info, X, User } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import styles from './SettingsDialog.module.css';
 import { Modal, ModalSidebar, ModalSidebarItem, ModalContent, ModalHeader, ModalBody } from '../primitives/modal';
 import { FormErrorBoundary } from '../item-editor/FormErrorBoundary';
+import { ProfileSettings } from './ProfileSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 import { UsersSettings } from './UsersSettings';
@@ -20,7 +21,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type Tab = 'general' | 'appearance' | 'boards' | 'users' | 'integrations' | 'shortcuts' | 'about';
+type Tab = 'profile' | 'general' | 'appearance' | 'boards' | 'users' | 'integrations' | 'shortcuts' | 'about';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<Tab>('general');
@@ -43,6 +44,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     signOut({ callbackUrl: '/login' });
   };
 
+  const isAdmin = session?.user?.role === 'admin';
+
   const formatRole = (role: string) => {
     return role.charAt(0).toUpperCase() + role.slice(1);
   };
@@ -50,12 +53,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const renderAccountFooter = () => (
     <div className={styles.sidebarFooterContent}>
       <div className={styles.accountInfo}>
-        <span className={styles.displayName}>
-          {session?.user?.name || session?.user?.email || 'User'}
-        </span>
-        <span className={styles.roleBadge}>
-          {formatRole(session?.user?.role || 'member')}
-        </span>
+        <div className={styles.accountHeader}>
+          <span className={styles.displayName}>
+            {session?.user?.name || session?.user?.email || 'User'}
+          </span>
+          <span className={styles.roleBadge}>
+            {formatRole(session?.user?.role || 'member')}
+          </span>
+        </div>
       </div>
       <button className={styles.logoutButton} onClick={handleSignOut}>
         <LogOut size={16} />
@@ -89,12 +94,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </div>
         }
       >
-        <ModalSidebarItem 
-          active={activeTab === 'general'} 
+        <ModalSidebarItem
+          active={activeTab === 'general'}
           onClick={() => setActiveTab('general')}
           icon={<Layout size={18} />}
         >
           General
+        </ModalSidebarItem>
+        <ModalSidebarItem
+          active={activeTab === 'profile'}
+          onClick={() => setActiveTab('profile')}
+          icon={<User size={18} />}
+        >
+          Profile
         </ModalSidebarItem>
         <ModalSidebarItem 
           active={activeTab === 'appearance'} 
@@ -103,13 +115,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         >
           Appearance
         </ModalSidebarItem>
-        <ModalSidebarItem 
-          active={activeTab === 'users'} 
-          onClick={() => setActiveTab('users')}
-          icon={<Users size={18} />}
-        >
-          Users
-        </ModalSidebarItem>
+        {isAdmin && (
+          <ModalSidebarItem
+            active={activeTab === 'users'}
+            onClick={() => setActiveTab('users')}
+            icon={<Users size={18} />}
+          >
+            Users
+          </ModalSidebarItem>
+        )}
         <ModalSidebarItem 
           active={activeTab === 'integrations'} 
           onClick={() => setActiveTab('integrations')}
@@ -143,6 +157,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       <ModalContent>
         <div className={styles.desktopOnlyHeader}>
           <ModalHeader title={
+            activeTab === 'profile' ? 'Profile' :
             activeTab === 'general' ? 'General Settings' :
             activeTab === 'appearance' ? 'Appearance' :
             activeTab === 'boards' ? 'Boards' :
@@ -154,6 +169,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
         
         <ModalBody>
+          {activeTab === 'profile' && <FormErrorBoundary sectionName="Profile Settings"><ProfileSettings /></FormErrorBoundary>}
           {activeTab === 'general' && <FormErrorBoundary sectionName="General Settings"><GeneralSettings /></FormErrorBoundary>}
           {activeTab === 'appearance' && <FormErrorBoundary sectionName="Appearance Settings"><AppearanceSettings /></FormErrorBoundary>}
           {activeTab === 'boards' && <FormErrorBoundary sectionName="Boards Settings"><BoardsSettings onClose={handleClose} /></FormErrorBoundary>}

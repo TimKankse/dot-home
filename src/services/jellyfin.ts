@@ -12,16 +12,12 @@ export interface JellyfinData {
 }
 
 export async function fetchJellyfinData(params: JellyfinFetchParams): Promise<JellyfinData> {
-  const { config, integrationId } = params;
-  
-  if ((!config?.url || !config?.apiKey) && !integrationId) {
+  const { integrationId } = params;
+  if (!integrationId) {
     return { sessions: [], libraries: [] };
   }
 
-  const headers: Record<string, string> = {};
-  if (integrationId) headers['x-integration-id'] = integrationId;
-  if (config?.url) headers['x-jellyfin-url'] = config.url;
-  if (config?.apiKey) headers['x-jellyfin-apikey'] = config.apiKey;
+  const headers = { 'x-integration-id': integrationId };
   
   const sessionsRes = await fetch('/api/jellyfin/sessions', { headers });
   const sessionsData = await sessionsRes.json();
@@ -30,13 +26,9 @@ export async function fetchJellyfinData(params: JellyfinFetchParams): Promise<Je
     : [];
 
   let libraries: LibraryStats[] = [];
-  if (config?.userId && config?.url && config?.apiKey) {
+  if (integrationId) {
     const libRes = await fetch('/api/jellyfin/libraries', {
-      headers: {
-        'x-jellyfin-url': config.url,
-        'x-jellyfin-apikey': config.apiKey,
-        'x-jellyfin-userid': config.userId
-      }
+      headers,
     });
     if (libRes.ok) {
       libraries = await libRes.json();
@@ -47,55 +39,16 @@ export async function fetchJellyfinData(params: JellyfinFetchParams): Promise<Je
 }
 
 export async function fetchJellyfinLibraryCounts(params: JellyfinFetchParams): Promise<LibraryStats[]> {
-  const { config, integrationId: _integrationId } = params;
+  const { integrationId } = params;
 
-  if (config?.userId && config?.url && config?.apiKey) {
+  if (integrationId) {
+    const headers = { 'x-integration-id': integrationId };
     const libRes = await fetch('/api/jellyfin/libraries?mode=counts', {
-      headers: {
-        'x-jellyfin-url': config.url,
-        'x-jellyfin-apikey': config.apiKey,
-        'x-jellyfin-userid': config.userId
-      }
+      headers,
     });
     if (libRes.ok) {
       return await libRes.json();
     }
   }
   return [];
-}
-
-export function createJellyfinWebSocket(
-  config: JellyfinWidgetConfig, 
-  onMessage: (sessions: JellyfinSession[]) => void
-): WebSocket | null {
-  if (!config.url || !config.apiKey) return null;
-  
-  const wsUrl = new URL(config.url);
-  wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-  wsUrl.pathname = wsUrl.pathname.replace(/\/$/, '') + '/socket';
-  wsUrl.searchParams.set('api_key', config.apiKey);
-  wsUrl.searchParams.set('deviceId', 'dot-home-dashboard');
-
-  const ws = new WebSocket(wsUrl.toString());
-
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ MessageType: 'SessionsStart', Data: '1000,1000' }));
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.MessageType === 'Sessions') {
-        const data = msg.Data;
-        const activeSessions = Array.isArray(data) 
-          ? data.filter((s: JellyfinSession) => s.NowPlayingItem) 
-          : [];
-        onMessage(activeSessions);
-      }
-    } catch (e) {
-      console.error('Error parsing WebSocket message:', e);
-    }
-  };
-
-  return ws;
 }

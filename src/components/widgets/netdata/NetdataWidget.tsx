@@ -39,7 +39,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
   const { instances, subscribe, unsubscribe } = useNetdataStore();
   const { integrations } = useIntegrationStore();
   
-  const key = integrationId || config?.url;
+  const key = integrationId;
   const instance = key ? instances[key] : null;
   const data = instance?.data || null;
   const loading = instance?.loading || false;
@@ -62,19 +62,17 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
   useEffect(() => {
     if (key) {
       subscribe({ 
-          url: config?.url, 
           integrationId, 
           scope: metricType, 
           refreshInterval: effectiveInterval 
       }); 
       return () => unsubscribe({ 
-          url: config?.url, 
           integrationId, 
           scope: metricType,
           refreshInterval: effectiveInterval
       });
     }
-  }, [config?.url, integrationId, metricType, subscribe, unsubscribe, key, effectiveInterval]);
+  }, [integrationId, metricType, subscribe, unsubscribe, key, effectiveInterval]);
 
   // Update history when data changes - accumulate time-series data in a rolling buffer
   useEffect(() => {
@@ -138,7 +136,7 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
         </div>
         <div className={styles.editContent}>
           <p className="font-mono text-muted" style={{ fontSize: '0.9rem' }}>
-            URL: {config?.url || 'Not set'}
+            Connection: {integrationId ? 'Configured' : 'Not set'}
           </p>
           <p className="font-mono text-muted" style={{ fontSize: '0.9rem' }}>
             Metric: {metricType.toUpperCase()}
@@ -148,12 +146,12 @@ export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: stri
     );
   }
 
-  if (!config?.url && !integrationId) {
+  if (!integrationId) {
     return (
       <div className={styles.widgetContainer}>
         <div className={styles.offlineState}>
           <AlertCircle size={24} color="var(--accent-red)" />
-          <p style={{ fontSize: '0.8rem' }}>Configure URL</p>
+          <p style={{ fontSize: '0.8rem' }}>Configure Netdata</p>
         </div>
       </div>
     );

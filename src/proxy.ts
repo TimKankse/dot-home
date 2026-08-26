@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { isSessionTokenCurrent } from '@/lib/session-revocation';
 
-const publicRoutes = ['/login', '/setup', '/api/auth', '/api/setup'];
+const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password', '/api/auth', '/api/setup'];
 
 const authRoutes = ['/login'];
 
@@ -20,12 +21,26 @@ export async function proxy(request: NextRequest) {
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
 
+  if (isPublicRoute && !isAuthRoute) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ 
     req: request, 
     secret: process.env.NEXTAUTH_SECRET 
   });
 
-    if (token && isAuthRoute) {
+  if (token && !(await isSessionTokenCurrent(token))) {
+    const response = isAuthRoute
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL('/login?message=session-expired', request.url));
+
+    response.cookies.delete('next-auth.session-token');
+    response.cookies.delete('__Secure-next-auth.session-token');
+    return response;
+  }
+
+  if (token && isAuthRoute) {
     return NextResponse.redirect(new URL('/', request.url));
   }
   if (isPublicRoute) {

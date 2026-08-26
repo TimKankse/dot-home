@@ -55,7 +55,7 @@ export const IntegrationSelect: React.FC<IntegrationSelectProps> = ({
     setIsOpen(false);
   };
 
-  const handleUseCustom = () => {
+  const handleDisconnect = () => {
     onChange(undefined);
     setIsOpen(false);
   };
@@ -83,13 +83,8 @@ export const IntegrationSelect: React.FC<IntegrationSelectProps> = ({
                 <span className={styles.selectedUrl}>{getIntegrationUrl(selectedIntegration)}</span>
               )}
             </div>
-          ) : value === undefined ? (
-            <span className={styles.placeholder}>{placeholder}</span>
           ) : (
-            <>
-              <span className={styles.placeholder}>Custom configuration</span>
-              <span className={styles.customBadge}>Manual</span>
-            </>
+            <span className={styles.placeholder}>{placeholder}</span>
           )}
         </div>
         <ChevronDown size={14} className={styles.chevron} />
@@ -115,7 +110,6 @@ export const IntegrationSelect: React.FC<IntegrationSelectProps> = ({
                     </div>
                   </div>
                 ))}
-                <div className={styles.divider} />
               </>
             ) : (
               <div className={styles.noIntegrations}>
@@ -123,13 +117,18 @@ export const IntegrationSelect: React.FC<IntegrationSelectProps> = ({
               </div>
             )}
             
-            <div 
-              className={`${styles.option} ${styles.actionOption}`}
-              onClick={handleUseCustom}
-            >
-              <Unlink size={14} />
-              <span>Use custom configuration</span>
-            </div>
+            {selectedIntegration && (
+              <>
+                <div className={styles.divider} />
+                <div
+                  className={`${styles.option} ${styles.actionOption}`}
+                  onClick={handleDisconnect}
+                >
+                  <Unlink size={14} />
+                  <span>Disconnect integration</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

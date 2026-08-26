@@ -77,7 +77,9 @@
 
 ### Integrations
 
-Configure your services once, use them across multiple widgets:
+Configure your services once, use them across multiple widgets. Integration
+credentials stay on the server; widgets reference an integration ID instead of
+receiving API keys in browser configuration:
 
 ```
 Jellyfin • Radarr • Sonarr • Portainer • Netdata • Generic API
@@ -150,6 +152,11 @@ Using the volume mapping `-v $(pwd)/config:/app/config` ensures your data persis
 |:---------|:--------|:------------|
 | `NODE_ENV` | `production` | Node environment |
 | `PORT` | `9292` | Server port |
+| `NEXTAUTH_URL` | — | Canonical public origin, such as `https://home.example.com`; required for production password-reset links |
+| `PASSWORD_RESET_WEBHOOK_URL` | — | Optional webhook that receives password-reset links for automated delivery |
+| `PASSWORD_RESET_WEBHOOK_SECRET` | — | Optional bearer token sent to the password-reset webhook |
+| `ADMIN_CONTACT_EMAIL` | — | Optional administrator contact shown when reset delivery is manual |
+| `CONFIG_ENCRYPTION_SECRET` | — | Stable secret used to encrypt integration credentials; set this explicitly and keep it with your deployment backups |
 
 <br>
 

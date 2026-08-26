@@ -21,27 +21,5 @@ export const QBittorrentConfig = buildConfigForm<QBittorrentWidgetConfig>([
         />
       </div>
     )
-  },
-  { 
-    type: 'input', 
-    key: 'url', 
-    label: 'URL', 
-    placeholder: 'http://...',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'username', 
-    label: 'Username', 
-    placeholder: 'admin',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'password', 
-    label: 'Password', 
-    inputType: 'password',
-    placeholder: 'adminadmin',
-    condition: (c) => !c.integrationId
   }
 ]);

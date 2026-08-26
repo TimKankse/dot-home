@@ -8,11 +8,24 @@
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { isSensitiveField } from './sensitive-config';
+
+export { isSensitiveField } from './sensitive-config';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const ENCRYPTED_PREFIX = 'enc:';
 let hasLoggedDecryptFailure = false;
+
+const getPersistentSecretPath = (): string | undefined => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl?.startsWith('file:')) return undefined;
+  const configuredPath = databaseUrl.slice('file:'.length).split('?')[0];
+  const databasePath = path.isAbsolute(configuredPath)
+    ? configuredPath
+    : path.resolve(process.cwd(), 'prisma', configuredPath);
+  return path.join(path.dirname(databasePath), '.config_encryption_secret');
+};
 
 function warnDecryptFailure() {
   if (hasLoggedDecryptFailure) {
@@ -26,40 +39,42 @@ function warnDecryptFailure() {
 }
 
 /**
- * Get or create the encryption key
- * The key is derived from a secret stored in .env.local
- * If no secret exists, one is generated on first use
+ * Get or create the encryption key. Explicit environment configuration wins;
+ * otherwise the key is persisted beside the SQLite database.
  */
 function getEncryptionKey(): Buffer {
   const envPath = path.join(process.cwd(), '.env.local');
   let secret = process.env.CONFIG_ENCRYPTION_SECRET;
+  const persistentSecretPath = getPersistentSecretPath();
   
   if (!secret) {
-    // Check if we need to generate a new secret
-    if (fs.existsSync(envPath)) {
+    if (persistentSecretPath && fs.existsSync(persistentSecretPath)) {
+      secret = fs.readFileSync(persistentSecretPath, 'utf8').trim();
+    }
+
+    // Preserve compatibility with development installations that already keep
+    // the secret in .env.local. Copy it beside the SQLite database so container
+    // or application-directory replacement does not silently rotate the key.
+    if (!secret && fs.existsSync(envPath)) {
       const envContent = fs.readFileSync(envPath, 'utf8');
       const match = envContent.match(/CONFIG_ENCRYPTION_SECRET=(.+)/);
       if (match) {
         secret = match[1].trim();
       }
     }
-    
+
     if (!secret) {
-      // Generate a new secret
       secret = randomBytes(32).toString('hex');
-      const newLine = `\nCONFIG_ENCRYPTION_SECRET=${secret}\n`;
-      
-      if (fs.existsSync(envPath)) {
-        fs.appendFileSync(envPath, newLine);
-      } else {
-        fs.writeFileSync(envPath, `# Auto-generated encryption secret for config values${newLine}`);
-      }
-      
       console.log('Generated new CONFIG_ENCRYPTION_SECRET');
     }
-    
+
     // Update process.env for this session
     process.env.CONFIG_ENCRYPTION_SECRET = secret;
+  }
+
+  if (persistentSecretPath && !fs.existsSync(persistentSecretPath)) {
+    fs.mkdirSync(path.dirname(persistentSecretPath), { recursive: true });
+    fs.writeFileSync(persistentSecretPath, `${secret}\n`, { mode: 0o600 });
   }
   
   // Derive a 32-byte key from the secret
@@ -130,25 +145,6 @@ export function decryptValue(encryptedValue: string): string {
  */
 export function isEncrypted(value: string): boolean {
   return typeof value === 'string' && value.startsWith(ENCRYPTED_PREFIX);
-}
-
-// Fields that should be encrypted in config
-const SENSITIVE_FIELDS = [
-  'apiKey',
-  'password',
-  'secret',
-  'token',
-  'clientSecret',
-  'accessToken',
-  'refreshToken',
-];
-
-/**
- * Check if a field key represents a sensitive field
- */
-export function isSensitiveField(key: string): boolean {
-  const lowerKey = key.toLowerCase();
-  return SENSITIVE_FIELDS.some(field => lowerKey.includes(field.toLowerCase()));
 }
 
 /**

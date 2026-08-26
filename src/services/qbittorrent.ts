@@ -28,25 +28,14 @@ export interface QBittorrentFetchParams {
 }
 
 function buildHeaders(params: QBittorrentFetchParams): Record<string, string> {
-  const { config, integrationId } = params;
-  const headers: Record<string, string> = {
-    'x-qbittorrent-url': config?.url || '',
-  };
-  
-  if (integrationId) {
-    headers['x-integration-id'] = integrationId;
-  } else {
-    headers['x-qbittorrent-username'] = config?.username || '';
-    headers['x-qbittorrent-password'] = config?.password || '';
-  }
-  
-  return headers;
+  return params.integrationId
+    ? { 'x-integration-id': params.integrationId }
+    : {};
 }
 
 export async function fetchQBittorrentQueue(params: QBittorrentFetchParams): Promise<QueueData | null> {
-  const { config, integrationId } = params;
-  
-  if (!config?.url && !integrationId) {
+  const { integrationId } = params;
+  if (!integrationId) {
     return null;
   }
 
@@ -61,11 +50,14 @@ export async function fetchQBittorrentQueue(params: QBittorrentFetchParams): Pro
 }
 
 export async function toggleQBittorrentPause(paused: boolean, params: QBittorrentFetchParams): Promise<void> {
-  const mode = paused ? 'resume' : 'pause';
-  await fetch(`/api/qbittorrent?mode=${mode}`, {
+  if (!params.integrationId) return;
+  const action = paused ? 'resume' : 'pause';
+  const response = await fetch('/api/qbittorrent', {
     method: 'POST',
-    headers: buildHeaders(params),
+    headers: { 'Content-Type': 'application/json', ...buildHeaders(params) },
+    body: JSON.stringify({ action }),
   });
+  if (!response.ok) throw new Error('Failed to update qBittorrent queue');
 }
 
 export function formatSize(mbString: string): string {

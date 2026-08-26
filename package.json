@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "predev": "npm run db:sync",
+    "db:sync": "prisma db push --skip-generate",
     "build": "next build",
     "start": "node server.js",
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "security:migrate-integrations": "vite-node scripts/migrate-integration-configs.ts",
     "check": "npm run lint && npm run typecheck && npm run test",
     "check:full": "npm run check && npm run build"
   },

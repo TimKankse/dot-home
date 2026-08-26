@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { ApiSecurityError, apiSecurityErrorResponse } from '@/lib/api-security';
+import { resolveJellyfinConnection } from '@/lib/jellyfin-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
+
 interface JellyfinLibrary {
   Id: string;
   Name: string;
@@ -14,20 +18,26 @@ interface JellyfinView {
 }
 
 export async function GET(request: NextRequest) {
-  const url = request.headers.get('x-jellyfin-url');
-  const apiKey = request.headers.get('x-jellyfin-apikey');
-  const userId = request.headers.get('x-jellyfin-userid');
-
-  if (!url || !apiKey || !userId) {
-    return NextResponse.json({ error: 'Missing configuration' }, { status: 400 });
-  }
-
   try {
-    const baseUrl = url.replace(/\/$/, '');
+    const connection = await resolveJellyfinConnection(request);
+    const userId = connection.userId;
+    if (!userId) {
+      throw new ApiSecurityError(
+        'Jellyfin user ID is required',
+        400,
+        'invalid_integration_config',
+      );
+    }
+    const baseUrl = connection.url.toString().replace(/\/$/, '');
     
-    const viewsResponse = await fetch(`${baseUrl}/Users/${userId}/Views`, {
-      headers: { 'X-Emby-Token': apiKey },
-    });
+    const viewsResponse = await fetchOutbound(
+      `${baseUrl}/Users/${encodeURIComponent(userId)}/Views`,
+      {
+        headers: { 'X-Emby-Token': connection.apiKey },
+        cache: 'no-store',
+      },
+      { policy: 'trusted-integration', timeoutMs: 10_000 },
+    );
 
     if (!viewsResponse.ok) {
       console.error(`[Jellyfin] Failed to fetch views: ${viewsResponse.status} ${viewsResponse.statusText}`);
@@ -57,9 +67,14 @@ export async function GET(request: NextRequest) {
       // Always fetch counts (lightweight)
       const countsUrl = `${baseUrl}/Items/Counts?ParentId=${view.Id}&Recursive=true&IncludeItemTypes=${includeItemTypes.join(',')}`;
       try {
-        const countsResponse = await fetch(countsUrl, {
-          headers: { 'X-Emby-Token': apiKey }
-        });
+        const countsResponse = await fetchOutbound(
+          countsUrl,
+          {
+            headers: { 'X-Emby-Token': connection.apiKey },
+            cache: 'no-store',
+          },
+          { policy: 'trusted-integration', timeoutMs: 10_000 },
+        );
         
         if (countsResponse.ok) {
           const countsData = await countsResponse.json();
@@ -80,7 +95,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(libraries);
 
   } catch (error) {
-    console.error('Jellyfin API Error:', error);
-    return NextResponse.json({ error: 'Failed to fetch Jellyfin data' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch Jellyfin libraries');
   }
 }

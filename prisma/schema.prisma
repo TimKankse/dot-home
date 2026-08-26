@@ -34,6 +34,7 @@ model User {
   displayName       String?
   passwordHash      String
   role              String             @default("member") // "admin" | "member" | "viewer"
+  sessionVersion    Int                @default(0)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   dashboards           Dashboard[]
@@ -41,6 +42,7 @@ model User {
   permissions          ObjectPermission[] // Permissions granted TO this user
   widgetUserConfigs    WidgetUserConfig[]
   dashboardPreference  UserDashboardPreference?
+  passwordResetTokens  PasswordResetToken[]
 }
 
 model Dashboard {
@@ -139,6 +141,29 @@ model UserDashboardPreference {
   updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetRateLimit {
+  keyHash      String   @id
+  requestCount Int      @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 // ============================================================================

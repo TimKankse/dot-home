@@ -16,7 +16,7 @@ export const LibrarySelector: React.FC<FieldRenderProps<JellyfinWidgetConfig>> =
   useEffect(() => {
     const loadLibraries = async () => {
       // Only fetch if we have enough config to make a connection
-      if ((!config.url || !config.apiKey) && !config.integrationId) {
+      if (!config.integrationId) {
         setAvailableLibraries([]);
         return;
       }
@@ -34,11 +34,7 @@ export const LibrarySelector: React.FC<FieldRenderProps<JellyfinWidgetConfig>> =
         // Actually, let's reuse the service logic for auth headers but modify the call?
         // Let's just reproduce the fetch logic simply here.
         
-        const headers: Record<string, string> = {};
-        if (config.integrationId) headers['x-integration-id'] = config.integrationId;
-        if (config.url) headers['x-jellyfin-url'] = config.url;
-        if (config.apiKey) headers['x-jellyfin-apikey'] = config.apiKey;
-        if (config.userId) headers['x-jellyfin-userid'] = config.userId;
+        const headers = { 'x-integration-id': config.integrationId };
 
         const res = await fetch('/api/jellyfin/libraries?mode=list', { headers });
         if (!res.ok) throw new Error('Failed to fetch libraries');
@@ -54,9 +50,9 @@ export const LibrarySelector: React.FC<FieldRenderProps<JellyfinWidgetConfig>> =
     };
 
     loadLibraries();
-  }, [config.url, config.apiKey, config.userId, config.integrationId]);
+  }, [config.integrationId]);
 
-  if ((!config.url || !config.apiKey) && !config.integrationId) {
+  if (!config.integrationId) {
     return null;
   }
 

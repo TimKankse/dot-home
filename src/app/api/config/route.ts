@@ -10,7 +10,18 @@ import {
 import { parseDashboardSaveRequest } from '@/lib/request-parsers';
 import { ValidationError, tryParseJsonString } from '@/lib/validation';
 import { decryptSensitiveFields } from '@/utils/crypto';
+import { redactSensitiveFields } from '@/utils/sensitive-config';
 import { resolvePermission, type AccessLevel } from '@/utils/permissions';
+import {
+  ensureAutomaticIntegrationMigration,
+  runAutomaticIntegrationMigration,
+} from '@/lib/automatic-integration-migration';
+import {
+  getMigrationWidgetType,
+  INTEGRATION_MIGRATION_SPECS,
+  stripMigratedConnectionFields,
+  type MigrationWidget,
+} from '@/lib/integration-config-migration';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +89,7 @@ async function getUserIntegrations(userId: string) {
       id: i.id,
       name: i.name,
       type: i.type,
-      config: decryptSensitiveFields(JSON.parse(i.config)),
+      config: redactSensitiveFields(JSON.parse(i.config), 'omit'),
     }));
   } catch (error) {
     console.error('Error fetching user integrations:', error);
@@ -103,6 +114,11 @@ export async function GET(request: Request) {
     }
 
     const userId = session.user.id;
+
+    // This is also invoked during server startup. Keeping the guarded call here
+    // makes hot development reloads and non-standard runtimes converge on the
+    // same idempotent migration before any dashboard configuration is returned.
+    await ensureAutomaticIntegrationMigration();
 
     // Get user's integrations from database
     const integrations = await getUserIntegrations(userId);
@@ -214,13 +230,20 @@ export async function GET(request: Request) {
       tryParseJsonString(dashboard.layout, {}),
     );
 
-    // Decrypt sensitive fields in widget configs
+    // Legacy integration-backed widgets are never allowed to send reusable
+    // credentials to the browser. Other widget types retain their existing
+    // compatibility behavior until their own server routes are migrated.
     if (dashboardData.widgets.length > 0) {
       dashboardData.widgets = dashboardData.widgets.map((widget) => {
         if (widget.config && typeof widget.config === 'object') {
+          const migrationWidget = widget as unknown as MigrationWidget;
+          const widgetType = getMigrationWidgetType(migrationWidget);
+          const parsedConfig = widget.config as Record<string, unknown>;
           return {
             ...widget,
-            config: decryptSensitiveFields(widget.config as Record<string, unknown>),
+            config: INTEGRATION_MIGRATION_SPECS[widgetType]
+              ? redactSensitiveFields(parsedConfig, 'omit')
+              : decryptSensitiveFields(parsedConfig),
           };
         }
         return widget;
@@ -247,9 +270,20 @@ export async function GET(request: Request) {
         // Merge user configs into widgets
         dashboardData.widgets = dashboardData.widgets.map((widget) => {
           if (widget.syncConfig === false && userConfigMap.has(widget.id)) {
-            const userConfig = userConfigMap.get(widget.id) as Record<string, unknown>;
+            const storedUserConfig = userConfigMap.get(widget.id) as Record<string, unknown>;
+            const widgetType = getMigrationWidgetType(widget as unknown as MigrationWidget);
+            const isMigratedType = Boolean(INTEGRATION_MIGRATION_SPECS[widgetType]);
+            const integrationId = typeof storedUserConfig.integrationId === 'string'
+              ? storedUserConfig.integrationId
+              : widget.integrationId;
+            const configWithoutIntegration = { ...storedUserConfig };
+            delete configWithoutIntegration.integrationId;
+            const userConfig = isMigratedType
+              ? redactSensitiveFields(configWithoutIntegration, 'omit')
+              : decryptSensitiveFields(configWithoutIntegration);
             return {
               ...widget,
+              integrationId,
               config: {
                 ...(widget.config as Record<string, unknown> || {}),
                 ...(userConfig || {}),
@@ -306,7 +340,7 @@ export async function POST(request: Request) {
 
     const userId = session.user.id;
     const parsedRequest = parseDashboardSaveRequest(await request.json());
-    const dashboardData = parsedRequest.layout;
+    let dashboardData = parsedRequest.layout;
 
     // Find or create dashboard
     let existingDashboard = null;
@@ -348,6 +382,30 @@ export async function POST(request: Request) {
     }
 
     if (existingDashboard) {
+      const existingLayout = parseStoredDashboardLayout(
+        tryParseJsonString(existingDashboard.layout, {}),
+      );
+      const existingWidgets = new Map(
+        existingLayout.widgets.map((widget) => [widget.id, widget]),
+      );
+      dashboardData = {
+        ...dashboardData,
+        widgets: dashboardData.widgets.map((widget) => {
+          if (widget.integrationId) return widget;
+          const existingWidget = existingWidgets.get(widget.id);
+          if (!existingWidget?.integrationId) return widget;
+          const migrationWidget = widget as unknown as MigrationWidget;
+          const widgetType = getMigrationWidgetType(migrationWidget);
+          if (!INTEGRATION_MIGRATION_SPECS[widgetType]) return widget;
+          return stripMigratedConnectionFields({
+            ...migrationWidget,
+            integrationId: existingWidget.integrationId,
+          }) as unknown as typeof widget;
+        }),
+      };
+    }
+
+    if (existingDashboard) {
       // Update existing dashboard
           await prisma.dashboard.update({
         where: { id: existingDashboard.id },
@@ -367,6 +425,10 @@ export async function POST(request: Request) {
         },
       });
     }
+
+    // Old clients and imported layouts may still submit inline connection
+    // settings. Normalize the just-saved layout before acknowledging the save.
+    await runAutomaticIntegrationMigration();
 
     return NextResponse.json({ success: true });
   } catch (error) {

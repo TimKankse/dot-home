@@ -45,6 +45,7 @@ const CONFIG_COMPONENTS: Record<string, React.ComponentType<WidgetConfigProps>> 
 };
 
 import { getMinDimensions } from '@/constants/widget-definitions';
+import { redactSensitiveFields } from '@/utils/sensitive-config';
 
 export const WidgetForm: React.FC<FormProps> = ({ 
   initialData, 
@@ -131,7 +132,10 @@ export const WidgetForm: React.FC<FormProps> = ({
       if (integration?.config) {
         setConfig((prev) => ({
           ...prev,
-          ...integration.config,
+          ...redactSensitiveFields(
+            integration.config as Record<string, unknown>,
+            'omit',
+          ),
         }));
       }
       return;

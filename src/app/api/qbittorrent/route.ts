@@ -1,229 +1,208 @@
 import { NextResponse } from 'next/server';
 
-// Format speed with responsive units
-const formatSpeed = (bytesPerSecond: number): string => {
-  if (!bytesPerSecond || bytesPerSecond === 0) return 'Idle';
-  
-  if (bytesPerSecond >= 1024 * 1024 * 1024) {
-    return `${(bytesPerSecond / (1024 * 1024 * 1024)).toFixed(2)} GB/s`;
-  } else if (bytesPerSecond >= 1024 * 1024) {
-    return `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`;
-  } else if (bytesPerSecond >= 1024) {
-    return `${(bytesPerSecond / 1024).toFixed(2)} KB/s`;
-  }
-  return `${bytesPerSecond.toFixed(0)} B/s`;
-};
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
+import {
+  buildIntegrationUrl,
+  resolveIntegrationBaseUrl,
+  resolveRequestIntegration,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
 
 interface Torrent {
-    name: string;
-    state: string;
-    size: number;
-    completed: number;
-    progress: number;
-    eta: number;
-    dlspeed: number;
+  name: string;
+  state: string;
+  size: number;
+  completed: number;
+  progress: number;
+  eta: number;
+  dlspeed: number;
 }
 
 interface Slot {
-    filename: string;
-    percentage: string;
-    mbleft: string;
-    mb: string;
-    status: string;
-    timeleft: string;
-    index: number;
-    speed: number;
+  filename: string;
+  percentage: string;
+  mbleft: string;
+  mb: string;
+  status: string;
+  timeleft: string;
+  index: number;
+  speed: number;
 }
-
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
 
 interface AuthCacheEntry {
-    cookie: string;
-    timestamp: number;
+  cookie: string;
+  timestamp: number;
 }
+
 const authCache = new Map<string, AuthCacheEntry>();
+const AUTH_CACHE_TTL = 30 * 60 * 1000;
+
+const readOptionalCredential = (value: unknown): string | undefined =>
+  typeof value === 'string' && value && !value.startsWith('enc:') ? value : undefined;
+
+const formatSpeed = (bytesPerSecond: number): string => {
+  if (!bytesPerSecond) return 'Idle';
+  if (bytesPerSecond >= 1024 ** 3) return `${(bytesPerSecond / 1024 ** 3).toFixed(2)} GB/s`;
+  if (bytesPerSecond >= 1024 ** 2) return `${(bytesPerSecond / 1024 ** 2).toFixed(2)} MB/s`;
+  if (bytesPerSecond >= 1024) return `${(bytesPerSecond / 1024).toFixed(2)} KB/s`;
+  return `${bytesPerSecond.toFixed(0)} B/s`;
+};
+
+async function getAuthCookie(
+  integrationId: string,
+  baseUrl: URL,
+  username?: string,
+  password?: string,
+): Promise<string> {
+  if (!username && !password) return '';
+  if (!username || !password) {
+    throw new ApiSecurityError(
+      'qBittorrent integration credentials are incomplete',
+      500,
+      'invalid_integration_config',
+    );
+  }
+
+  const cached = authCache.get(integrationId);
+  if (cached && Date.now() - cached.timestamp < AUTH_CACHE_TTL) return cached.cookie;
+
+  const body = new URLSearchParams({ username, password });
+  const response = await fetchOutbound(
+    buildIntegrationUrl(baseUrl, '/api/v2/auth/login'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      cache: 'no-store',
+    },
+    { policy: 'trusted-integration' },
+  );
+  const responseText = await response.text();
+  const sid = response.headers.get('set-cookie')?.match(/(?:^|;\s*)(SID=[^;]+)/)?.[1];
+  if (!response.ok || responseText.trim() !== 'Ok.' || !sid) {
+    throw new ApiSecurityError('qBittorrent authentication failed', 502, 'upstream_auth_failed');
+  }
+
+  authCache.set(integrationId, { cookie: sid, timestamp: Date.now() });
+  return sid;
+}
+
+async function resolveConnection(request: Request, permission: 'view' | 'edit') {
+  const integration = await resolveRequestIntegration(request, 'qbittorrent', permission);
+  const baseUrl = await resolveIntegrationBaseUrl(integration);
+  const username = readOptionalCredential(integration.config.username);
+  const password = readOptionalCredential(integration.config.password);
+  const cookie = await getAuthCookie(integration.id, baseUrl, username, password);
+  return { integration, baseUrl, cookie };
+}
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const mode = searchParams.get('mode');
-
-  // Try to get Integration ID first
-  const integrationId = request.headers.get('x-integration-id');
-  
-  let qbUrl = request.headers.get('x-qbittorrent-url');
-  let qbUsername = request.headers.get('x-qbittorrent-username');
-  let qbPassword = request.headers.get('x-qbittorrent-password');
-
-  if (integrationId) {
-    const integration = await prisma.integration.findUnique({
-        where: { id: integrationId }
-    });
-    
-    if (integration) {
-        const config = decryptSensitiveFields(JSON.parse(integration.config));
-        qbUrl = (config.externalUrl || config.url) as string;
-        qbUsername = config.username as string;
-        qbPassword = config.password as string;
-    }
-  }
-
-  if (!qbUrl) {
-    return NextResponse.json({ error: 'Configuration missing' }, { status: 500 });
-  }
-
   try {
-    // 1. Authenticate (if credentials provided)
-    let cookie = '';
-    if (qbUsername && qbPassword) {
-        // Check cache first (valid for 30 minutes)
-        const cached = authCache.get(qbUrl);
-        if (cached && (Date.now() - cached.timestamp < 1800000)) {
-            cookie = cached.cookie;
-        } else {
-            const authUrl = new URL(`${qbUrl}/api/v2/auth/login`);
-            const authBody = new URLSearchParams();
-            authBody.append('username', qbUsername);
-            authBody.append('password', qbPassword);
+    if (new URL(request.url).searchParams.get('mode') !== 'queue') {
+      throw new ApiSecurityError('Invalid mode', 400, 'invalid_mode');
+    }
+    const { integration, baseUrl, cookie } = await resolveConnection(request, 'view');
+    const headers = cookie ? { Cookie: cookie } : undefined;
+    const [syncResponse, transferResponse] = await Promise.all([
+      fetchOutbound(
+        buildIntegrationUrl(baseUrl, '/api/v2/sync/maindata'),
+        { headers, cache: 'no-store' },
+        { policy: 'trusted-integration' },
+      ),
+      fetchOutbound(
+        buildIntegrationUrl(baseUrl, '/api/v2/transfer/info'),
+        { headers, cache: 'no-store' },
+        { policy: 'trusted-integration' },
+      ),
+    ]);
 
-            const authRes = await fetch(authUrl.toString(), {
-                method: 'POST',
-                headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: authBody,
-            });
-
-            if (!authRes.ok) {
-                console.error(`qBittorrent Auth Error: ${authRes.status}`);
-            } else {
-                const setCookie = authRes.headers.get('set-cookie');
-                if (setCookie) {
-                    // Extract SID
-                    const match = setCookie.match(/(SID=[^;]+)/);
-                    if (match) {
-                        cookie = match[1];
-                        // Cache the cookie
-                        authCache.set(qbUrl, {
-                            cookie,
-                            timestamp: Date.now()
-                        });
-                    }
-                }
-            }
-        }
+    if (!syncResponse.ok) {
+      if ([401, 403].includes(syncResponse.status)) authCache.delete(integration.id);
+      throw new ApiSecurityError('qBittorrent request failed', 502, 'upstream_request_failed');
     }
 
-    const headers: HeadersInit = {};
-    if (cookie) {
-        headers['Cookie'] = cookie;
+    const syncData = await syncResponse.json() as {
+      torrents?: Record<string, Torrent>;
+      server_state?: { connection_status?: string };
+    };
+    const transferData = transferResponse.ok
+      ? await transferResponse.json() as { dl_info_speed?: number }
+      : {};
+    const torrents = syncData.torrents || {};
+    let totalLeft = 0;
+    let anyDownloading = false;
+    const slots = Object.values(torrents).map((torrent, index) => {
+      const downloading = ['downloading', 'stalledDL', 'metaDL', 'forcedDL'].includes(torrent.state);
+      if (downloading) {
+        totalLeft += torrent.size - torrent.completed;
+        if (torrent.state === 'downloading' || torrent.state === 'forcedDL') anyDownloading = true;
+      }
+      return {
+        filename: torrent.name,
+        percentage: (torrent.progress * 100).toFixed(1),
+        mbleft: ((torrent.size - torrent.completed) / 1024 / 1024).toFixed(2),
+        mb: (torrent.size / 1024 / 1024).toFixed(2),
+        status: torrent.state,
+        timeleft: torrent.eta === 8640000
+          ? '∞'
+          : new Date(torrent.eta * 1000).toISOString().substring(11, 19),
+        index,
+        speed: torrent.dlspeed,
+      };
+    }).filter((slot: Slot) =>
+      ['downloading', 'stalledDL', 'metaDL', 'queuedDL', 'forcedDL', 'pausedDL'].includes(slot.status),
+    );
+
+    const speed = transferData.dl_info_speed || 0;
+    let timeleft = '00:00:00';
+    if (speed > 0 && totalLeft > 0) {
+      const seconds = totalLeft / speed;
+      timeleft = seconds < 86400
+        ? new Date(seconds * 1000).toISOString().substring(11, 19)
+        : '> 24h';
     }
 
-    if (mode === 'queue') {
-        // Fetch Main Data (Sync)
-        // Fetch Main Data & Transfer Info in Parallel
-        const syncUrl = new URL(`${qbUrl}/api/v2/sync/maindata`);
-        const transferUrl = new URL(`${qbUrl}/api/v2/transfer/info`);
-
-        const [syncRes, transferRes] = await Promise.all([
-          fetch(syncUrl.toString(), { headers }),
-          fetch(transferUrl.toString(), { headers })
-        ]);
-        
-        if (!syncRes.ok) {
-             if (syncRes.status === 401 || syncRes.status === 403) {
-                 authCache.delete(qbUrl);
-             }
-             throw new Error(`Failed to fetch sync data: ${syncRes.statusText}`);
-        }
-        
-        const syncData = await syncRes.json();
-        const transferData = transferRes.ok ? await transferRes.json() : {};
-
-        // Transform to match our widget needs (similar to SABnzbd structure)
-        const torrents = syncData.torrents || {};
-
-        // Calculate Global Time Left
-        let totalLeft = 0;
-        let anyDownloading = false;
-        
-        // Filter and map slots
-        const slots = Object.keys(torrents).map((hash, index) => {
-            const t = torrents[hash] as Torrent;
-            const isDownloading = t.state === 'downloading' || t.state === 'stalledDL' || t.state === 'metaDL' || t.state === 'forcedDL';
-            
-            if (isDownloading) {
-                totalLeft += (t.size - t.completed);
-                if (t.state === 'downloading' || t.state === 'forcedDL') {
-                    anyDownloading = true;
-                }
-            }
-
-            return {
-                filename: t.name,
-                percentage: (t.progress * 100).toFixed(1),
-                mbleft: ((t.size - t.completed) / 1024 / 1024).toFixed(2),
-                mb: (t.size / 1024 / 1024).toFixed(2),
-                status: t.state,
-                timeleft: t.eta === 8640000 ? '∞' : new Date(t.eta * 1000).toISOString().substr(11, 8),
-                index: index,
-                speed: t.dlspeed,
-            };
-        }).filter((t: Slot) => 
-            ['downloading', 'stalledDL', 'metaDL', 'queuedDL', 'forcingDL', 'pausedDL'].includes(t.status)
-        );
-
-        // Calculate global ETA
-        let globalTimeleft = '00:00:00';
-        if (transferData.dl_info_speed > 0 && totalLeft > 0) {
-            const seconds = totalLeft / transferData.dl_info_speed;
-            if (seconds < 86400) { // Less than a day
-                globalTimeleft = new Date(seconds * 1000).toISOString().substr(11, 8);
-            } else {
-                globalTimeleft = '> 24h';
-            }
-        }
-
-        const responseData = {
-            queue: {
-                status: syncData.server_state?.connection_status || 'unknown',
-                speed: formatSpeed(transferData.dl_info_speed || 0),
-                timeleft: globalTimeleft,
-                slots: slots,
-                paused: !anyDownloading && slots.length > 0 && slots.some((s: Slot) => s.status === 'pausedDL'),
-            }
-        };
-
-        return NextResponse.json(responseData);
-    } else if (mode === 'pause' || mode === 'resume') {
-        const command = mode === 'pause' ? 'pause' : 'resume';
-        const actionUrl = new URL(`${qbUrl}/api/v2/torrents/${command}`);
-        const body = new URLSearchParams();
-        body.append('hashes', 'all');
-
-        const actionRes = await fetch(actionUrl.toString(), { 
-            method: 'POST',
-            headers: {
-                ...headers,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: body
-        });
-
-        if (!actionRes.ok) {
-             if (actionRes.status === 401 || actionRes.status === 403) {
-                 authCache.delete(qbUrl);
-             }
-             throw new Error(`Failed to ${command} torrents: ${actionRes.statusText}`);
-        }
-        
-        return NextResponse.json({ success: true });
-    }
-
-    return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
-
+    return NextResponse.json({
+      queue: {
+        status: syncData.server_state?.connection_status || 'unknown',
+        speed: formatSpeed(speed),
+        timeleft,
+        slots,
+        paused: !anyDownloading && slots.some((slot) => slot.status === 'pausedDL'),
+      },
+    });
   } catch (error) {
-    console.error('Error fetching from qBittorrent:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch qBittorrent queue');
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json() as { action?: unknown };
+    if (body.action !== 'pause' && body.action !== 'resume') {
+      throw new ApiSecurityError('Invalid queue action', 400, 'invalid_queue_action');
+    }
+    const { integration, baseUrl, cookie } = await resolveConnection(request, 'edit');
+    const form = new URLSearchParams({ hashes: 'all' });
+    const response = await fetchOutbound(
+      buildIntegrationUrl(baseUrl, `/api/v2/torrents/${body.action}`),
+      {
+        method: 'POST',
+        headers: {
+          ...(cookie ? { Cookie: cookie } : {}),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form,
+        cache: 'no-store',
+      },
+      { policy: 'trusted-integration' },
+    );
+    if (!response.ok) {
+      if ([401, 403].includes(response.status)) authCache.delete(integration.id);
+      throw new ApiSecurityError('qBittorrent action failed', 502, 'upstream_request_failed');
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return apiSecurityErrorResponse(error, 'Failed to update qBittorrent queue');
   }
 }

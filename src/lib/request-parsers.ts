@@ -73,6 +73,50 @@ export const parseSetupRequest = (body: unknown) => {
   };
 };
 
+export const parseProfileUpdateRequest = (body: unknown) => {
+  const record = assertRecord(body, 'Profile update payload');
+
+  return {
+    displayName: readOptionalString(record, 'displayName')?.trim(),
+  };
+};
+
+export const parseChangePasswordRequest = (body: unknown) => {
+  const record = assertRecord(body, 'Change password payload');
+
+  return {
+    currentPassword: readRequiredString(record, 'currentPassword', 'Current password'),
+    newPassword: readRequiredString(record, 'newPassword', 'New password'),
+  };
+};
+
+export const parseForgotPasswordRequest = (body: unknown) => {
+  const record = assertRecord(body, 'Forgot password payload');
+
+  return {
+    email: readRequiredString(record, 'email', 'Email').trim().toLowerCase(),
+  };
+};
+
+export const parseResetPasswordRequest = (body: unknown) => {
+  const record = assertRecord(body, 'Reset password payload');
+
+  return {
+    token: readRequiredString(record, 'token', 'Reset token').trim(),
+    password: readRequiredString(record, 'password', 'Password'),
+  };
+};
+
+export const parseUpdateUserRequest = (body: unknown) => {
+  const record = assertRecord(body, 'Update user payload');
+
+  return {
+    email: readOptionalString(record, 'email')?.trim().toLowerCase(),
+    displayName: readOptionalString(record, 'displayName')?.trim(),
+    role: readOptionalEnum(record.role, USER_ROLES) as typeof USER_ROLES[number] | undefined,
+  };
+};
+
 export const parseCreatePageRequest = (body: unknown) => {
   const record = assertRecord(body, 'Create page payload');
 

@@ -1,4 +1,5 @@
 import { NetdataChartResponse } from '../types';
+import { fetchOutbound } from '@/lib/outbound-http';
 
 interface InfoCacheEntry {
     data: Record<string, unknown>;
@@ -21,10 +22,11 @@ export const fetchNetdata = async (baseUrl: string, chart: string): Promise<Netd
     const fetchPromise = (async (): Promise<NetdataChartResponse | null> => {
         const apiUrl = `${baseUrl}/api/v1/data?chart=${chart}&points=1&after=-1&group=average&format=json`;
         try {
-            const res = await fetch(apiUrl, { 
-                signal: AbortSignal.timeout(5000),
-                cache: 'no-store'
-            });
+            const res = await fetchOutbound(
+                apiUrl,
+                { cache: 'no-store' },
+                { policy: 'trusted-integration', timeoutMs: 5000 },
+            );
             if (!res.ok) {
                 activeChartRequests.delete(cacheKey);
                 return null;
@@ -57,10 +59,11 @@ export const fetchInfo = async (baseUrl: string): Promise<Record<string, unknown
     
     const fetchPromise = (async (): Promise<Record<string, unknown> | null> => {
         try {
-            const res = await fetch(`${baseUrl}/api/v1/info`, {
-                signal: AbortSignal.timeout(5000),
-                cache: 'no-store'
-            });
+            const res = await fetchOutbound(
+                `${baseUrl}/api/v1/info`,
+                { cache: 'no-store' },
+                { policy: 'trusted-integration', timeoutMs: 5000 },
+            );
             if (!res.ok) {
                 activeInfoRequests.delete(baseUrl);
                 return null;
@@ -82,10 +85,11 @@ export const fetchInfo = async (baseUrl: string): Promise<Record<string, unknown
 
 export const fetchChartsList = async (baseUrl: string): Promise<{ charts: string[]; error?: string }> => {
     try {
-        const chartsRes = await fetch(`${baseUrl}/api/v1/charts`, { 
-            signal: AbortSignal.timeout(10000),
-            cache: 'no-store'
-        });
+        const chartsRes = await fetchOutbound(
+            `${baseUrl}/api/v1/charts`,
+            { cache: 'no-store' },
+            { policy: 'trusted-integration', timeoutMs: 10000 },
+        );
         if (!chartsRes.ok) throw new Error(`HTTP ${chartsRes.status}`);
         const charts = await chartsRes.json();
         return { charts: Object.keys(charts.charts) };

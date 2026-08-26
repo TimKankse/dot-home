@@ -22,7 +22,7 @@ export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetPr
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!config?.url && !integrationId) {
+    if (!integrationId) {
       setLoading(false);
       return;
     }
@@ -55,7 +55,7 @@ export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetPr
     return () => clearInterval(interval);
   }, [loadData]);
 
-  if (!config?.url && !integrationId) {
+  if (!integrationId) {
     return (
       <div className={styles.widgetContainer}>
         <div className={styles.emptyState}>

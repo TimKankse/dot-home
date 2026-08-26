@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import bcrypt from 'bcrypt';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-
-const SALT_ROUNDS = 12;
+import { clearPasswordResetTokensForUser } from '@/lib/password-reset';
+import { normalizeEmail } from '@/lib/passwords';
+import { parseUpdateUserRequest } from '@/lib/request-parsers';
+import { ValidationError } from '@/lib/validation';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/users/[id] - Get a specific user (admin only)
-export async function GET(request: Request, { params }: RouteParams) {
+// GET /api/users/[id] - Get a specific user (admin or self)
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = await params;
@@ -51,7 +52,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   }
 }
 
-// PATCH /api/users/[id] - Update a user (admin only, or self for limited fields)
+// PATCH /api/users/[id] - Update a user (admin only, or self for display name only)
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
@@ -68,13 +69,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { displayName, password, role } = body;
+    const { displayName, email, role } = parseUpdateUserRequest(await request.json());
 
     interface UserUpdateData {
-        displayName?: string | null;
-        passwordHash?: string;
-        role?: string;
+      displayName?: string | null;
+      email?: string;
+      role?: string;
     }
     
     const updateData: UserUpdateData = {};
@@ -84,15 +84,39 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       updateData.displayName = displayName || null;
     }
 
-    // Anyone can update their own password
-    if (password) {
-      if (password.length < 8) {
+    // Email updates are admin-assisted only.
+    if (email !== undefined) {
+      if (!isAdmin) {
         return NextResponse.json(
-          { error: 'Password must be at least 8 characters' },
+          { error: 'Only admins can change email addresses' },
+          { status: 403 }
+        );
+      }
+
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) {
+        return NextResponse.json(
+          { error: 'Email is required' },
           { status: 400 }
         );
       }
-      updateData.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: normalizedEmail,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'Email already in use' },
+          { status: 400 }
+        );
+      }
+
+      updateData.email = normalizedEmail;
     }
 
     // Only admins can change roles
@@ -146,8 +170,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       },
     });
 
+    if (updateData.email) {
+      await clearPasswordResetTokensForUser(id);
+    }
+
     return NextResponse.json({ user });
   } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error('Error updating user:', error);
     return NextResponse.json(
       { error: 'Failed to update user' },
@@ -157,7 +189,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 }
 
 // DELETE /api/users/[id] - Delete a user (admin only)
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = await params;

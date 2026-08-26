@@ -36,18 +36,13 @@ interface RequestResponse {
 }
 
 export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Promise<EnrichedRequest[]> {
-  const { config, integrationId } = params;
-  
-  if ((!config?.url || !config?.apiKey) && !integrationId) {
+  const { integrationId } = params;
+  if (!integrationId) {
     return [];
   }
 
-  const headers: Record<string, string> = {};
-  if (integrationId) headers['x-integration-id'] = integrationId;
-  if (config?.url) headers['x-jellyseerr-url'] = config.url;
-  if (config?.apiKey) headers['x-jellyseerr-apikey'] = config.apiKey;
-
-  const res = await fetch(`/api/jellyseerr?path=/request&take=25&filter=all&sort=added`, { headers });
+  const headers = { 'x-integration-id': integrationId };
+  const res = await fetch('/api/jellyseerr', { headers });
   
   if (!res.ok) throw new Error('Failed to fetch requests');
   
@@ -103,16 +98,15 @@ export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Pr
 export async function manageJellyseerrRequest(
   requestId: number, 
   action: 'approve' | 'decline',
-  config: JellyseerrWidgetConfig
+  integrationId: string,
 ): Promise<boolean> {
-  if (!config.url || !config.apiKey) return false;
-  
-  const res = await fetch(`/api/jellyseerr?path=/request/${requestId}/${action}`, {
+  const res = await fetch('/api/jellyseerr', {
     method: 'POST',
     headers: {
-      'x-jellyseerr-url': config.url,
-      'x-jellyseerr-apikey': config.apiKey,
-    }
+      'Content-Type': 'application/json',
+      'x-integration-id': integrationId,
+    },
+    body: JSON.stringify({ requestId, action }),
   });
   
   return res.ok;

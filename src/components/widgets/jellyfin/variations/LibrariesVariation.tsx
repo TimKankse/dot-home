@@ -5,22 +5,10 @@ import { LibraryStats } from '../types';
 
 interface LibrariesVariationProps {
   libraries: LibraryStats[];
-  userId?: string;
   selectedLibraries?: string[];
 }
 
-export const LibrariesVariation: React.FC<LibrariesVariationProps> = ({ libraries, userId, selectedLibraries }) => {
-  if (!userId) {
-    return (
-        <div className={styles.emptyStateContainer}>
-            <div className={styles.emptyStateIcon}>
-                <HardDrive size={24} style={{ marginLeft: '4px' }} />
-            </div>
-            <p className="font-mono text-muted">User ID Missing</p>
-        </div>
-    );
-  }
-
+export const LibrariesVariation: React.FC<LibrariesVariationProps> = ({ libraries, selectedLibraries }) => {
   const visibleLibraries = selectedLibraries && selectedLibraries.length > 0
     ? libraries.filter(lib => selectedLibraries.includes(lib.Id))
     : libraries;

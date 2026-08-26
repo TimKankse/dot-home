@@ -14,23 +14,19 @@ export interface PortainerContainer {
 }
 
 export interface PortainerFetchParams {
-  config: PortainerWidgetConfig;
+  integrationId?: string;
+  config?: PortainerWidgetConfig;
 }
 
 export async function fetchPortainerContainers(params: PortainerFetchParams): Promise<PortainerContainer[]> {
-  const { config } = params;
-  
-  if (!config.url || !config.apiKey) {
+  const { config, integrationId } = params;
+  if (!integrationId) {
     return [];
   }
 
-  const res = await fetch('/api/portainer', {
-    headers: {
-      'x-portainer-url': config.url,
-      'x-portainer-apikey': config.apiKey,
-      'x-portainer-endpoint-id': config.endpointId || '1',
-    },
-  });
+  const query = new URLSearchParams({ integrationId });
+  if (config?.endpointId) query.set('endpointId', config.endpointId);
+  const res = await fetch(`/api/portainer?${query.toString()}`);
 
   if (!res.ok) {
     throw new Error('Failed to fetch data');
@@ -48,17 +44,14 @@ export async function fetchPortainerContainers(params: PortainerFetchParams): Pr
 export async function performContainerAction(
   containerId: string, 
   action: 'start' | 'stop' | 'restart',
-  config: PortainerWidgetConfig
+  params: PortainerFetchParams,
 ): Promise<boolean> {
-  if (!config.url || !config.apiKey) return false;
-  
-  const res = await fetch('/api/portainer', {
+  if (!params.integrationId) return false;
+  const query = new URLSearchParams({ integrationId: params.integrationId });
+  if (params.config?.endpointId) query.set('endpointId', params.config.endpointId);
+  const res = await fetch(`/api/portainer?${query.toString()}`, {
     method: 'POST',
-    headers: {
-      'x-portainer-url': config.url,
-      'x-portainer-apikey': config.apiKey,
-      'x-portainer-endpoint-id': config.endpointId || '1',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: containerId, action }),
   });
 

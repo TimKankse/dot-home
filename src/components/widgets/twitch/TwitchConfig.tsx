@@ -22,21 +22,6 @@ export const TwitchConfig = buildConfigForm<TwitchWidgetConfig>([
       </div>
     )
   },
-  { 
-    type: 'input', 
-    key: 'clientId', 
-    label: 'Client ID', 
-    placeholder: 'Twitch Client ID',
-    condition: (c) => !c.integrationId
-  },
-  { 
-    type: 'input', 
-    key: 'clientSecret', 
-    label: 'Client Secret', 
-    inputType: 'password',
-    placeholder: 'Twitch Client Secret',
-    condition: (c) => !c.integrationId
-  },
   // Channels is widget-specific, always shown
   { 
     type: 'input', 

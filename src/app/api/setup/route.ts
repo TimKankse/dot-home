@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcrypt';
 import { prisma } from '@/lib/db';
 import {
   createStarterDashboardLayout,
   serializeDashboardLayout,
 } from '@/lib/dashboard-layout';
+import { hashPassword, isValidPasswordLength, normalizeEmail } from '@/lib/passwords';
 import { parseSetupRequest } from '@/lib/request-parsers';
 import { ValidationError } from '@/lib/validation';
-
-const SALT_ROUNDS = 12;
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (!isValidPasswordLength(password)) {
       return NextResponse.json(
         { error: 'Password must be at least 8 characters' },
         { status: 400 }
@@ -39,12 +37,12 @@ export async function POST(request: Request) {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const passwordHash = await hashPassword(password);
 
     // Create admin user
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
+        email: normalizeEmail(email),
         displayName: displayName || null,
         passwordHash,
         role: 'admin', // First user is always admin

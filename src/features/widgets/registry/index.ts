@@ -64,6 +64,7 @@ export const WIDGET_REGISTRY: Record<WidgetTypeKey, WidgetDefinition> = {
     component: PortainerWidget as WidgetDefinition['component'],
     displayName: 'Portainer',
     defaultSize: { w: 2, h: 2 },
+    requiresIntegration: true,
   },
   sabnzbd: {
     component: SabnzbdWidget as WidgetDefinition['component'],

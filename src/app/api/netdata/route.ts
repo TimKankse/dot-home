@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+import { apiSecurityErrorResponse, ApiSecurityError } from '@/lib/api-security';
+import {
+    resolveIntegrationBaseUrl,
+    resolveRequestIntegration,
+} from '@/lib/integration-connection';
 import { fetchInfo } from './utils/netdata-client';
 import { createScopeChecker } from './utils/scope-manager';
 import { fetchFunctionsData } from './utils/function-fetcher';
@@ -14,39 +19,35 @@ import { processGpu } from './processors/gpu-processor';
 import { processNetwork } from './processors/network-processor';
 import { processSensors } from './processors/sensor-processor';
 import { processSystemInfo, processCpuModel } from './processors/system-processor';
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
 
-// ========================================
-// Integration config cache
-// ========================================
-const integrationConfigCache = new Map<string, { url: string, timestamp: number }>();
+const VALID_SCOPES = new Set([
+    'all', 'cpu', 'ram', 'storage', 'processes', 'network',
+    'system', 'cpu-cores', 'gpu', 'sensors',
+]);
+const MIN_INTERVAL_MS = 2000;
+const MAX_INTERVAL_MS = 60000;
+const MAX_STREAMS_PER_INTEGRATION = 8;
+const MAX_STREAM_DURATION_MS = 5 * 60 * 1000;
+const activeStreams = new Map<string, number>();
 
-async function getNetdataUrl(integrationId: string | null, bodyUrl: string | null): Promise<string | null> {
-    if (bodyUrl) return bodyUrl;
-    if (!integrationId) return null;
-    
-    const cached = integrationConfigCache.get(integrationId);
-    const now = Date.now();
-    if (cached && (now - cached.timestamp < 60000)) {
-        return cached.url;
+const parseScopes = (scopeParam: string | null): string[] => {
+    const scopes = [...new Set((scopeParam || 'all').split(',').filter(Boolean))];
+    if (scopes.length === 0 || scopes.some((scope) => !VALID_SCOPES.has(scope))) {
+        throw new ApiSecurityError('Invalid Netdata scope', 400, 'invalid_scope');
     }
-    
-    const integration = await prisma.integration.findUnique({
-        where: { id: integrationId }
-    });
-    
-    if (integration) {
-        const config = decryptSensitiveFields(JSON.parse(integration.config)) as Record<string, unknown>;
-        const url = (config.url || config.externalUrl) as string | undefined;
-        if (url && typeof url === 'string') {
-            integrationConfigCache.set(integrationId, { url, timestamp: now });
-            return url;
-        }
-    }
-    
-    return null;
-}
+    return scopes.includes('all') ? ['all'] : scopes;
+};
+
+const parseBoundedInteger = (
+    value: unknown,
+    fallback: number,
+    min: number,
+    max: number,
+): number => {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, Math.floor(parsed)));
+};
 
 // ========================================
 // Build filter string for allmetrics based on scopes
@@ -242,67 +243,86 @@ async function fetchNetdataData(cleanUrl: string, requestedScopes: string[], pro
 // SSE Endpoint - GET /api/netdata/stream
 // ========================================
 export async function GET(request: Request) {
-    const reqUrl = new URL(request.url);
-    const integrationId = reqUrl.searchParams.get('integrationId');
-    const directUrl = reqUrl.searchParams.get('url');
-    const scopeParam = reqUrl.searchParams.get('scope');
-    const intervalParam = reqUrl.searchParams.get('interval');
-    const processLimitParam = reqUrl.searchParams.get('processLimit');
-    
-    const scopes = scopeParam ? scopeParam.split(',') : ['all'];
-    const interval = intervalParam ? parseInt(intervalParam, 10) : 2000;
-    const processLimit = processLimitParam ? parseInt(processLimitParam, 10) : 10;
-    
-    // Get Netdata URL (direct URL takes precedence over integration lookup)
-    const netdataUrl = await getNetdataUrl(integrationId, directUrl);
-    if (!netdataUrl) {
-        return new Response(JSON.stringify({ error: 'URL or integration required' }), { 
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-    
-    const baseUrl = netdataUrl.startsWith('http') ? netdataUrl : `http://${netdataUrl}`;
-    const cleanUrl = baseUrl.replace(/\/$/, '');
-    
-    // Create SSE stream
-    const encoder = new TextEncoder();
-    let intervalId: NodeJS.Timeout | null = null;
-    
-    const stream = new ReadableStream({
-        async start(controller) {
-            // Send initial data immediately
-            try {
-                const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-            } catch {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
-            }
-            
-            // Set up interval for subsequent updates
-            intervalId = setInterval(async () => {
-                try {
-                    const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-                } catch {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
-                }
-            }, interval);
-        },
-        cancel() {
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
+    try {
+        const integration = await resolveRequestIntegration(request, 'netdata');
+        const reqUrl = new URL(request.url);
+        const scopes = parseScopes(reqUrl.searchParams.get('scope'));
+        const interval = parseBoundedInteger(
+            reqUrl.searchParams.get('interval'),
+            MIN_INTERVAL_MS,
+            MIN_INTERVAL_MS,
+            MAX_INTERVAL_MS,
+        );
+        const processLimit = parseBoundedInteger(
+            reqUrl.searchParams.get('processLimit'),
+            10,
+            1,
+            50,
+        );
+        const streamCount = activeStreams.get(integration.id) || 0;
+        if (streamCount >= MAX_STREAMS_PER_INTEGRATION) {
+            throw new ApiSecurityError('Too many Netdata streams', 429, 'stream_limit_exceeded');
         }
-    });
-    
-    return new Response(stream, {
-        headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        },
-    });
+
+        const cleanUrl = (await resolveIntegrationBaseUrl(integration)).toString().replace(/\/$/, '');
+        const encoder = new TextEncoder();
+        let intervalId: NodeJS.Timeout | null = null;
+        let durationId: NodeJS.Timeout | null = null;
+        let closed = false;
+        let fetching = false;
+        activeStreams.set(integration.id, streamCount + 1);
+
+        const release = () => {
+            if (closed) return;
+            closed = true;
+            if (intervalId) clearInterval(intervalId);
+            if (durationId) clearTimeout(durationId);
+            const remaining = (activeStreams.get(integration.id) || 1) - 1;
+            if (remaining > 0) activeStreams.set(integration.id, remaining);
+            else activeStreams.delete(integration.id);
+        };
+
+        const stream = new ReadableStream({
+            async start(controller) {
+                const send = async () => {
+                    if (closed || fetching) return;
+                    fetching = true;
+                    try {
+                        const data = await fetchNetdataData(cleanUrl, scopes, processLimit);
+                        if (!closed) controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+                    } catch {
+                        if (!closed) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to fetch' })}\n\n`));
+                    } finally {
+                        fetching = false;
+                    }
+                };
+
+                request.signal.addEventListener('abort', () => {
+                    release();
+                    try { controller.close(); } catch { /* already closed */ }
+                }, { once: true });
+                await send();
+                if (closed) return;
+                intervalId = setInterval(send, interval);
+                durationId = setTimeout(() => {
+                    release();
+                    try { controller.close(); } catch { /* already closed */ }
+                }, MAX_STREAM_DURATION_MS);
+            },
+            cancel: release,
+        });
+
+        return new Response(stream, {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache, no-store',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no',
+            },
+        });
+    } catch (error) {
+        return apiSecurityErrorResponse(error, 'Failed to open Netdata stream');
+    }
 }
 
 // ========================================
@@ -310,23 +330,20 @@ export async function GET(request: Request) {
 // ========================================
 export async function POST(request: Request) {
     try {
-        const { url: bodyUrl, processLimit = 10, scope } = await request.json();
-        const integrationId = request.headers.get('x-integration-id');
-        
-        const netdataUrl = await getNetdataUrl(integrationId, bodyUrl);
-        if (!netdataUrl) {
-            return NextResponse.json({ error: 'URL is required' }, { status: 400 });
-        }
-        
-        const baseUrl = netdataUrl.startsWith('http') ? netdataUrl : `http://${netdataUrl}`;
-        const cleanUrl = baseUrl.replace(/\/$/, '');
-        
-        const requestedScopes = Array.isArray(scope) && scope.length > 0 ? scope : ['all'];
-        const data = await fetchNetdataData(cleanUrl, requestedScopes, processLimit);
+        const integration = await resolveRequestIntegration(request, 'netdata');
+        const { processLimit = 10, scope } = await request.json() as {
+            processLimit?: unknown;
+            scope?: unknown;
+        };
+        const cleanUrl = (await resolveIntegrationBaseUrl(integration)).toString().replace(/\/$/, '');
+        const requestedScopes = Array.isArray(scope)
+            ? parseScopes(scope.join(','))
+            : ['all'];
+        const boundedProcessLimit = parseBoundedInteger(processLimit, 10, 1, 50);
+        const data = await fetchNetdataData(cleanUrl, requestedScopes, boundedProcessLimit);
         
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Netdata API Error:', error);
-        return NextResponse.json({ error: 'Failed to connect to Netdata' }, { status: 500 });
+        return apiSecurityErrorResponse(error, 'Failed to connect to Netdata');
     }
 }

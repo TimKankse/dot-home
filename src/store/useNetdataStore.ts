@@ -13,16 +13,16 @@ interface InstanceState {
 
 interface NetdataStore {
   instances: Record<string, InstanceState>;
-  subscribe: (params: { url?: string, integrationId?: string, scope?: string, refreshInterval?: number }) => void;
-  unsubscribe: (params: { url?: string, integrationId?: string, scope?: string, refreshInterval?: number }) => void;
+  subscribe: (params: { integrationId?: string, scope?: string, refreshInterval?: number }) => void;
+  unsubscribe: (params: { integrationId?: string, scope?: string, refreshInterval?: number }) => void;
 }
 
 export const useNetdataStore = create<NetdataStore>((set, get) => ({
   instances: {},
 
-  subscribe: ({ url, integrationId, scope = 'all', refreshInterval = 2000 }) => {
+  subscribe: ({ integrationId, scope = 'all', refreshInterval = 2000 }) => {
     const { instances } = get();
-    const key = integrationId || url;
+    const key = integrationId;
 
     if (!key) return;
     
@@ -48,12 +48,7 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
             scope: scopeParam,
         });
         
-        if (integrationId) {
-            params.set('integrationId', integrationId);
-        } else if (url) {
-            // Direct URL mode - pass URL as query param
-            params.set('url', url);
-        }
+        if (integrationId) params.set('integrationId', integrationId);
         
         const eventSource = new EventSource(`/api/netdata?${params.toString()}`);
         
@@ -189,9 +184,9 @@ export const useNetdataStore = create<NetdataStore>((set, get) => ({
     }
   },
 
-  unsubscribe: ({ url, integrationId, scope = 'all', refreshInterval = 2000 }) => {
+  unsubscribe: ({ integrationId, scope = 'all', refreshInterval = 2000 }) => {
     const { instances } = get();
-    const key = integrationId || url;
+    const key = integrationId;
     if (!key) return;
 
     const instance = instances[key];

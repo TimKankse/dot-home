@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './JellyfinWidget.module.css';
 import { JellyfinSession, LibraryStats, JellyfinWidgetConfig } from './types';
 import { NowPlayingVariation } from './variations/NowPlayingVariation';
 import { LibrariesVariation } from './variations/LibrariesVariation';
 import { mergeSessionsPreservingOrder } from './utils';
-import { fetchJellyfinData, createJellyfinWebSocket, fetchJellyfinLibraryCounts } from '@/services/jellyfin';
-import isEqual from 'lodash/isEqual';
+import { fetchJellyfinData } from '@/services/jellyfin';
 
 interface JellyfinWidgetProps {
   config?: JellyfinWidgetConfig;
@@ -15,20 +14,12 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   const [sessions, setSessions] = useState<JellyfinSession[]>([]);
   const [libraries, setLibraries] = useState<LibraryStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const librariesRef = useRef<LibraryStats[]>([]);
-  useEffect(() => {
-    librariesRef.current = libraries;
-  }, [libraries]);
 
   useEffect(() => {
     let isSubscribed = true;
 
     const loadData = async () => {
-      if ((!config?.url || !config?.apiKey) && !integrationId) {
+      if (!integrationId) {
         if (isSubscribed) setLoading(false);
         return;
       }
@@ -40,66 +31,21 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
         setSessions((previousSessions) => mergeSessionsPreservingOrder(previousSessions, data.sessions));
         setLibraries(data.libraries);
         setLoading(false);
-
-        if (config?.viewMode === 'libraries') {
-           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-           
-           pollIntervalRef.current = setInterval(async () => {
-               try {
-                   const newCounts = await fetchJellyfinLibraryCounts({ config, integrationId });
-                   if (!isSubscribed) return;
-                   
-                   const currentState = librariesRef.current.map(l => ({ Id: l.Id, Counts: l.Counts }));
-                   const newState = newCounts.map(l => ({ Id: l.Id, Counts: l.Counts }));
-                   
-                   if (!isEqual(currentState, newState)) {
-                       loadData(); 
-                   }
-               } catch (e) {
-                   console.error('Failed to poll Jellyfin counts', e);
-               }
-           }, 60000);
-        } else if (config?.url && config?.apiKey) {
-          if (wsRef.current) {
-            wsRef.current.onclose = null; // Remove listener so we don't trigger reconnect loop
-            wsRef.current.close();
-            wsRef.current = null;
-          }
-
-          const ws = createJellyfinWebSocket(config, (newSessions) => {
-            if (isSubscribed) {
-              setSessions((previousSessions) => mergeSessionsPreservingOrder(previousSessions, newSessions));
-            }
-          });
-          
-          if (ws) {
-            wsRef.current = ws;
-            ws.onclose = () => {
-              if (isSubscribed) {
-                reconnectTimeoutRef.current = setTimeout(loadData, 5000);
-              }
-            };
-          }
-        }
       } catch (error) {
-        console.error('Failed to initialize Jellyfin:', error);
+        console.error('Failed to refresh Jellyfin:', error);
         if (isSubscribed) {
           setLoading(false);
-          reconnectTimeoutRef.current = setTimeout(loadData, 10000);
         }
       }
     };
 
     loadData();
+    const refreshInterval = config?.viewMode === 'libraries' ? 60_000 : 10_000;
+    const intervalId = window.setInterval(loadData, refreshInterval);
 
     return () => {
       isSubscribed = false;
-      if (wsRef.current) {
-        wsRef.current.onclose = null; // Important to avoid triggering reconnects on unmount
-        wsRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      window.clearInterval(intervalId);
     };
   }, [config, integrationId]);
 
@@ -108,16 +54,16 @@ export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: st
   }
 
   if (config?.viewMode === 'libraries') {
-    return <LibrariesVariation libraries={libraries} userId={config.userId} selectedLibraries={config.selectedLibraries} />;
+    return <LibrariesVariation libraries={libraries} selectedLibraries={config.selectedLibraries} />;
   }
 
   if (config?.viewMode === 'now-playing') {
-    return <NowPlayingVariation sessions={sessions} config={config} />;
+    return <NowPlayingVariation sessions={sessions} integrationId={integrationId} />;
   }
 
   if (sessions.length === 0 && libraries.length > 0) {
-    return <LibrariesVariation libraries={libraries} userId={config?.userId} selectedLibraries={config?.selectedLibraries} />;
+    return <LibrariesVariation libraries={libraries} selectedLibraries={config?.selectedLibraries} />;
   }
 
-  return <NowPlayingVariation sessions={sessions} config={config} />;
+  return <NowPlayingVariation sessions={sessions} integrationId={integrationId} />;
 };

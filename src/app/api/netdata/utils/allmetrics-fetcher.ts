@@ -1,4 +1,5 @@
 import { NetdataChartResponse } from '../types';
+import { fetchOutbound } from '@/lib/outbound-http';
 
 /**
  * Allmetrics response structure from Netdata /api/v1/allmetrics?format=json
@@ -44,10 +45,11 @@ export const fetchAllMetrics = async (baseUrl: string, filter?: string): Promise
                 params.set('filter', filter);
             }
             
-            const res = await fetch(`${baseUrl}/api/v1/allmetrics?${params.toString()}`, {
-                signal: AbortSignal.timeout(10000),
-                cache: 'no-store'
-            });
+            const res = await fetchOutbound(
+                `${baseUrl}/api/v1/allmetrics?${params.toString()}`,
+                { cache: 'no-store' },
+                { policy: 'trusted-integration', timeoutMs: 10000 },
+            );
 
             if (!res.ok) {
                 console.warn(`[Netdata] allmetrics returned ${res.status}`);

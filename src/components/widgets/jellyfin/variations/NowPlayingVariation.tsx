@@ -1,15 +1,15 @@
 import React, { useRef, useState } from 'react';
 import { Play, Film, Tv, Info } from 'lucide-react';
 import styles from '../JellyfinWidget.module.css';
-import { JellyfinSession, JellyfinWidgetConfig } from '../types';
+import { JellyfinSession } from '../types';
 import { formatTime, formatBitrate, formatEpisodeTitle, getResolutionLabel } from '../utils';
 
 interface NowPlayingVariationProps {
   sessions: JellyfinSession[];
-  config?: JellyfinWidgetConfig;
+  integrationId?: string;
 }
 
-export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessions, config }) => {
+export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessions, integrationId }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showTechInfo, setShowTechInfo] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -70,8 +70,8 @@ export const NowPlayingVariation: React.FC<NowPlayingVariationProps> = ({ sessio
                     ? item.SeriesId 
                     : item?.Id;
                 
-                const imageUrl = posterId && config?.url 
-                    ? `/api/jellyfin/image?id=${posterId}&url=${encodeURIComponent(config.url)}&apiKey=${encodeURIComponent(config.apiKey || '')}` 
+                const imageUrl = posterId && integrationId
+                    ? `/api/jellyfin/image?id=${encodeURIComponent(posterId)}&integrationId=${encodeURIComponent(integrationId)}`
                     : null;
 
                 return (
