@@ -15,7 +15,7 @@ const readString = (value: unknown): string | undefined =>
 export async function resolveJellyfinConnection(
   request: Request,
 ): Promise<JellyfinConnection> {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
   const requestUrl = new URL(request.url);
   const integrationId =
     request.headers.get('x-integration-id') ||

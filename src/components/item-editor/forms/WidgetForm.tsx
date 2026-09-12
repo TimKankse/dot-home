@@ -6,7 +6,6 @@ import styles from '../ItemEditorDialog.module.css';
 import { IconSelector } from '../../ui/IconSelector';
 import { Input } from '../../primitives/input';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
-import { YamlEditorTab } from './YamlEditorTab';
 import { SyncConfigToggle } from '../../widgets/SyncConfigToggle';
 import { FormErrorBoundary } from '../FormErrorBoundary';
 import type { WidgetConfigProps, WidgetConfigValue } from './types';
@@ -105,7 +104,9 @@ export const WidgetForm: React.FC<FormProps> = ({
       type: 'widget',
       widgetType,
       config: finalConfig,
-      integrationId: finalIntegrationId || undefined,
+      // Preserve an explicit empty string so the save route can distinguish an
+      // intentional disconnect from an older client omitting the field.
+      integrationId: finalIntegrationId,
       syncConfig,
       w: finalW, 
       h: finalH
@@ -148,24 +149,6 @@ export const WidgetForm: React.FC<FormProps> = ({
   };
 
   const ConfigComponent = CONFIG_COMPONENTS[widgetType];
-
-  const getCurrentStateObject = () => {
-    const cleanConfig = { ...config };
-
-    return {
-      name,
-      type: 'widget',
-      widgetType,
-      iconUrl,
-      integrationId: selectedIntegrationId || undefined,
-      syncConfig,
-      config: cleanConfig,
-      w: initialData?.w || 1,
-      h: initialData?.h || 1
-    };
-  };
-
-
 
   return (
     <div className={styles.formContainer}>
@@ -217,31 +200,6 @@ export const WidgetForm: React.FC<FormProps> = ({
             </FormErrorBoundary>
           </div>
 
-
-          <YamlEditorTab 
-            isActive={activeTab === 'yaml'}
-            currentState={getCurrentStateObject()}
-            onUpdate={(parsed) => {
-              if (typeof parsed.name === 'string') setName(parsed.name);
-              if (typeof parsed.iconUrl === 'string') setIconUrl(parsed.iconUrl);
-              // Handle integrationId from YAML - update config.integrationId (single source of truth)
-              if ('integrationId' in parsed) {
-                const rawId = parsed.integrationId;
-                const newId = typeof rawId === 'string' ? rawId : '';
-                setSelectedIntegrationId(newId);
-                lastSyncedIntegrationId.current = newId || '';
-              }
-              if (parsed.config && typeof parsed.config === 'object') {
-                // Merge YAML config
-                const yamlConfig = parsed.config as Record<string, unknown>;
-                setConfig(prev => ({
-                  ...prev,
-                  ...yamlConfig
-                }));
-              }
-            }}
-            formStyles={styles}
-          />
         </div>
 
       </form>

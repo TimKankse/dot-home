@@ -7,6 +7,7 @@ import {
   clampWidgetsToMaxRows,
   parseStoredDashboardLayout,
 } from '@/lib/dashboard-layout';
+import { apiFetch } from '@/lib/api-client';
 
 interface PersistenceState {
   isLoaded: boolean;
@@ -96,7 +97,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => ({
         settings,
       });
 
-      const response = await fetch('/api/config', {
+      const response = await apiFetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

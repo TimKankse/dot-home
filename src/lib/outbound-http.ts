@@ -1,9 +1,21 @@
 import { lookup } from 'node:dns/promises';
+import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
+import { Readable } from 'node:stream';
+import { createBrotliDecompress, createUnzip } from 'node:zlib';
 
 import { ApiSecurityError } from '@/lib/api-security';
+import { isNonPublicIpAddress } from './ip-address';
+
+export { isNonPublicIpAddress } from './ip-address';
 
 export type OutboundUrlPolicy = 'trusted-integration' | 'public-internet';
+
+type ResolvedAddress = {
+  address: string;
+  family: 4 | 6;
+};
 
 type DnsLookup = (
   hostname: string,
@@ -19,96 +31,21 @@ export type OutboundFetchOptions = {
   timeoutMs?: number;
   maxRedirects?: number;
   allowCrossOriginRedirects?: boolean;
+  dnsLookup?: DnsLookup;
+  transport?: OutboundTransport;
 };
 
-const parseIpv4 = (address: string): number[] | null => {
-  if (isIP(address) !== 4) return null;
-  return address.split('.').map(Number);
+export type ResolvedOutboundTarget = {
+  url: URL;
+  addresses: ResolvedAddress[];
 };
 
-const isNonPublicIpv4 = (address: string): boolean => {
-  const octets = parseIpv4(address);
-  if (!octets) return false;
+export type OutboundTransport = (
+  target: ResolvedOutboundTarget,
+  init: RequestInit,
+) => Promise<Response>;
 
-  const [a, b] = octets;
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 0) ||
-    (a === 192 && b === 2) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    (a === 198 && b === 51) ||
-    (a === 203 && b === 0) ||
-    a >= 224
-  );
-};
-
-const expandIpv6 = (address: string): number[] | null => {
-  const withoutZone = address.toLowerCase().split('%')[0];
-  if (isIP(withoutZone) !== 6) return null;
-
-  let normalized = withoutZone;
-  const ipv4Suffix = normalized.match(/(?:^|:)(\d+\.\d+\.\d+\.\d+)$/)?.[1];
-  if (ipv4Suffix) {
-    const octets = parseIpv4(ipv4Suffix);
-    if (!octets) return null;
-    const high = ((octets[0] << 8) | octets[1]).toString(16);
-    const low = ((octets[2] << 8) | octets[3]).toString(16);
-    normalized = normalized.slice(0, -ipv4Suffix.length) + `${high}:${low}`;
-  }
-
-  const halves = normalized.split('::');
-  if (halves.length > 2) return null;
-
-  const left = halves[0] ? halves[0].split(':') : [];
-  const right = halves[1] ? halves[1].split(':') : [];
-  const omitted = 8 - left.length - right.length;
-  const groups = halves.length === 2
-    ? [...left, ...Array(Math.max(0, omitted)).fill('0'), ...right]
-    : left;
-
-  if (groups.length !== 8) return null;
-  return groups.map((group) => Number.parseInt(group || '0', 16));
-};
-
-export const isNonPublicIpAddress = (address: string): boolean => {
-  if (isIP(address) === 4) return isNonPublicIpv4(address);
-
-  const groups = expandIpv6(address);
-  if (!groups) return true;
-
-  const [first, second, third, fourth, fifth, sixth] = groups;
-  const isUnspecified = groups.every((group) => group === 0);
-  const isLoopback = groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
-  const isIpv4Mapped = first === 0 && second === 0 && third === 0 && fourth === 0 && fifth === 0 && sixth === 0xffff;
-
-  if (isIpv4Mapped) {
-    const mapped = `${groups[6] >> 8}.${groups[6] & 255}.${groups[7] >> 8}.${groups[7] & 255}`;
-    return isNonPublicIpv4(mapped);
-  }
-
-  return (
-    isUnspecified ||
-    isLoopback ||
-    (first & 0xfe00) === 0xfc00 ||
-    (first & 0xffc0) === 0xfe80 ||
-    (first & 0xff00) === 0xff00 ||
-    (first === 0x2001 && second === 0x0db8) ||
-    first < 0x2000 ||
-    first > 0x3fff
-  );
-};
-
-export async function validateOutboundUrl(
-  value: string | URL,
-  policy: OutboundUrlPolicy,
-  { dnsLookup = lookup as DnsLookup }: ValidateOutboundUrlOptions = {},
-): Promise<URL> {
+const parseOutboundUrl = (value: string | URL): URL => {
   let url: URL;
   try {
     url = value instanceof URL ? new URL(value) : new URL(value);
@@ -120,33 +57,173 @@ export async function validateOutboundUrl(
     throw new ApiSecurityError('Invalid outbound URL', 400, 'invalid_outbound_url');
   }
 
-  if (policy === 'trusted-integration') return url;
+  return url;
+};
 
+const resolveOutboundTarget = async (
+  value: string | URL,
+  policy: OutboundUrlPolicy,
+  dnsLookup: DnsLookup,
+): Promise<ResolvedOutboundTarget> => {
+  const url = parseOutboundUrl(value);
   const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+
+  if (
+    policy === 'public-internet' &&
+    (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local'))
+  ) {
     throw new ApiSecurityError('Private network URLs are not allowed', 400, 'private_network_url');
   }
 
-  if (isIP(hostname)) {
-    if (isNonPublicIpAddress(hostname)) {
-      throw new ApiSecurityError('Private network URLs are not allowed', 400, 'private_network_url');
+  const ipFamily = isIP(hostname);
+  let addresses: ResolvedAddress[];
+
+  if (ipFamily) {
+    addresses = [{ address: hostname, family: ipFamily as 4 | 6 }];
+  } else {
+    try {
+      const resolved = await dnsLookup(hostname, { all: true, verbatim: true });
+      addresses = resolved
+        .filter((entry): entry is ResolvedAddress => entry.family === 4 || entry.family === 6)
+        .map(({ address, family }) => ({ address, family }));
+    } catch {
+      throw new ApiSecurityError('Outbound host could not be resolved', 400, 'unresolvable_outbound_host');
     }
-    return url;
   }
 
-  let addresses: Array<{ address: string; family: number }>;
-  try {
-    addresses = await dnsLookup(hostname, { all: true, verbatim: true });
-  } catch {
+  if (addresses.length === 0) {
     throw new ApiSecurityError('Outbound host could not be resolved', 400, 'unresolvable_outbound_host');
   }
 
-  if (!Array.isArray(addresses) || addresses.length === 0 || addresses.some(({ address }) => isNonPublicIpAddress(address))) {
+  if (policy === 'public-internet' && addresses.some(({ address }) => isNonPublicIpAddress(address))) {
     throw new ApiSecurityError('Private network URLs are not allowed', 400, 'private_network_url');
   }
 
-  return url;
+  return { url, addresses };
+};
+
+export async function validateOutboundUrl(
+  value: string | URL,
+  policy: OutboundUrlPolicy,
+  { dnsLookup = lookup as DnsLookup }: ValidateOutboundUrlOptions = {},
+): Promise<URL> {
+  return (await resolveOutboundTarget(value, policy, dnsLookup)).url;
 }
+
+const responseHeaders = (headers: IncomingHttpHeaders): Headers => {
+  const result = new Headers();
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      value.forEach((entry) => result.append(name, entry));
+    } else if (value !== undefined) {
+      result.append(name, String(value));
+    }
+  }
+
+  return result;
+};
+
+export const decodedResponseBody = (
+  upstreamResponse: Readable,
+  headers: Headers,
+): Readable => {
+  const contentEncoding = headers.get('content-encoding')?.trim().toLowerCase();
+  let body = upstreamResponse;
+
+  if (contentEncoding === 'gzip' || contentEncoding === 'x-gzip' || contentEncoding === 'deflate') {
+    body = upstreamResponse.pipe(createUnzip());
+  } else if (contentEncoding === 'br') {
+    body = upstreamResponse.pipe(createBrotliDecompress());
+  } else {
+    return body;
+  }
+
+  // The returned Response contains decoded bytes, so encoded-body metadata is
+  // no longer accurate. This mirrors the body callers receive from fetch().
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  return body;
+};
+
+const pinnedRequest = async (
+  target: ResolvedOutboundTarget,
+  init: RequestInit,
+): Promise<Response> => {
+  const normalizedRequest = new Request(target.url, {
+    ...init,
+    signal: undefined,
+  });
+  const requestBody = normalizedRequest.body
+    ? Buffer.from(await normalizedRequest.arrayBuffer())
+    : undefined;
+  const headers = Object.fromEntries(normalizedRequest.headers.entries());
+
+  if (!normalizedRequest.headers.has('accept-encoding')) {
+    headers['accept-encoding'] = 'gzip, deflate, br';
+  }
+
+  if (requestBody && !normalizedRequest.headers.has('content-length')) {
+    headers['content-length'] = String(requestBody.byteLength);
+  }
+
+  const lookupPinnedAddress = (
+    _hostname: string,
+    options: number | { family?: number | 'IPv4' | 'IPv6'; all?: boolean },
+    callback: (
+      error: NodeJS.ErrnoException | null,
+      address: string | ResolvedAddress[],
+      family?: number,
+    ) => void,
+  ) => {
+    const requestedFamily = typeof options === 'number'
+      ? options
+      : options.family === 'IPv4'
+        ? 4
+        : options.family === 'IPv6'
+          ? 6
+          : options.family;
+    const eligible = requestedFamily === 4 || requestedFamily === 6
+      ? target.addresses.filter(({ family }) => family === requestedFamily)
+      : target.addresses;
+
+    if (eligible.length === 0) {
+      const error = new Error('No vetted address matches the requested IP family') as NodeJS.ErrnoException;
+      error.code = 'ENOTFOUND';
+      callback(error, '');
+      return;
+    }
+
+    if (typeof options === 'object' && options.all) {
+      callback(null, eligible);
+      return;
+    }
+
+    callback(null, eligible[0].address, eligible[0].family);
+  };
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = (target.url.protocol === 'https:' ? httpsRequest : httpRequest)(target.url, {
+      method: normalizedRequest.method,
+      headers,
+      lookup: lookupPinnedAddress,
+      signal: init.signal ?? undefined,
+    }, (upstreamResponse) => {
+      const headers = responseHeaders(upstreamResponse.headers);
+      const decodedBody = decodedResponseBody(upstreamResponse, headers);
+      const body = Readable.toWeb(decodedBody) as ReadableStream<Uint8Array>;
+      resolve(new Response(body, {
+        status: upstreamResponse.statusCode ?? 502,
+        statusText: upstreamResponse.statusMessage,
+        headers,
+      }));
+    });
+
+    request.once('error', reject);
+    if (requestBody) request.write(requestBody);
+    request.end();
+  });
+};
 
 export async function fetchOutbound(
   value: string | URL,
@@ -156,9 +233,11 @@ export async function fetchOutbound(
     timeoutMs = 10_000,
     maxRedirects = 3,
     allowCrossOriginRedirects = false,
+    dnsLookup = lookup as DnsLookup,
+    transport = pinnedRequest,
   }: OutboundFetchOptions,
 ): Promise<Response> {
-  let currentUrl = await validateOutboundUrl(value, policy);
+  let currentTarget = await resolveOutboundTarget(value, policy, dnsLookup);
   let currentInit = { ...init };
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
@@ -166,9 +245,8 @@ export async function fetchOutbound(
     const signal = currentInit.signal
       ? AbortSignal.any([currentInit.signal, timeoutSignal])
       : timeoutSignal;
-    const response = await fetch(currentUrl, {
+    const response = await transport(currentTarget, {
       ...currentInit,
-      redirect: 'manual',
       signal,
     });
 
@@ -179,10 +257,11 @@ export async function fetchOutbound(
       throw new ApiSecurityError('Too many outbound redirects', 502, 'outbound_redirect_error');
     }
 
-    const nextUrl = await validateOutboundUrl(new URL(location, currentUrl), policy);
-    if (!allowCrossOriginRedirects && nextUrl.origin !== currentUrl.origin) {
+    const nextUrl = parseOutboundUrl(new URL(location, currentTarget.url));
+    if (!allowCrossOriginRedirects && nextUrl.origin !== currentTarget.url.origin) {
       throw new ApiSecurityError('Cross-origin redirects are not allowed', 502, 'outbound_redirect_error');
     }
+    const nextTarget = await resolveOutboundTarget(nextUrl, policy, dnsLookup);
 
     await response.body?.cancel();
 
@@ -198,7 +277,7 @@ export async function fetchOutbound(
         headers,
       };
     }
-    currentUrl = nextUrl;
+    currentTarget = nextTarget;
   }
 
   throw new ApiSecurityError('Too many outbound redirects', 502, 'outbound_redirect_error');

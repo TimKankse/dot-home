@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
+import { apiFetch } from '@/lib/api-client';
 import {
   ArrowLeft,
   Calendar,
@@ -17,7 +18,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import { Badge, Button, Input, Label, Select } from '../primitives';
+import { Badge, Button, Input, Label, Select, Switch } from '../primitives';
 import styles from './SettingsDialog.module.css';
 
 interface UserData {
@@ -25,6 +26,7 @@ interface UserData {
   email: string;
   displayName: string | null;
   role: 'admin' | 'member' | 'viewer';
+  disabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +45,7 @@ interface EditUserFormState {
   email: string;
   displayName: string;
   role: UserRole;
+  disabled: boolean;
 }
 
 interface ResetLinkState {
@@ -62,6 +65,7 @@ const EDIT_USER_INITIAL_STATE: EditUserFormState = {
   email: '',
   displayName: '',
   role: 'member',
+  disabled: false,
 };
 
 export const UsersSettings: React.FC = () => {
@@ -87,7 +91,7 @@ export const UsersSettings: React.FC = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await fetch('/api/users');
+      const response = await apiFetch('/api/users');
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
@@ -153,7 +157,7 @@ export const UsersSettings: React.FC = () => {
     setManualResetLink(null);
 
     try {
-      const response = await fetch('/api/users', {
+      const response = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser),
@@ -181,6 +185,7 @@ export const UsersSettings: React.FC = () => {
       email: user.email,
       displayName: user.displayName || '',
       role: user.role,
+      disabled: user.disabled,
     });
     clearMessages();
     setManualResetLink(null);
@@ -198,7 +203,7 @@ export const UsersSettings: React.FC = () => {
     setManualResetLink(null);
 
     try {
-      const response = await fetch(`/api/users/${editingUserId}`, {
+      const response = await apiFetch(`/api/users/${editingUserId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editUser),
@@ -243,7 +248,7 @@ export const UsersSettings: React.FC = () => {
     clearMessages();
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await apiFetch(`/api/users/${userId}`, {
         method: 'DELETE',
       });
 
@@ -268,7 +273,7 @@ export const UsersSettings: React.FC = () => {
     setCopiedResetLink(false);
 
     try {
-      const response = await fetch(`/api/users/${user.id}/reset-password`, {
+      const response = await apiFetch(`/api/users/${user.id}/reset-password`, {
         method: 'POST',
       });
 
@@ -277,18 +282,16 @@ export const UsersSettings: React.FC = () => {
         throw new Error(data.error || 'Failed to create password reset');
       }
 
-      if (data.delivery === 'manual' && data.resetUrl) {
-        setManualResetLink({
-          email: user.email,
-          expiresAt: data.expiresAt,
-          resetUrl: data.resetUrl,
-        });
-        setSuccessMessage(`Created a manual reset link for ${user.email}.`);
-        return;
+      if (!data.resetPath) {
+        throw new Error('Reset link was not returned');
       }
 
-      setManualResetLink(null);
-      setSuccessMessage(`Queued automated reset instructions for ${user.email}.`);
+      setManualResetLink({
+        email: user.email,
+        expiresAt: data.expiresAt,
+        resetUrl: new URL(data.resetPath, window.location.origin).toString(),
+      });
+      setSuccessMessage(`Created a one-time reset link for ${user.email}.`);
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : 'Failed to create password reset');
     } finally {
@@ -399,6 +402,22 @@ export const UsersSettings: React.FC = () => {
               }
               options={roleOptions}
             />
+          </div>
+
+          <div className={styles.formGroup}>
+            <Label>Account Access</Label>
+            <Switch
+              checked={!editUser.disabled}
+              onCheckedChange={(enabled) => setEditUser((current) => ({
+                ...current,
+                disabled: !enabled,
+              }))}
+              disabled={editingUserId === session?.user?.id}
+              label={editUser.disabled ? 'Account disabled' : 'Account enabled'}
+            />
+            <p className={styles.helperText}>
+              Disabling an account immediately revokes its active sessions.
+            </p>
           </div>
 
           <div className={styles.formActions}>
@@ -574,6 +593,11 @@ export const UsersSettings: React.FC = () => {
                   {user.id === session?.user?.id && (
                     <Badge variant="neutral">
                       You
+                    </Badge>
+                  )}
+                  {user.disabled && (
+                    <Badge variant="neutral">
+                      Disabled
                     </Badge>
                   )}
                 </div>

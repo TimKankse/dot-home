@@ -22,7 +22,7 @@ export const WIDGET_DEFINITIONS: Record<string, WidgetDefinition> = {
   },
   calendar: {
     minW: 2,
-    minH: 3
+    minH: 2
   },
   rss: {
     minW: 2,

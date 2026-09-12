@@ -41,9 +41,6 @@ export const CustomDragGhost: React.FC = () => {
           name={activeWidget.name || ''}
           url={activeWidget.url || ''}
           iconUrl={activeWidget.iconUrl}
-          isSelfHosted={activeWidget.isSelfHosted}
-          internalUrl={activeWidget.internalUrl}
-          config={activeWidget.config}
           isEditing={false}
           onEdit={() => {}}
         />

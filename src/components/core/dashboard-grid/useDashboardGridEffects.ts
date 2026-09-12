@@ -276,6 +276,69 @@ export const useGridStackDragLifecycle = (
   }, [gridStack, onWidgetDragStop, pageId, startShortcutDrag]);
 };
 
+export const useGridStackResizeScrollLock = (
+  gridStack: ExtendedGridStack | null,
+) => {
+  useEffect(() => {
+    if (!gridStack) return;
+
+    let lockedViewport: HTMLElement | null = null;
+    let originalScrollByDescriptor: PropertyDescriptor | undefined;
+    let initialScrollLeft = 0;
+    let initialScrollTop = 0;
+
+    const unlockViewport = () => {
+      if (!lockedViewport) return;
+
+      const viewport = lockedViewport;
+      if (originalScrollByDescriptor) {
+        Object.defineProperty(viewport, 'scrollBy', originalScrollByDescriptor);
+      } else {
+        Reflect.deleteProperty(viewport, 'scrollBy');
+      }
+
+      viewport.scrollTo({
+        left: initialScrollLeft,
+        top: initialScrollTop,
+        behavior: 'auto',
+      });
+
+      lockedViewport = null;
+      originalScrollByDescriptor = undefined;
+    };
+
+    const handleResizeStart = () => {
+      if (lockedViewport) return;
+
+      const viewport = gridStack.el.closest<HTMLElement>('[data-dashboard-viewport]');
+      if (!viewport) return;
+
+      lockedViewport = viewport;
+      initialScrollLeft = viewport.scrollLeft;
+      initialScrollTop = viewport.scrollTop;
+      originalScrollByDescriptor = Object.getOwnPropertyDescriptor(viewport, 'scrollBy');
+
+      // GridStack automatically scrolls the nearest scroll container while
+      // resizing. The dashboard viewport is also the page pager, so allowing
+      // that scroll would accidentally navigate between dashboard pages.
+      Object.defineProperty(viewport, 'scrollBy', {
+        configurable: true,
+        writable: true,
+        value: () => undefined,
+      });
+    };
+
+    gridStack.on('resizestart', handleResizeStart);
+    gridStack.on('resizestop', unlockViewport);
+
+    return () => {
+      gridStack.off('resizestart');
+      gridStack.off('resizestop');
+      unlockViewport();
+    };
+  }, [gridStack]);
+};
+
 export const useExternalShortcutPreview = (
   gridStack: ExtendedGridStack | null,
   options: {

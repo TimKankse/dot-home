@@ -70,6 +70,7 @@ export const parseSetupRequest = (body: unknown) => {
     email: readRequiredString(record, 'email', 'Email').trim().toLowerCase(),
     displayName: readOptionalString(record, 'displayName')?.trim(),
     password: readRequiredString(record, 'password', 'Password'),
+    bootstrapSecret: readRequiredString(record, 'bootstrapSecret', 'Bootstrap secret'),
   };
 };
 
@@ -90,14 +91,6 @@ export const parseChangePasswordRequest = (body: unknown) => {
   };
 };
 
-export const parseForgotPasswordRequest = (body: unknown) => {
-  const record = assertRecord(body, 'Forgot password payload');
-
-  return {
-    email: readRequiredString(record, 'email', 'Email').trim().toLowerCase(),
-  };
-};
-
 export const parseResetPasswordRequest = (body: unknown) => {
   const record = assertRecord(body, 'Reset password payload');
 
@@ -114,6 +107,7 @@ export const parseUpdateUserRequest = (body: unknown) => {
     email: readOptionalString(record, 'email')?.trim().toLowerCase(),
     displayName: readOptionalString(record, 'displayName')?.trim(),
     role: readOptionalEnum(record.role, USER_ROLES) as typeof USER_ROLES[number] | undefined,
+    disabled: readOptionalBoolean(record, 'disabled'),
   };
 };
 

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyPlannedWidgetIntegrationMigration,
   applyWidgetIntegrationMigration,
+  planWidgetIntegrationMigrations,
   planWidgetIntegrationMigration,
+  reconcileWidgetIntegrationSelection,
+  redactProtectedRssFeedUrls,
   type MigrationIntegration,
   type MigrationWidget,
 } from '@/lib/integration-config-migration';
@@ -20,6 +24,71 @@ const jellyfinIntegration: MigrationIntegration = {
 };
 
 describe('integration config migration planning', () => {
+  it('preserves an explicit integration disconnect', () => {
+    const incomingWidget: MigrationWidget = {
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      integrationId: '',
+      config: {
+        endpointId: '1',
+        url: 'http://portainer.local:9000',
+        apiKey: 'redacted-value',
+        displayMode: 'compact',
+      },
+    };
+    const storedWidget: MigrationWidget = {
+      ...incomingWidget,
+      integrationId: 'portainer-1',
+    };
+
+    expect(reconcileWidgetIntegrationSelection(incomingWidget, storedWidget)).toEqual({
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      config: { displayMode: 'compact' },
+    });
+  });
+
+  it('restores an integration omitted by a legacy redacted save', () => {
+    const incomingWidget: MigrationWidget = {
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      config: {
+        endpointId: '1',
+        url: 'http://portainer.local:9000',
+        apiKey: 'redacted-value',
+      },
+    };
+    const storedWidget: MigrationWidget = {
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      integrationId: 'portainer-1',
+      config: { endpointId: '1' },
+    };
+
+    expect(reconcileWidgetIntegrationSelection(incomingWidget, storedWidget)).toEqual({
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      integrationId: 'portainer-1',
+      config: {},
+    });
+  });
+
+  it('keeps a newly selected integration', () => {
+    const incomingWidget: MigrationWidget = {
+      id: 'portainer-widget',
+      widgetType: 'portainer',
+      integrationId: 'portainer-2',
+      config: { endpointId: '1' },
+    };
+    const storedWidget: MigrationWidget = {
+      ...incomingWidget,
+      integrationId: 'portainer-1',
+    };
+
+    expect(reconcileWidgetIntegrationSelection(incomingWidget, storedWidget))
+      .toEqual(incomingWidget);
+  });
+
   it('redacts an already-linked Jellyfin widget', () => {
     const widget: MigrationWidget = {
       id: 'widget-1',
@@ -167,5 +236,145 @@ describe('integration config migration planning', () => {
       integrationId: portainerIntegration.id,
       reason: expect.stringContaining('redacted legacy save'),
     });
+  });
+
+  it('migrates both legacy calendar service connections independently', () => {
+    const widget: MigrationWidget = {
+      id: 'calendar-1',
+      name: 'Release calendar',
+      type: 'calendar',
+      config: {
+        weekStart: 'monday',
+        radarrUrl: 'http://radarr:7878',
+        radarrApiKey: 'radarr-secret',
+        sonarrUrl: 'http://sonarr:8989',
+        sonarrApiKey: 'sonarr-secret',
+      },
+    };
+    const plans = planWidgetIntegrationMigrations(widget, ownerId, []);
+
+    expect(plans).toHaveLength(2);
+    expect(plans[0]).toMatchObject({
+      calendarIntegrationType: 'radarr',
+      plan: {
+        action: 'create-link-and-redact',
+        integrationConfig: { url: 'http://radarr:7878', apiKey: 'radarr-secret' },
+      },
+    });
+    expect(plans[1]).toMatchObject({
+      calendarIntegrationType: 'sonarr',
+      plan: {
+        action: 'create-link-and-redact',
+        integrationConfig: { url: 'http://sonarr:8989', apiKey: 'sonarr-secret' },
+      },
+    });
+
+    const withRadarr = applyPlannedWidgetIntegrationMigration(widget, plans[0], 'radarr-1');
+    const migrated = applyPlannedWidgetIntegrationMigration(withRadarr, plans[1], 'sonarr-1');
+    expect(migrated.config).toEqual({
+      weekStart: 'monday',
+      radarrIntegrationId: 'radarr-1',
+      sonarrIntegrationId: 'sonarr-1',
+    });
+  });
+
+  it('moves a private authenticated RSS feed into an integration and preserves public feeds', () => {
+    const privateFeed = 'http://192.168.1.19:3033/i/?a=rss&token=secret';
+    const publicFeed = 'https://feeds.bbci.co.uk/news/rss.xml';
+    const widget: MigrationWidget = {
+      id: 'rss-1',
+      name: 'News',
+      widgetType: 'rss',
+      config: {
+        feedUrls: [publicFeed, privateFeed],
+        maxItems: 10,
+      },
+    };
+
+    const plans = planWidgetIntegrationMigrations(widget, ownerId, []);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      rssFeedUrl: privateFeed,
+      plan: {
+        action: 'create-link-and-redact',
+        integrationConfig: { secretUrl: privateFeed },
+      },
+    });
+
+    expect(applyPlannedWidgetIntegrationMigration(widget, plans[0], 'rss-integration-1'))
+      .toMatchObject({
+        integrationId: 'rss-integration-1',
+        config: { feedUrls: [publicFeed], maxItems: 10 },
+      });
+  });
+
+  it('leaves credential-free public RSS feeds under the public outbound policy', () => {
+    const widget: MigrationWidget = {
+      id: 'rss-2',
+      widgetType: 'rss',
+      config: { feedUrls: ['https://feeds.bbci.co.uk/news/rss.xml'] },
+    };
+
+    expect(planWidgetIntegrationMigrations(widget, ownerId, [])).toEqual([]);
+  });
+
+  it('redacts legacy private RSS URLs while preserving public feeds', () => {
+    expect(redactProtectedRssFeedUrls({
+      feedUrl: 'http://192.168.1.19:3033/private.xml',
+      feedUrls: [
+        'https://feeds.bbci.co.uk/news/rss.xml',
+        'https://feeds.example.test/private.xml?token=secret',
+      ],
+      maxItems: 5,
+    })).toEqual({
+      feedUrls: ['https://feeds.bbci.co.uk/news/rss.xml'],
+      maxItems: 5,
+    });
+  });
+
+  it('blocks ambiguous migration of multiple private RSS feeds', () => {
+    const widget: MigrationWidget = {
+      id: 'rss-3',
+      widgetType: 'rss',
+      config: {
+        feedUrls: [
+          'http://192.168.1.19:3033/one.xml',
+          'http://192.168.1.20:3033/two.xml',
+        ],
+      },
+    };
+
+    expect(planWidgetIntegrationMigrations(widget, ownerId, [])[0]).toMatchObject({
+      plan: {
+        action: 'blocked',
+        reason: expect.stringContaining('separate RSS widgets'),
+      },
+    });
+  });
+
+  it('repairs an RSS integration created by the transitional field schema', () => {
+    const legacyIntegration: MigrationIntegration = {
+      id: 'rss-legacy-1',
+      userId: ownerId,
+      type: 'rss',
+      config: { feedUrl: 'http://192.168.1.19:3033/private.xml?token=secret' },
+    };
+    const widget: MigrationWidget = {
+      id: 'rss-4',
+      widgetType: 'rss',
+      integrationId: legacyIntegration.id,
+      config: { maxItems: 5 },
+    };
+
+    expect(planWidgetIntegrationMigrations(widget, ownerId, [legacyIntegration])[0])
+      .toMatchObject({
+        plan: {
+          action: 'repair-and-redact',
+          integrationId: legacyIntegration.id,
+          integrationConfig: {
+            secretUrl: 'http://192.168.1.19:3033/private.xml?token=secret',
+          },
+        },
+      });
   });
 });

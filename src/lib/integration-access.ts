@@ -25,6 +25,11 @@ type ResolveIntegrationOptions = {
   requiredPermission?: 'view' | 'edit';
 };
 
+type ResolveOwnedIntegrationOptions = Omit<
+  ResolveIntegrationOptions,
+  'requiredPermission'
+>;
+
 const hasRequiredPermission = (
   actual: EffectivePermission,
   required: 'view' | 'edit',
@@ -95,4 +100,23 @@ export async function resolveAuthorizedIntegration({
     permission: permission as Exclude<EffectivePermission, 'none'>,
     config: decryptSensitiveFields(parsedConfig),
   };
+}
+
+export async function resolveOwnedIntegration(
+  options: ResolveOwnedIntegrationOptions,
+): Promise<AuthorizedIntegration> {
+  const integration = await resolveAuthorizedIntegration({
+    ...options,
+    requiredPermission: 'edit',
+  });
+
+  if (integration.ownerId !== options.user.id) {
+    throw new ApiSecurityError(
+      'Integration not found',
+      404,
+      'integration_not_found',
+    );
+  }
+
+  return integration;
 }

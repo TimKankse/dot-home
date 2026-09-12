@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { Plus, Pencil, Trash2, LayoutGrid, Check, Star, Calendar, Layers, Box, Shield, ArrowLeft, Eye } from 'lucide-react';
 import { PermissionManager } from './PermissionManager';
 import { type AccessLevel } from '../ui/AccessLevelSelect';
 import { Button, Input, Label, Badge } from '../primitives';
 import { usePersistenceStore } from '@/store/usePersistenceStore';
 import styles from './SettingsDialog.module.css';
+import { apiFetch } from '@/lib/api-client';
 
 interface Dashboard {
   id: string;
@@ -27,6 +29,7 @@ interface Dashboard {
 type FormMode = 'list' | 'create' | 'edit';
 
 export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const { data: session } = useSession();
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +87,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
     if (!formName.trim()) return;
     
     try {
-      const res = await fetch('/api/dashboards', {
+      const res = await apiFetch('/api/dashboards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: formName.trim() }),
@@ -107,7 +110,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
     if (!editingDashboard || !formName.trim()) return;
     
     try {
-      const res = await fetch(`/api/dashboards/${editingDashboard.id}`, {
+      const res = await apiFetch(`/api/dashboards/${editingDashboard.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: formName.trim() }),
@@ -142,7 +145,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
     if (dashboard.isUserDefault) return;
     
     try {
-      const res = await fetch('/api/users/preferences', {
+      const res = await apiFetch('/api/users/preferences', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ defaultDashboardId: dashboard.id }),
@@ -179,7 +182,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
     }
     
     try {
-      const res = await fetch(`/api/dashboards/${dashboard.id}`, {
+      const res = await apiFetch(`/api/dashboards/${dashboard.id}`, {
         method: 'DELETE',
       });
       
@@ -256,7 +259,7 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
               onAccessLevelChange={async (level) => {
                 setFormAccessLevel(level);
                 try {
-                  await fetch(`/api/dashboards/${editingDashboard.id}`, {
+                  await apiFetch(`/api/dashboards/${editingDashboard.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessLevel: level }),
@@ -266,7 +269,8 @@ export const BoardsSettings: React.FC<{ onClose?: () => void }> = ({ onClose }) 
                   console.error('Failed to update access level:', err);
                 }
               }}
-              canEdit={editingDashboard.permission === 'edit'}
+              canEdit={editingDashboard.isOwner}
+              canManagePermissions={editingDashboard.isOwner || session?.user?.role === 'admin'}
             />
           </div>
         )}

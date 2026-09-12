@@ -42,11 +42,7 @@ export interface CalendarWidgetConfig {
   icalUrl?: string;
   icalUrls?: string[];
   radarrIntegrationId?: string;  // Reference to Radarr integration
-  radarrUrl?: string;
-  radarrApiKey?: string;
   sonarrIntegrationId?: string;  // Reference to Sonarr integration
-  sonarrUrl?: string;
-  sonarrApiKey?: string;
   weekStart?: 'monday' | 'sunday';
   defaultView?: 'daily' | 'monthly';
 }
@@ -124,15 +120,13 @@ export interface SabnzbdWidgetConfig {
 // ============================================================================
 export interface QBittorrentWidgetConfig {
   integrationId?: string;
-  url?: string;
-  username?: string;
-  password?: string;
 }
 
 // ============================================================================
 // RSS Widget
 // ============================================================================
 export interface RssWidgetConfig {
+  integrationId?: string;
   feedUrl?: string;
   feedUrls?: string[];
   title?: string;

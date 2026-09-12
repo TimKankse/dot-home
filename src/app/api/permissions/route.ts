@@ -7,11 +7,9 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { apiSecurityErrorResponse, requireApiUser } from '@/lib/api-security';
 import { prisma } from '@/lib/db';
 import {
-  canEdit,
   getObjectPermissions,
   setObjectPermission,
   removeObjectPermission,
@@ -53,45 +51,10 @@ async function getObjectOwnerId(
   }
 }
 
-// Helper to get object access level
-async function getObjectAccessLevel(
-  objectType: ObjectType,
-  objectId: string
-): Promise<string | null> {
-  switch (objectType) {
-    case 'dashboard': {
-      const dashboard = await prisma.dashboard.findUnique({
-        where: { id: objectId },
-        select: { accessLevel: true },
-      });
-      return dashboard?.accessLevel ?? null;
-    }
-    case 'page': {
-      const page = await prisma.page.findUnique({
-        where: { id: objectId },
-        select: { accessLevel: true },
-      });
-      return page?.accessLevel ?? null;
-    }
-    case 'integration': {
-      const integration = await prisma.integration.findUnique({
-        where: { id: objectId },
-        select: { accessLevel: true },
-      });
-      return integration?.accessLevel ?? null;
-    }
-    default:
-      return null;
-  }
-}
-
 // GET - List user overrides for an object
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireApiUser(request);
 
     const { searchParams } = new URL(request.url);
     const objectType = searchParams.get('objectType') as ObjectType;
@@ -104,20 +67,14 @@ export async function GET(request: Request) {
       );
     }
 
-    // Check if user can edit this object (only editors can see permission overrides)
+    // Only owners and administrators can inspect or manage access.
     const ownerId = await getObjectOwnerId(objectType, objectId);
-    const accessLevel = await getObjectAccessLevel(objectType, objectId);
 
-    if (!ownerId || !accessLevel) {
+    if (!ownerId) {
       return NextResponse.json({ error: 'Object not found' }, { status: 404 });
     }
 
-    const hasEditAccess = await canEdit(
-      { objectType, objectId, ownerId, accessLevel: accessLevel as 'PUBLIC' | 'VIEWABLE' | 'PRIVATE' },
-      session.user.id
-    );
-
-    if (!hasEditAccess) {
+    if (user.id !== ownerId && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -125,21 +82,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ permissions });
   } catch (error) {
-    console.error('Error fetching permissions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch permissions' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to fetch permissions');
   }
 }
 
 // POST - Create/update a user override
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireApiUser(request);
 
     const body = await request.json();
     const { objectType, objectId, userId, permission } = body;
@@ -159,27 +109,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user can edit this object
+    // Only owners and administrators can manage access.
     const ownerId = await getObjectOwnerId(objectType, objectId);
-    const accessLevel = await getObjectAccessLevel(objectType, objectId);
 
-    if (!ownerId || !accessLevel) {
+    if (!ownerId) {
       return NextResponse.json({ error: 'Object not found' }, { status: 404 });
     }
 
-    const hasEditAccess = await canEdit(
-      { objectType, objectId, ownerId, accessLevel: accessLevel as 'PUBLIC' | 'VIEWABLE' | 'PRIVATE' },
-      session.user.id
-    );
-
-    if (!hasEditAccess) {
+    if (user.id !== ownerId && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Prevent setting permissions on yourself
-    if (userId === session.user.id) {
+    // Ownership is unconditional; do not persist misleading owner overrides.
+    if (userId === ownerId) {
       return NextResponse.json(
-        { error: 'Cannot set permissions on yourself' },
+        { error: 'Cannot override owner permissions' },
         { status: 400 }
       );
     }
@@ -202,21 +146,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ permission: result });
   } catch (error) {
-    console.error('Error setting permission:', error);
-    return NextResponse.json(
-      { error: 'Failed to set permission' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to set permission');
   }
 }
 
 // DELETE - Remove a user override
 export async function DELETE(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireApiUser(request);
 
     const { searchParams } = new URL(request.url);
     const objectType = searchParams.get('objectType') as ObjectType;
@@ -230,20 +167,14 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Check if user can edit this object
+    // Only owners and administrators can manage access.
     const ownerId = await getObjectOwnerId(objectType, objectId);
-    const accessLevel = await getObjectAccessLevel(objectType, objectId);
 
-    if (!ownerId || !accessLevel) {
+    if (!ownerId) {
       return NextResponse.json({ error: 'Object not found' }, { status: 404 });
     }
 
-    const hasEditAccess = await canEdit(
-      { objectType, objectId, ownerId, accessLevel: accessLevel as 'PUBLIC' | 'VIEWABLE' | 'PRIVATE' },
-      session.user.id
-    );
-
-    if (!hasEditAccess) {
+    if (user.id !== ownerId && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -251,10 +182,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error removing permission:', error);
-    return NextResponse.json(
-      { error: 'Failed to remove permission' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to remove permission');
   }
 }

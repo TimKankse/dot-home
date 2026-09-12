@@ -6,8 +6,6 @@ export type NewItem = {
   type: ItemType;
   name?: string;
   url?: string;
-  internalUrl?: string;
-  isSelfHosted?: boolean;
   iconUrl?: string;
   widgetType?: string;
   w: number;
@@ -25,7 +23,7 @@ export interface FormProps {
   onCancel: () => void;
   onDelete?: () => void;
   isEditing?: boolean;
-  activeTab?: 'configuration' | 'appearance' | 'yaml';
+  activeTab?: 'configuration' | 'appearance';
   selectedType?: string;
   formId?: string;
   onValidityChange?: (isValid: boolean) => void;

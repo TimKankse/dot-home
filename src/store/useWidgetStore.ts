@@ -214,8 +214,6 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
           name: newItem.name,
           url: newItem.url,
           iconUrl: newItem.iconUrl,
-          internalUrl: newItem.internalUrl,
-          isSelfHosted: newItem.isSelfHosted,
           grid: {
             x: newItem.x ?? 0,
             y: newItem.y ?? Infinity,

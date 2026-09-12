@@ -7,7 +7,7 @@ import { MonthlyView } from './variations/MonthlyView';
 import { IconButton } from '@/components/primitives/icon-button/IconButton';
 import { fetchCalendarEvents } from '@/services/calendar';
 
-export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: string; title?: string }> = ({ config, integrationId, title }) => {
+export const CalendarWidget: React.FC<CalendarWidgetProps & { title?: string }> = ({ config, title }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: st
     const loadEvents = async () => {
       try {
         setLoading(true);
-        const data = await fetchCalendarEvents({ config, integrationId });
+        const data = await fetchCalendarEvents({ config });
         setEvents(data);
         setError(null);
       } catch (err) {
@@ -42,7 +42,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps & { integrationId?: st
     loadEvents();
     const interval = setInterval(loadEvents, 15 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [config, integrationId]);
+  }, [config]);
 
   const changeMonth = (delta: number) => {
     const newDate = new Date(currentDate);

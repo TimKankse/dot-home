@@ -13,7 +13,10 @@ vi.mock('@/utils/permissions', () => ({
   resolvePermission: resolvePermissionMock,
 }));
 
-import { resolveAuthorizedIntegration } from '@/lib/integration-access';
+import {
+  resolveAuthorizedIntegration,
+  resolveOwnedIntegration,
+} from '@/lib/integration-access';
 
 const integration = {
   id: 'integration-1',
@@ -87,5 +90,16 @@ describe('authorized integration resolution', () => {
       expectedTypes: ['jellyfin'],
       requiredPermission: 'edit',
     })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('does not allow a shared editor to manage the owner integration record', async () => {
+    await expect(resolveOwnedIntegration({
+      integrationId: integration.id,
+      user: { id: 'editor-1', role: 'member' },
+      expectedTypes: ['jellyfin'],
+    })).rejects.toMatchObject({
+      status: 404,
+      code: 'integration_not_found',
+    });
   });
 });

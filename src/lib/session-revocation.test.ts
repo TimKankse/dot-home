@@ -33,20 +33,32 @@ describe('session revocation', () => {
   });
 
   it('accepts only the current session version', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({ sessionVersion: 2 });
+    prismaMock.user.findUnique.mockResolvedValue({ sessionVersion: 2, role: 'member', disabledAt: null });
 
-    await expect(isSessionTokenCurrent({ id: 'user-1', sessionVersion: 2 })).resolves.toBe(true);
-    await expect(isSessionTokenCurrent({ id: 'user-1', sessionVersion: 1 })).resolves.toBe(false);
+    await expect(isSessionTokenCurrent({ id: 'user-1', role: 'member', sessionVersion: 2 })).resolves.toBe(true);
+    await expect(isSessionTokenCurrent({ id: 'user-1', role: 'member', sessionVersion: 1 })).resolves.toBe(false);
   });
 
   it('rejects tokens for deleted users', async () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
 
-    await expect(isSessionTokenCurrent({ id: 'missing-user', sessionVersion: 0 })).resolves.toBe(false);
+    await expect(isSessionTokenCurrent({ id: 'missing-user', role: 'member', sessionVersion: 0 })).resolves.toBe(false);
+  });
+
+  it('rejects tokens after a role change or user disable', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ sessionVersion: 2, role: 'viewer', disabledAt: null });
+    await expect(isSessionTokenCurrent({ id: 'user-1', role: 'admin', sessionVersion: 2 })).resolves.toBe(false);
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      sessionVersion: 2,
+      role: 'admin',
+      disabledAt: new Date(),
+    });
+    await expect(isSessionTokenCurrent({ id: 'user-1', role: 'admin', sessionVersion: 2 })).resolves.toBe(false);
   });
 
   it('marks stale JWTs invalid and omits their sessions', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({ sessionVersion: 2 });
+    prismaMock.user.findUnique.mockResolvedValue({ sessionVersion: 2, role: 'member', disabledAt: null });
     const jwtCallback = authOptions.callbacks?.jwt;
     const sessionCallback = authOptions.callbacks?.session;
 

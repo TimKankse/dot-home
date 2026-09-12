@@ -1,4 +1,5 @@
 import type { SabnzbdWidgetConfig } from '@/types';
+import { apiFetch } from '@/lib/api-client';
 
 export interface QueueSlot {
   filename: string;
@@ -52,7 +53,7 @@ export async function fetchSabnzbdQueue(params: SabnzbdFetchParams): Promise<Que
 export async function toggleSabnzbdPause(paused: boolean, params: SabnzbdFetchParams): Promise<void> {
   if (!params.integrationId) return;
   const action = paused ? 'resume' : 'pause';
-  const response = await fetch('/api/sabnzbd', {
+  const response = await apiFetch('/api/sabnzbd', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...buildHeaders(params) },
     body: JSON.stringify({ action }),

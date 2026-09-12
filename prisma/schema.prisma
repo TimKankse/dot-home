@@ -35,6 +35,7 @@ model User {
   passwordHash      String
   role              String             @default("member") // "admin" | "member" | "viewer"
   sessionVersion    Int                @default(0)
+  disabledAt        DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   dashboards           Dashboard[]
@@ -43,6 +44,14 @@ model User {
   widgetUserConfigs    WidgetUserConfig[]
   dashboardPreference  UserDashboardPreference?
   passwordResetTokens  PasswordResetToken[]
+}
+
+// Singleton application state used for security-sensitive one-time operations.
+model AppState {
+  id                 String    @id @default("singleton")
+  bootstrapClaimedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model Dashboard {
@@ -156,6 +165,8 @@ model PasswordResetToken {
   @@index([expiresAt])
 }
 
+// Legacy compatibility model. The public reset-request flow was removed, but
+// retaining this empty table keeps existing `prisma db push` upgrades lossless.
 model PasswordResetRateLimit {
   keyHash      String   @id
   requestCount Int      @default(0)

@@ -9,6 +9,7 @@ import {
   getResponsivePreviewWidth,
   normalizeBreakpointThresholds,
 } from './grid';
+import { getMinDimensions } from './widget-definitions';
 
 describe('normalizeBreakpointThresholds', () => {
   it('keeps defaults when no overrides are provided', () => {
@@ -72,5 +73,11 @@ describe('getGridContentWidth', () => {
     expect(getGridContentWidth('desktop', 240)).toBe(1920);
     expect(getGridContentWidth('tablet', 100)).toBe(400);
     expect(getGridContentWidth('mobile', 220)).toBe(440);
+  });
+});
+
+describe('widget minimum dimensions', () => {
+  it('allows the calendar to fit in a 2x2 grid area', () => {
+    expect(getMinDimensions('calendar')).toEqual({ w: 2, h: 2 });
   });
 });

@@ -16,6 +16,7 @@ These widgets connect to external services:
 | **SABnzbd** | Usenet downloads | SABnzbd |
 | **Netdata** | System monitoring | Netdata |
 | **Twitch** | Stream status | Twitch API |
+| **RSS** | Private or authenticated feeds | RSS/Atom |
 
 ### Utility Widgets
 
@@ -24,7 +25,7 @@ These widgets connect to external services:
 | **Clock** | Time display (analog/digital) |
 | **Weather** | Weather forecast |
 | **Calendar** | iCal integration |
-| **RSS** | Feed reader |
+| **RSS** | Public feed reader |
 | **Search** | Search bar |
 | **Image** | Static image display |
 | **Shortcut** | Quick link to URL |

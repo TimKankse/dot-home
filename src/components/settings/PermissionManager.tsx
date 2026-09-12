@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Ban, Eye, Pencil, X } from 'lucide-react';
 import styles from './PermissionManager.module.css';
 import { AccessLevelSelect, type AccessLevel } from '../ui/AccessLevelSelect';
+import { apiFetch } from '@/lib/api-client';
 
 type PermissionType = 'BLOCKED' | 'VIEW' | 'EDIT';
 type ObjectType = 'dashboard' | 'page' | 'integration';
@@ -25,6 +26,7 @@ interface PermissionManagerProps {
   currentAccessLevel: AccessLevel;
   onAccessLevelChange: (level: AccessLevel) => void;
   canEdit: boolean;
+  canManagePermissions: boolean;
 }
 
 const PERMISSION_OPTIONS: { value: PermissionType; label: string; Icon: React.ElementType }[] = [
@@ -39,6 +41,7 @@ export function PermissionManager({
   currentAccessLevel,
   onAccessLevelChange,
   canEdit,
+  canManagePermissions,
 }: PermissionManagerProps) {
   const [permissions, setPermissions] = useState<UserPermission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +52,7 @@ export function PermissionManager({
 
   const fetchPermissions = useCallback(async () => {
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/permissions?objectType=${objectType}&objectId=${objectId}`
       );
       if (!res.ok) throw new Error('Failed to fetch permissions');
@@ -65,8 +68,8 @@ export function PermissionManager({
   }, [objectType, objectId]);
 
   useEffect(() => {
-    fetchPermissions();
-  }, [fetchPermissions]);
+    if (canManagePermissions) fetchPermissions();
+  }, [fetchPermissions, canManagePermissions]);
 
   const handleAddUser = async () => {
     if (!newUserEmail.trim()) return;
@@ -82,7 +85,7 @@ export function PermissionManager({
         return;
       }
 
-      const res = await fetch('/api/permissions', {
+      const res = await apiFetch('/api/permissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +111,7 @@ export function PermissionManager({
 
   const handleRemoveUser = async (userId: string) => {
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/permissions?objectType=${objectType}&objectId=${objectId}&userId=${userId}`,
         { method: 'DELETE' }
       );
@@ -124,7 +127,7 @@ export function PermissionManager({
 
   const handleUpdatePermission = async (userId: string, permission: PermissionType) => {
     try {
-      const res = await fetch('/api/permissions', {
+      const res = await apiFetch('/api/permissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +163,9 @@ export function PermissionManager({
           Grant or restrict access for specific users, overriding the default access level.
         </p>
 
-        {loading ? (
+        {!canManagePermissions ? (
+          <p className={styles.sectionDescription}>Only the owner or an administrator can manage user access.</p>
+        ) : loading ? (
           <div className={styles.loading}>Loading...</div>
         ) : error ? (
           <div className={styles.error}>{error}</div>
@@ -184,7 +189,7 @@ export function PermissionManager({
                       onChange={(e) =>
                         handleUpdatePermission(perm.userId, e.target.value as PermissionType)
                       }
-                      disabled={!canEdit}
+                      disabled={!canManagePermissions}
                     >
                       {PERMISSION_OPTIONS.map(({ value, label }) => (
                         <option key={value} value={value}>
@@ -192,7 +197,7 @@ export function PermissionManager({
                         </option>
                       ))}
                     </select>
-                    {canEdit && (
+                    {canManagePermissions && (
                       <button
                         className={styles.removeButton}
                         onClick={() => handleRemoveUser(perm.userId)}
@@ -208,7 +213,7 @@ export function PermissionManager({
               <div className={styles.emptyState}>No user-specific overrides</div>
             )}
 
-            {canEdit && (
+            {canManagePermissions && (
               <div className={styles.addUser}>
                 <input
                   type="email"

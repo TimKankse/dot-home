@@ -1,5 +1,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { getSetupState } = await import('@/lib/bootstrap-state');
+  await getSetupState();
   const { ensureAutomaticIntegrationMigration } = await import(
     '@/lib/automatic-integration-migration'
   );

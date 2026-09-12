@@ -80,9 +80,9 @@ External API calls that require CORS handling or API key protection go through N
 
 | Route | Purpose |
 |-------|---------|
-| `/api/proxy/*` | Generic proxy for external services |
 | `/api/weather` | Weather API with caching |
 | `/api/calendar` | iCal feed fetching |
+| `/api/rss` | Public feeds plus authorized private RSS integrations |
 
 ---
 

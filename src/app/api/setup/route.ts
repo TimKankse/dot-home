@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { verifyBootstrapSecret } from '@/lib/bootstrap-security';
+import { createInitialAdmin } from '@/lib/bootstrap-state';
 import {
   createStarterDashboardLayout,
   serializeDashboardLayout,
@@ -10,16 +11,14 @@ import { ValidationError } from '@/lib/validation';
 
 export async function POST(request: Request) {
   try {
-    // Check if any users already exist
-    const existingUsers = await prisma.user.count();
-    if (existingUsers > 0) {
+    const { email, displayName, password, bootstrapSecret } = parseSetupRequest(await request.json());
+
+    if (!verifyBootstrapSecret(bootstrapSecret)) {
       return NextResponse.json(
-        { error: 'Setup already completed' },
-        { status: 400 }
+        { error: 'Invalid bootstrap secret' },
+        { status: 403 },
       );
     }
-
-    const { email, displayName, password } = parseSetupRequest(await request.json());
 
     // Validation
     if (!email || !password) {
@@ -39,25 +38,19 @@ export async function POST(request: Request) {
     // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Create admin user
-    const user = await prisma.user.create({
-      data: {
-        email: normalizeEmail(email),
-        displayName: displayName || null,
-        passwordHash,
-        role: 'admin', // First user is always admin
-      },
+    const user = await createInitialAdmin({
+      email: normalizeEmail(email),
+      displayName: displayName || null,
+      passwordHash,
+      dashboardLayout: serializeDashboardLayout(createStarterDashboardLayout()),
     });
 
-    // Create a default empty dashboard for the user
-    await prisma.dashboard.create({
-      data: {
-        userId: user.id,
-        name: 'Main',
-        layout: serializeDashboardLayout(createStarterDashboardLayout()),
-        isDefault: true,
-      },
-    });
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Setup already completed' },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json({
       success: true,

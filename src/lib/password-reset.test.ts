@@ -1,13 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const transactionMock = vi.hoisted(() => ({
   passwordResetToken: {
     findUnique: vi.fn(),
     deleteMany: vi.fn(),
-  },
-  passwordResetRateLimit: {
-    deleteMany: vi.fn(),
-    upsert: vi.fn(),
   },
   user: {
     update: vi.fn(),
@@ -26,9 +22,8 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock('./db', () => ({ prisma: prismaMock }));
 
 import {
-  checkPasswordResetRateLimit,
+  buildPasswordResetPath,
   consumePasswordResetToken,
-  getAppOrigin,
   issuePasswordResetToken,
 } from './password-reset';
 
@@ -42,36 +37,14 @@ describe('password reset security helpers', () => {
       return Promise.all(operation);
     });
     transactionMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 1 });
-    transactionMock.passwordResetRateLimit.deleteMany.mockResolvedValue({ count: 0 });
-    transactionMock.passwordResetRateLimit.upsert.mockResolvedValue({
-      requestCount: 1,
-      expiresAt: new Date(Date.now() + 300_000),
-    });
     transactionMock.user.update.mockResolvedValue({});
     prismaMock.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
     prismaMock.passwordResetToken.create.mockResolvedValue({});
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('uses the configured canonical origin instead of request headers', () => {
-    vi.stubEnv('NEXTAUTH_URL', 'https://home.example.test/path');
-    vi.stubEnv('NODE_ENV', 'production');
-    const request = new Request('https://attacker.test/forgot-password', {
-      headers: { 'x-forwarded-host': 'attacker.test' },
-    });
-
-    expect(getAppOrigin(request)).toBe('https://home.example.test');
-  });
-
-  it('requires a canonical origin in production', () => {
-    vi.stubEnv('NEXTAUTH_URL', '');
-    vi.stubEnv('NODE_ENV', 'production');
-
-    expect(() => getAppOrigin(new Request('https://untrusted.test'))).toThrow(
-      'NEXTAUTH_URL is required',
+  it('builds a relative path without consulting request host headers', () => {
+    expect(buildPasswordResetPath('token with spaces')).toBe(
+      '/reset-password?token=token%20with%20spaces',
     );
   });
 
@@ -118,38 +91,4 @@ describe('password reset security helpers', () => {
     expect(transactionMock.user.update).not.toHaveBeenCalled();
   });
 
-  it('limits repeated requests for the same email', async () => {
-    const expiresAt = new Date(Date.now() + 300_000);
-    transactionMock.passwordResetRateLimit.upsert.mockResolvedValue({
-      keyHash: 'email-hash',
-      requestCount: 4,
-      expiresAt,
-    });
-
-    const result = await checkPasswordResetRateLimit(
-      new Request('https://home.example.test/api/auth/forgot-password'),
-      'user@example.test',
-    );
-
-    expect(result.allowed).toBe(false);
-    expect(result.retryAfterSeconds).toBeGreaterThan(0);
-    expect(transactionMock.passwordResetRateLimit.upsert).toHaveBeenCalledOnce();
-  });
-
-  it('stores only hashed rate-limit keys', async () => {
-    const result = await checkPasswordResetRateLimit(
-      new Request('https://home.example.test/api/auth/forgot-password', {
-        headers: { 'x-forwarded-for': '192.0.2.10' },
-      }),
-      'user@example.test',
-    );
-
-    expect(result.allowed).toBe(true);
-    expect(transactionMock.passwordResetRateLimit.upsert).toHaveBeenCalledTimes(2);
-    for (const [call] of transactionMock.passwordResetRateLimit.upsert.mock.calls) {
-      expect(call.create.keyHash).toMatch(/^[a-f0-9]{64}$/);
-      expect(call.create.keyHash).not.toContain('user@example.test');
-      expect(call.create.keyHash).not.toContain('192.0.2.10');
-    }
-  });
 });

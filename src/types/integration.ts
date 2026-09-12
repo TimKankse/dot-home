@@ -13,7 +13,8 @@ export type IntegrationType =
   | 'qbittorrent' 
   | 'twitch'
   | 'sonarr'
-  | 'radarr';
+  | 'radarr'
+  | 'rss';
 
 // Map integration types to their config shapes (connection fields only)
 export interface IntegrationConfigMap {
@@ -26,6 +27,7 @@ export interface IntegrationConfigMap {
   twitch: TwitchIntegrationConfig;
   sonarr: SonarrIntegrationConfig;
   radarr: RadarrIntegrationConfig;
+  rss: RssIntegrationConfig;
 }
 
 // Individual integration config types
@@ -76,12 +78,15 @@ export interface RadarrIntegrationConfig {
   apiKey?: string;
 }
 
+export interface RssIntegrationConfig {
+  secretUrl?: string;
+}
+
 // Main Integration interface
 export interface Integration<T extends IntegrationType = IntegrationType> {
   id: string;
   name: string;              // User-friendly name, e.g., "Home Media Server"
   type: T;                   // Widget type this integration is for
-  iconUrl?: string;          // Custom icon (optional)
   config: IntegrationConfigMap[T];  // Type-safe config based on type
 }
 
@@ -103,6 +108,7 @@ export const INTEGRATION_TYPE_META: IntegrationTypeMeta[] = [
   { type: 'twitch', label: 'Twitch', description: 'Streaming platform' },
   { type: 'sonarr', label: 'Sonarr', description: 'TV show management' },
   { type: 'radarr', label: 'Radarr', description: 'Movie management' },
+  { type: 'rss', label: 'RSS', description: 'Private or authenticated feed' },
 ];
 
 // Helper to get integration type metadata

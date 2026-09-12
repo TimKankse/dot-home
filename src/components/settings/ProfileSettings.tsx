@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
+import { apiFetch } from '@/lib/api-client';
 import { Button, Input } from '../primitives';
 import styles from './SettingsDialog.module.css';
 
@@ -60,7 +61,7 @@ export const ProfileSettings: React.FC = () => {
     setProfileSuccess('');
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await apiFetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ displayName }),
@@ -98,7 +99,7 @@ export const ProfileSettings: React.FC = () => {
     setIsChangingPassword(true);
 
     try {
-      const response = await fetch('/api/profile/change-password', {
+      const response = await apiFetch('/api/profile/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

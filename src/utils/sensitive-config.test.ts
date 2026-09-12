@@ -6,6 +6,7 @@ describe('sensitive config redaction', () => {
   const config = {
     url: 'http://service.local',
     apiKey: 'secret',
+    secretUrl: 'http://rss.local/feed?token=secret',
     nested: {
       clientSecret: 'client-secret',
       refreshInterval: '5000',
@@ -23,6 +24,7 @@ describe('sensitive config redaction', () => {
     expect(redactSensitiveFields(config, 'mask')).toEqual({
       url: 'http://service.local',
       apiKey: '********',
+      secretUrl: '********',
       nested: {
         clientSecret: '********',
         refreshInterval: '5000',

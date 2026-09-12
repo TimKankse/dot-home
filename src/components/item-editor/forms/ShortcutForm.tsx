@@ -16,8 +16,7 @@ export const ShortcutForm: React.FC<FormProps> = ({
   onValidityChange
 }) => {
   const [name, setName] = useState(initialData?.name || '');
-  const [url, setUrl] = useState(initialData?.url || ''); // External URL
-  const [internalUrl, setInternalUrl] = useState(initialData?.internalUrl || '');
+  const [url, setUrl] = useState(initialData?.url || '');
   const [iconUrl, setIconUrl] = useState(initialData?.iconUrl || '');
   const [integrationId, setIntegrationId] = useState(initialData?.integrationId || '');
 
@@ -36,26 +35,23 @@ export const ShortcutForm: React.FC<FormProps> = ({
         const configUrl = (integration.config as { url?: string }).url;
         if (configUrl) {
           if (!url) setUrl(configUrl);
-          if (!internalUrl) setInternalUrl(configUrl);
         }
       }
     }
   };
 
   useEffect(() => {
-    onValidityChange?.(Boolean(name && (url || internalUrl)));
-  }, [name, url, internalUrl, onValidityChange]);
+    onValidityChange?.(Boolean(name && url));
+  }, [name, url, onValidityChange]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       name,
       url,
-      internalUrl,
       iconUrl,
       type: 'shortcut',
       integrationId: integrationId || undefined,
-      isSelfHosted: Boolean(internalUrl),
       w: initialData?.w || 1,
       h: initialData?.h || 1
     });
@@ -99,20 +95,11 @@ export const ShortcutForm: React.FC<FormProps> = ({
                 />
               </div>
               <div className={styles.formGroup}>
-                <label className={styles.label}>External URL</label>
+                <label className={styles.label}>URL</label>
                 <Input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com"
-                  type="url"
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Internal URL</label>
-                <Input
-                  value={internalUrl}
-                  onChange={(e) => setInternalUrl(e.target.value)}
-                  placeholder="http://192.168.1.x:port"
                   type="url"
                 />
               </div>

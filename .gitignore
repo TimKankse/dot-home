@@ -44,8 +44,12 @@ config.yml*
 # SQLite database (contains user data)
 *.db
 *.db-journal
+*.db-*
+*.db.*
+.*_secret
 prisma/*.db
 prisma/*.db-journal
+.bootstrap_secret
 
 # Temporary lint output
 lint_results*.txt

@@ -60,7 +60,7 @@ export const ItemEditorDialog: React.FC<ItemEditorDialogProps> = ({
   mode = 'add'
 }) => {
   // Initialize state based on current props - parent should use key prop to reset
-  const [activeTab, setActiveTab] = useState<'configuration' | 'appearance' | 'yaml'>('configuration');
+  const [activeTab, setActiveTab] = useState<'configuration' | 'appearance'>('configuration');
   const [selectedType, setSelectedType] = useState<string>(() => getInitialType(mode, initialItem));
   const [isFormValid, setIsFormValid] = useState(true);
   const formId = "add-item-form";
@@ -142,15 +142,6 @@ export const ItemEditorDialog: React.FC<ItemEditorDialogProps> = ({
         >
           Appearance
         </ModalSidebarItem>
-        {selectedType !== 'shortcut' && (
-          <ModalSidebarItem 
-            active={activeTab === 'yaml'} 
-            onClick={() => setActiveTab('yaml')}
-            icon={<div style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{'{}'}</div>}
-          >
-            YAML
-          </ModalSidebarItem>
-        )}
       </ModalSidebar>
 
       <ModalContent>

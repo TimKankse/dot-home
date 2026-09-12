@@ -32,10 +32,12 @@ interface Slot {
 interface AuthCacheEntry {
   cookie: string;
   timestamp: number;
+  origin: string;
 }
 
 const authCache = new Map<string, AuthCacheEntry>();
 const AUTH_CACHE_TTL = 30 * 60 * 1000;
+const AUTH_CACHE_MAX_ENTRIES = 128;
 
 const readOptionalCredential = (value: unknown): string | undefined =>
   typeof value === 'string' && value && !value.startsWith('enc:') ? value : undefined;
@@ -63,8 +65,14 @@ async function getAuthCookie(
     );
   }
 
+  const now = Date.now();
+  for (const [key, entry] of authCache) {
+    if (now - entry.timestamp >= AUTH_CACHE_TTL) authCache.delete(key);
+  }
+
   const cached = authCache.get(integrationId);
-  if (cached && Date.now() - cached.timestamp < AUTH_CACHE_TTL) return cached.cookie;
+  if (cached && cached.origin === baseUrl.origin) return cached.cookie;
+  if (cached) authCache.delete(integrationId);
 
   const body = new URLSearchParams({ username, password });
   const response = await fetchOutbound(
@@ -83,7 +91,15 @@ async function getAuthCookie(
     throw new ApiSecurityError('qBittorrent authentication failed', 502, 'upstream_auth_failed');
   }
 
-  authCache.set(integrationId, { cookie: sid, timestamp: Date.now() });
+  if (authCache.size >= AUTH_CACHE_MAX_ENTRIES) {
+    const oldestKey = authCache.keys().next().value;
+    if (oldestKey) authCache.delete(oldestKey);
+  }
+  authCache.set(integrationId, {
+    cookie: sid,
+    timestamp: now,
+    origin: baseUrl.origin,
+  });
   return sid;
 }
 

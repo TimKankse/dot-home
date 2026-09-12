@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useShortcutIcon } from '@/hooks/useShortcutIcon';
 import { DragHandles } from '../../ui/DragHandles';
@@ -14,12 +14,7 @@ interface AppShortcutWidgetProps {
   icon?: React.ReactNode; // Made optional
   iconUrl?: string; // Custom icon URL
   className?: string;
-  isSelfHosted?: boolean;
-  internalUrl?: string; // Optional internal URL for status checking if different from public URL
-  config?: Record<string, unknown>;
 }
-
-type Status = 'online' | 'offline' | 'fetching' | 'unknown';
 
 export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: boolean; onEdit?: () => void }> = ({
   name,
@@ -27,8 +22,6 @@ export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: 
   icon,
   iconUrl,
   className = '',
-  isSelfHosted = false,
-  internalUrl,
   isEditing = false,
   onEdit
 }) => {
@@ -77,38 +70,6 @@ export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: 
       </span>
     );
   }
-  const [status, setStatus] = useState<Status>('unknown');
-  
-  useEffect(() => {
-    if (!isSelfHosted) return;
-
-    const checkStatus = async () => {
-      setStatus('fetching');
-      const targetUrl = internalUrl || url;
-      
-      try {
-        // Use our proxy API to avoid CORS and mixed content issues
-        const response = await fetch(`/api/status?url=${encodeURIComponent(targetUrl)}`);
-        if (response.ok) {
-          setStatus('online');
-        } else {
-          setStatus('offline');
-        }
-      } catch (error) {
-        console.error(`Failed to check status for ${name}:`, error);
-        setStatus('offline');
-      }
-    };
-
-    // Initial check
-    checkStatus();
-
-    // Poll every 60 seconds
-    const intervalId = setInterval(checkStatus, 60000);
-
-    return () => clearInterval(intervalId);
-  }, [url, internalUrl, isSelfHosted, name]);
-
   const content = (
     <>
       {isEditing && <DragHandles />}
@@ -126,18 +87,6 @@ export const AppShortcutWidget: React.FC<AppShortcutWidgetProps & { isEditing?: 
           <Settings size={14} />
         </button>
       )}
-      {isSelfHosted && (
-        <div 
-          className={`
-            ${styles.statusIndicator} 
-            ${status === 'online' ? styles.statusOnline : ''}
-            ${status === 'offline' ? styles.statusOffline : ''}
-            ${status === 'fetching' ? styles.statusFetching : ''}
-          `}
-          title={`Status: ${status}`}
-        />
-      )}
-      
       <div className={styles.iconContainer}>
         {renderedIcon}
       </div>

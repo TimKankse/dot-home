@@ -1,4 +1,4 @@
-import type { QBittorrentWidgetConfig } from '@/types';
+import { apiFetch } from '@/lib/api-client';
 
 export interface QueueSlot {
   filename: string;
@@ -23,7 +23,6 @@ interface QBittorrentResponse {
 }
 
 export interface QBittorrentFetchParams {
-  config?: QBittorrentWidgetConfig;
   integrationId?: string;
 }
 
@@ -39,7 +38,7 @@ export async function fetchQBittorrentQueue(params: QBittorrentFetchParams): Pro
     return null;
   }
 
-  const res = await fetch('/api/qbittorrent?mode=queue', { headers: buildHeaders(params) });
+  const res = await apiFetch('/api/qbittorrent?mode=queue', { headers: buildHeaders(params) });
   
   if (!res.ok) {
     throw new Error('Failed to fetch data');
@@ -52,7 +51,7 @@ export async function fetchQBittorrentQueue(params: QBittorrentFetchParams): Pro
 export async function toggleQBittorrentPause(paused: boolean, params: QBittorrentFetchParams): Promise<void> {
   if (!params.integrationId) return;
   const action = paused ? 'resume' : 'pause';
-  const response = await fetch('/api/qbittorrent', {
+  const response = await apiFetch('/api/qbittorrent', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...buildHeaders(params) },
     body: JSON.stringify({ action }),

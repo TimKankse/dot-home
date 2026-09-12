@@ -3,6 +3,7 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { apiFetch } from '@/lib/api-client';
 import styles from '../(auth)/auth.module.css';
 
 function ResetPasswordContent() {
@@ -33,7 +34,7 @@ function ResetPasswordContent() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

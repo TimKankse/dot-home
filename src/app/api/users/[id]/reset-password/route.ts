@@ -3,16 +3,15 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import {
-  buildPasswordResetUrl,
+  buildPasswordResetPath,
   issuePasswordResetToken,
-  sendPasswordResetNotification,
 } from '@/lib/password-reset';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function POST(request: Request, { params }: RouteParams) {
+export async function POST(_request: Request, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions);
     const { id } = await params;
@@ -29,8 +28,6 @@ export async function POST(request: Request, { params }: RouteParams) {
       where: { id },
       select: {
         id: true,
-        email: true,
-        displayName: true,
       },
     });
 
@@ -39,31 +36,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const { token, expiresAt } = await issuePasswordResetToken(user.id);
-    const resetUrl = buildPasswordResetUrl(token, request);
-
-    try {
-      const delivered = await sendPasswordResetNotification({
-        initiatedBy: 'admin',
-        user,
-        resetUrl,
-        expiresAt,
-      });
-
-      if (delivered) {
-        return NextResponse.json({
-          success: true,
-          delivery: 'automated',
-          expiresAt: expiresAt.toISOString(),
-        });
-      }
-    } catch (error) {
-      console.error('Admin password reset delivery failed:', error);
-    }
 
     return NextResponse.json({
       success: true,
-      delivery: 'manual',
-      resetUrl,
+      resetPath: buildPasswordResetPath(token),
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {

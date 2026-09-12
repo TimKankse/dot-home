@@ -9,9 +9,14 @@ import { fetchRssFeed, formatTimeAgo, RssData } from '@/services/rss';
 
 interface RssWidgetProps {
   config?: RssWidgetConfig;
+  integrationId?: string;
 }
 
-export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({ config, title: widgetTitle }) => {
+export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({
+  config,
+  integrationId,
+  title: widgetTitle,
+}) => {
   const [data, setData] = useState<RssData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,17 +29,17 @@ export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({ confi
   const showSummary = config?.showSummary ?? true;
   const refreshInterval = config?.refreshInterval || 15;
 
-  const feedUrlsKey = JSON.stringify(feedUrls);
+  const feedSourcesKey = JSON.stringify({ feedUrls, integrationId });
 
   const loadData = useCallback(async () => {
-    if (feedUrls.length === 0) {
+    if (feedUrls.length === 0 && !integrationId) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const json = await fetchRssFeed(feedUrls);
+      const json = await fetchRssFeed(feedUrls, integrationId);
       setData(json);
       setError(null);
     } catch (err) {
@@ -44,7 +49,7 @@ export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({ confi
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedUrlsKey]);
+  }, [feedSourcesKey]);
 
   useEffect(() => {
     loadData();
@@ -57,7 +62,7 @@ export const RssWidget: React.FC<RssWidgetProps & { title?: string }> = ({ confi
     return () => clearInterval(interval);
   }, []);
 
-  if (feedUrls.length === 0) {
+  if (feedUrls.length === 0 && !integrationId) {
     return (
       <div className={styles.emptyState}>
         <Rss size={24} />

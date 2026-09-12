@@ -32,15 +32,16 @@ Admins manage other accounts from the `Users` settings tab:
 
 ### Protected Routes
 The proxy (`src/proxy.ts`) protects:
-- All routes except `/login`, `/register`, `/api/auth/*`
-- Static assets are excluded
+- All application and API routes except the exact public routes below
+- Only known static assets and safe methods are excluded
 
 ### Public Routes
 - `/login` - User login
-- `/forgot-password` - Password reset request flow
-- `/reset-password` - Password reset completion flow
-- `/register` - User registration  
-- `/api/auth/*` - Auth API endpoints
+- `/setup` - Bootstrap-secret-protected initial setup
+- `/reset-password` - Completion of an administrator-issued one-time reset
+- `/api/setup` and `/api/setup/check` - Initial setup endpoints
+- `/api/auth/reset-password` - One-time token consumption
+- NextAuth's exact sign-in, sign-out, session, CSRF, and callback routes
 
 ---
 
@@ -72,7 +73,16 @@ Override base access per-user via `ObjectPermission`:
 |------------|--------|
 | `BLOCKED` | Deny all access |
 | `VIEW` | Allow viewing |
-| `EDIT` | Allow full access |
+| `EDIT` | Allow editing |
+
+Ownership always takes precedence over overrides. Owners retain edit access even
+if a legacy `BLOCKED` or `VIEW` override exists. Only object owners and
+administrators may list, grant, or remove permission overrides; shared editors
+cannot administer access. New overrides targeting an owner are rejected, while
+owners and administrators may remove old ones.
+
+A saved preferred dashboard is checked against current permissions on every load.
+Blocking a user revokes access even if they previously selected that dashboard.
 
 ---
 
@@ -113,32 +123,28 @@ export function proxy(request: NextRequest) {
 - Self-service password changes require the current password
 - Password reset links are one-time tokens stored server-side with expiration
 - Password changes and completed resets revoke every previously issued session
-- Forgot-password requests are throttled by hashed email and client IP
-- Admin password help uses reset links instead of exposing a user's password
+- Only administrators can issue password reset links
 - HTTP-only session cookies
-- CSRF protection on forms
+- Exact public/static route allowlists and first-party request enforcement on mutations
+- Live role and account-status checks on every session, with immediate revocation
+- Bootstrap-secret protection for the one-time first-administrator claim
 - API keys encrypted in database
 - Integration credentials never exposed to client
 
-## Password Reset Delivery
+## Password Recovery
 
-Password resets support two operating modes:
+Password recovery is administrator-assisted. An administrator creates a one-time link
+from User Management and shares it directly with the user. The link expires after one
+hour; completing it consumes every outstanding reset link for that user and revokes all
+of their existing sessions. dotHome does not send reset links through email or webhooks.
 
-- Automated delivery: configure `PASSWORD_RESET_WEBHOOK_URL` to hand the reset link to your own email/automation system
-- Admin-assisted delivery: if no webhook is configured, users are instructed to contact an admin and admins can generate a manual reset link from settings
-
-Production reset links require a canonical application origin. Configure `NEXTAUTH_URL`
-to the externally reachable HTTPS origin; request forwarding headers are never trusted
-to construct credential links.
+The server returns a relative reset path and the administrator's browser constructs the
+shareable URL from the page it is currently using. Request Host and forwarding headers
+therefore do not influence reset links or mutation authorization.
 
 Environment variables:
 
-- `NEXTAUTH_URL` - Canonical public origin used in reset links; required when creating production reset links
-- `PASSWORD_RESET_WEBHOOK_URL` - Receives JSON payloads with the reset link
-- `PASSWORD_RESET_WEBHOOK_SECRET` - Sent as a bearer token to the webhook
-- `ADMIN_CONTACT_EMAIL` - Shown to users when resets are admin-assisted
+- `BOOTSTRAP_SECRET` - Optional explicit secret for the first-admin claim; otherwise a mode-0600 secret is persisted beside the SQLite database
 
-The public reset-request endpoint allows three requests per email and ten requests per
-client IP during each 15-minute window. Keys are SHA-256 hashed before storage. Multiple
-unexpired links may coexist so a newer request cannot invalidate a previously delivered
-link; completing any reset consumes all outstanding links for that user atomically.
+`NEXTAUTH_URL` is not required for credentials authentication. A canonical public URL
+should be introduced when OAuth/OIDC callbacks are added in the future.

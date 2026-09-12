@@ -1,4 +1,5 @@
 import type { TwitchWidgetConfig } from '@/types';
+import { apiFetch } from '@/lib/api-client';
 
 export interface TwitchChannelData {
   user_login: string;
@@ -39,7 +40,7 @@ export async function fetchTwitchStreams(params: TwitchFetchParams): Promise<Twi
   
   headers['x-integration-id'] = integrationId;
 
-  const response = await fetch('/api/twitch', {
+  const response = await apiFetch('/api/twitch', {
     method: 'POST',
     headers,
     body: JSON.stringify({ channels }),

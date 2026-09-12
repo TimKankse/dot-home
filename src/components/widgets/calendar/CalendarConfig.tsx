@@ -5,6 +5,7 @@ import { WidgetConfigProps } from '@/components/item-editor/forms/types';
 import type { CalendarWidgetConfig } from '@/types';
 import { buildTabbedConfigForm } from '@/components/item-editor/forms/config-form-builder';
 import type { TabDefinition } from '@/components/item-editor/forms/config-form-builder';
+import { IntegrationSelect } from '@/components/primitives';
 
 const tabs: TabDefinition<CalendarWidgetConfig>[] = [
   {
@@ -49,17 +50,20 @@ const tabs: TabDefinition<CalendarWidgetConfig>[] = [
         title: 'Radarr (Movies)',
         fields: [
           { 
-            type: 'input', 
-            key: 'radarrUrl', 
-            label: 'URL', 
-            placeholder: 'http://localhost:7878' 
-          },
-          { 
-            type: 'input', 
-            key: 'radarrApiKey', 
-            label: 'API Key', 
-            inputType: 'password',
-            placeholder: 'Radarr API Key' 
+            type: 'custom',
+            key: 'radarrIntegrationId',
+            label: 'Connection',
+            render: ({ config, onChange, styles }) => (
+              <div key="radarrIntegrationId" className={styles.formGroup}>
+                <label className={styles.label}>Connection</label>
+                <IntegrationSelect
+                  type="radarr"
+                  value={config.radarrIntegrationId}
+                  onChange={(id) => onChange('radarrIntegrationId', id)}
+                  placeholder="Select Radarr integration..."
+                />
+              </div>
+            ),
           }
         ]
       },
@@ -67,17 +71,20 @@ const tabs: TabDefinition<CalendarWidgetConfig>[] = [
         title: 'Sonarr (TV)',
         fields: [
           { 
-            type: 'input', 
-            key: 'sonarrUrl', 
-            label: 'URL', 
-            placeholder: 'http://localhost:8989' 
-          },
-          { 
-            type: 'input', 
-            key: 'sonarrApiKey', 
-            label: 'API Key', 
-            inputType: 'password',
-            placeholder: 'Sonarr API Key' 
+            type: 'custom',
+            key: 'sonarrIntegrationId',
+            label: 'Connection',
+            render: ({ config, onChange, styles }) => (
+              <div key="sonarrIntegrationId" className={styles.formGroup}>
+                <label className={styles.label}>Connection</label>
+                <IntegrationSelect
+                  type="sonarr"
+                  value={config.sonarrIntegrationId}
+                  onChange={(id) => onChange('sonarrIntegrationId', id)}
+                  placeholder="Select Sonarr integration..."
+                />
+              </div>
+            ),
           }
         ]
       }

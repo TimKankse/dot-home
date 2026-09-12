@@ -34,12 +34,15 @@ export async function GET(request: Request) {
           email: true,
           displayName: true,
           role: true,
+          disabledAt: true,
           createdAt: true,
           updatedAt: true,
         },
       });
 
-      return NextResponse.json({ user });
+      return NextResponse.json({
+        user: user && { ...user, disabled: user.disabledAt !== null },
+      });
     }
 
     const users = await prisma.user.findMany({
@@ -48,13 +51,16 @@ export async function GET(request: Request) {
         email: true,
         displayName: true,
         role: true,
+        disabledAt: true,
         createdAt: true,
         updatedAt: true,
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    return NextResponse.json({ users });
+    return NextResponse.json({
+      users: users.map((user) => ({ ...user, disabled: user.disabledAt !== null })),
+    });
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(

@@ -1,4 +1,5 @@
 import type { PortainerWidgetConfig } from '@/types';
+import { apiFetch } from '@/lib/api-client';
 
 export interface PortainerContainer {
   Id: string;
@@ -26,7 +27,7 @@ export async function fetchPortainerContainers(params: PortainerFetchParams): Pr
 
   const query = new URLSearchParams({ integrationId });
   if (config?.endpointId) query.set('endpointId', config.endpointId);
-  const res = await fetch(`/api/portainer?${query.toString()}`);
+  const res = await apiFetch(`/api/portainer?${query.toString()}`);
 
   if (!res.ok) {
     throw new Error('Failed to fetch data');
@@ -49,7 +50,7 @@ export async function performContainerAction(
   if (!params.integrationId) return false;
   const query = new URLSearchParams({ integrationId: params.integrationId });
   if (params.config?.endpointId) query.set('endpointId', params.config.endpointId);
-  const res = await fetch(`/api/portainer?${query.toString()}`, {
+  const res = await apiFetch(`/api/portainer?${query.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: containerId, action }),

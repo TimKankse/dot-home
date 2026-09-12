@@ -1,22 +1,71 @@
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
+import {
+  ApiSecurityError,
+  apiSecurityErrorResponse,
+  requireApiUser,
+} from '@/lib/api-security';
+import { resolveAuthorizedIntegration } from '@/lib/integration-access';
+import { requireIntegrationConfigString } from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
+import { ValidationError, assertRecord } from '@/lib/validation';
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const urls = searchParams.getAll('url');
+const parseOptionalIntegrationId = (value: unknown): string | undefined => {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string' || !value.trim() || value.length > 128) {
+    throw new ValidationError('integrationId must be a valid integration ID');
+  }
+  return value.trim();
+};
 
-  if (!urls || urls.length === 0) {
-    return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 });
+const prepareStoredFeedRequest = (value: string) => {
+  const url = new URL(value);
+  const headers = new Headers({
+    'User-Agent': 'dot-home RSS reader',
+    Accept: 'application/rss+xml, application/xml, text/xml, */*;q=0.8',
+  });
+
+  if (url.username || url.password) {
+    const username = decodeURIComponent(url.username);
+    const password = decodeURIComponent(url.password);
+    url.username = '';
+    url.password = '';
+    headers.set(
+      'Authorization',
+      `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
+    );
   }
 
+  return { url, headers };
+};
+
+export async function POST(request: Request) {
   try {
+    const user = await requireApiUser(request);
+    const body = assertRecord(await request.json(), 'RSS request');
+    const rawUrls = body.urls ?? [];
+    if (!Array.isArray(rawUrls) || rawUrls.length > 10) {
+      throw new ValidationError('At most 10 public feed URLs are allowed');
+    }
+    const urls = rawUrls.map((value) => {
+      if (typeof value !== 'string' || !value.trim() || value.length > 2048) {
+        throw new ValidationError('Each feed URL must be a valid string');
+      }
+      return value.trim();
+    });
+    const integrationId = parseOptionalIntegrationId(body.integrationId);
+    if (urls.length === 0 && !integrationId) {
+      throw new ValidationError('At least one RSS source is required');
+    }
+    const storedIntegration = integrationId
+      ? await resolveAuthorizedIntegration({
+          integrationId,
+          user,
+          expectedTypes: ['rss'],
+          requiredPermission: 'view',
+        })
+      : undefined;
     const parser = new Parser({
-      requestOptions: {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/rss+xml, application/xml, text/xml, */*;q=0.8',
-        },
-      },
       customFields: {
         item: [
           'source', 
@@ -30,10 +79,29 @@ export async function GET(request: Request) {
     });
 
     // Helper function to process a single feed
-    const fetchFeed = async (url: string) => {
+    const fetchFeed = async (
+      url: string | URL,
+      options: { stored?: boolean; headers?: Headers } = {},
+    ) => {
       try {
-        const feed = await parser.parseURL(url);
-        return feed.items.map(item => {
+        const response = await fetchOutbound(
+          url,
+          {
+            headers: options.headers || {
+              'User-Agent': 'dot-home RSS reader',
+              Accept: 'application/rss+xml, application/xml, text/xml, */*;q=0.8',
+            },
+            cache: 'no-store',
+          },
+          {
+            policy: options.stored ? 'trusted-integration' : 'public-internet',
+            timeoutMs: 10_000,
+            allowCrossOriginRedirects: !options.stored,
+          },
+        );
+        if (!response.ok) return { ok: false as const, items: [] };
+        const feed = await parser.parseString(await response.text());
+        const items = feed.items.map(item => {
           // Thumbnail extraction logic remains same
           let thumbnail = item.enclosure?.url;
           if (!thumbnail && item['media:content']) {
@@ -106,14 +174,34 @@ export async function GET(request: Request) {
             _feedTitle: feed.title // internal usage if needed later
           };
         });
-      } catch (e) {
-        console.error(`Error fetching feed ${url}:`, e);
-        return []; // Return empty array on failure
+        return { ok: true as const, items };
+      } catch {
+        return { ok: false as const, items: [] };
       }
     };
 
-    const allFeedItems = await Promise.all(urls.map(url => fetchFeed(url)));
-    const flatItems = allFeedItems.flat();
+    const requests = urls.map((url) => fetchFeed(url));
+    if (storedIntegration) {
+      const storedUrlField = typeof storedIntegration.config.secretUrl === 'string'
+        ? 'secretUrl'
+        : 'feedUrl';
+      const storedFeed = prepareStoredFeedRequest(
+        requireIntegrationConfigString(storedIntegration, storedUrlField),
+      );
+      requests.push(fetchFeed(storedFeed.url, {
+        stored: true,
+        headers: storedFeed.headers,
+      }));
+    }
+    const feedResults = await Promise.all(requests);
+    if (feedResults.every((result) => !result.ok)) {
+      throw new ApiSecurityError(
+        'Unable to fetch the configured RSS feeds',
+        502,
+        'upstream_request_failed',
+      );
+    }
+    const flatItems = feedResults.flatMap((result) => result.items);
 
     // Sort by date (newest first)
     flatItems.sort((a, b) => {
@@ -123,12 +211,11 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      title: urls.length > 1 ? 'Combined Feed' : (flatItems[0]?._feedTitle || 'RSS Feed'),
+      title: requests.length > 1 ? 'Combined Feed' : (flatItems[0]?._feedTitle || 'RSS Feed'),
       description: 'Aggregated feeds',
       items: flatItems,
     });
   } catch (error) {
-    console.error('Error fetching RSS feed:', error);
-    return NextResponse.json({ error: 'Failed to fetch RSS feed. See logs for details.' }, { status: 500 });
+    return apiSecurityErrorResponse(error, 'Failed to fetch RSS feed');
   }
 }

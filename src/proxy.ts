@@ -1,69 +1,79 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+
+import {
+  classifyRequestPath,
+  validateAppMutationRequest,
+} from '@/lib/request-security';
 import { isSessionTokenCurrent } from '@/lib/session-revocation';
 
-const publicRoutes = ['/login', '/setup', '/forgot-password', '/reset-password', '/api/auth', '/api/setup'];
+const AUTH_PAGES = new Set(['/login']);
 
-const authRoutes = ['/login'];
+const clearSessionCookies = (response: NextResponse): NextResponse => {
+  response.cookies.delete('next-auth.session-token');
+  response.cookies.delete('__Secure-next-auth.session-token');
+  return response;
+};
+
+const unauthorizedResponse = (request: NextRequest, message?: string) => {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.json(
+      { error: 'Unauthorized', code: message || 'unauthorized' },
+      { status: 401 },
+    );
+  }
+  const loginUrl = new URL('/login', request.url);
+  loginUrl.searchParams.set(
+    'callbackUrl',
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
+  if (message) loginUrl.searchParams.set('message', message);
+  return NextResponse.redirect(loginUrl);
+};
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const pathKind = classifyRequestPath(pathname, request.method);
 
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/static') ||
-    pathname.includes('.') // files with extensions (favicon, etc)
-  ) {
-    return NextResponse.next();
+  if (pathKind === 'static') return NextResponse.next();
+
+  // NextAuth maintains its own CSRF protocol. All other unsafe application
+  // requests, including public setup/reset endpoints, use the first-party gate.
+  if (pathKind !== 'next-auth') {
+    const requestResult = validateAppMutationRequest(request);
+    if (!requestResult.allowed) {
+      return NextResponse.json(
+        { error: 'Request rejected', code: requestResult.code },
+        { status: requestResult.status },
+      );
+    }
   }
 
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
+  const isPublic = pathKind === 'public-page' || pathKind === 'public-api' || pathKind === 'next-auth';
+  const isAuthPage = AUTH_PAGES.has(pathname);
+  if (isPublic && !isAuthPage) return NextResponse.next();
 
-  if (isPublicRoute && !isAuthRoute) {
-    return NextResponse.next();
-  }
-
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
   });
 
   if (token && !(await isSessionTokenCurrent(token))) {
-    const response = isAuthRoute
+    const response = isAuthPage
       ? NextResponse.next()
-      : NextResponse.redirect(new URL('/login?message=session-expired', request.url));
-
-    response.cookies.delete('next-auth.session-token');
-    response.cookies.delete('__Secure-next-auth.session-token');
-    return response;
+      : unauthorizedResponse(request, 'session-expired');
+    return clearSessionCookies(response);
   }
 
-  if (token && isAuthRoute) {
+  if (token && isAuthPage) {
     return NextResponse.redirect(new URL('/', request.url));
   }
-  if (isPublicRoute) {
-    return NextResponse.next();
-  }
-
-  if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
+  if (isPublic) return NextResponse.next();
+  if (!token) return unauthorizedResponse(request);
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/:path*'],
 };

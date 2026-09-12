@@ -26,7 +26,6 @@ interface FolderVariationProps {
 }
 
 const ITEMS_PER_PAGE = 12;
-const MAX_PAGES = 4;
 const PREVIEW_GRID_MIN = 2;
 const PREVIEW_GAP_PX = 8;
 const PREVIEW_PADDING_PX = 0;
@@ -192,15 +191,13 @@ export const FolderVariation: React.FC<FolderVariationProps> = ({
   const previewCount = previewLayout.columns * previewLayout.rows;
 
   const previewShortcuts = shortcuts.slice(-previewCount);
-  const totalPages = Math.min(
-    Math.ceil(shortcuts.length / ITEMS_PER_PAGE),
-    MAX_PAGES
-  );
-  const maxShortcuts = MAX_PAGES * ITEMS_PER_PAGE;
-  const displayableShortcuts = shortcuts.slice(0, maxShortcuts);
-  const pageShortcuts = displayableShortcuts.slice(
-    currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
+  const totalPages = Math.max(1, Math.ceil(shortcuts.length / ITEMS_PER_PAGE));
+  const visiblePage = Math.min(currentPage, totalPages - 1);
+  // Clamp selection when the last page disappears after moving/deleting an item.
+  if (currentPage !== visiblePage) setCurrentPage(visiblePage);
+  const pageShortcuts = shortcuts.slice(
+    visiblePage * ITEMS_PER_PAGE,
+    (visiblePage + 1) * ITEMS_PER_PAGE
   );
   const previewStyle = {
     width: previewLayout.width,

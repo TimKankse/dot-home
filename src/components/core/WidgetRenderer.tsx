@@ -55,9 +55,6 @@ export const WidgetRenderer: React.FC<WidgetRendererProps> = ({
         name={widget.name || ''} 
         url={widget.url || ''} 
         iconUrl={widget.iconUrl}
-        isSelfHosted={widget.isSelfHosted} 
-        internalUrl={widget.internalUrl} 
-        config={widget.config}
         isEditing={isEditing}
         onEdit={handleEdit}
       />

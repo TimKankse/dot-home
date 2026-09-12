@@ -18,8 +18,15 @@ build
 .git
 .gitignore
 
-# Config (will be mounted as volume)  
-config.yml
+# Runtime data and secrets must never enter the build context.
+config/
+**/config.yml*
+**/*.db
+**/*.db-*
+**/*.db.*
+**/*.bak
+**/.*_secret
+**/*.pem
 
 # Documentation
 *.md

@@ -9,10 +9,9 @@ import {
   INTEGRATION_TYPE_META,
   getIntegrationTypeMeta 
 } from '@/types/integration';
-import { v4 as uuidv4 } from 'uuid';
-import { IconSelector } from '../ui/IconSelector';
 import styles from './SettingsDialog.module.css';
-import { Button, Input, Label, Card } from '../primitives';
+import { Button, Input, Card } from '../primitives';
+import { apiFetch } from '@/lib/api-client';
 
 type ViewMode = 'list' | 'add-select-type' | 'add-form' | 'edit';
 
@@ -31,7 +30,6 @@ export const IntegrationsSettings: React.FC = () => {
   
   // Form state
   const [name, setName] = useState('');
-  const [iconUrl, setIconUrl] = useState('');
   const [url, setUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [username, setUsername] = useState('');
@@ -40,14 +38,13 @@ export const IntegrationsSettings: React.FC = () => {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [endpointId, setEndpointId] = useState('');
-  const [refreshInterval, setRefreshInterval] = useState('');
+  const [feedUrl, setFeedUrl] = useState('');
 
   const resetForm = () => {
     setViewMode('list');
     setEditingId(null);
     setSelectedType(null);
     setName('');
-    setIconUrl('');
     setUrl('');
     setApiKey('');
     setUsername('');
@@ -56,7 +53,7 @@ export const IntegrationsSettings: React.FC = () => {
     setClientId('');
     setClientSecret('');
     setEndpointId('');
-    setRefreshInterval('');
+    setFeedUrl('');
     setIsSaving(false);
   };
 
@@ -71,7 +68,6 @@ export const IntegrationsSettings: React.FC = () => {
     setEditingId(integration.id);
     setSelectedType(integration.type);
     setName(integration.name);
-    setIconUrl(integration.iconUrl || '');
     
     const config = integration.config as Record<string, string | undefined>;
     setUrl(config.url || '');
@@ -82,7 +78,7 @@ export const IntegrationsSettings: React.FC = () => {
     setClientId(config.clientId || '');
     setClientSecret(config.clientSecret || '');
     setEndpointId(config.endpointId || '');
-    setRefreshInterval(config.refreshInterval || '');
+    setFeedUrl(config.secretUrl || '');
     
     setViewMode('edit');
   };
@@ -108,7 +104,6 @@ export const IntegrationsSettings: React.FC = () => {
         break;
       case 'netdata':
         if (url) config.url = url;
-        if (refreshInterval) config.refreshInterval = refreshInterval;
         break;
       case 'portainer':
         if (url) config.url = url;
@@ -124,6 +119,9 @@ export const IntegrationsSettings: React.FC = () => {
         if (clientId) config.clientId = clientId;
         if (clientSecret) config.clientSecret = clientSecret;
         break;
+      case 'rss':
+        if (feedUrl) config.secretUrl = feedUrl;
+        break;
     }
     
     return config;
@@ -138,52 +136,36 @@ export const IntegrationsSettings: React.FC = () => {
     try {
       if (editingId) {
         // Update existing
-        const res = await fetch('/api/integrations', {
+        const res = await apiFetch('/api/integrations', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: editingId,
             name,
             type: selectedType,
-            iconUrl: iconUrl || undefined,
             config
           }),
         });
 
         if (!res.ok) throw new Error('Failed to update integration');
         
-        const updated = await res.json();
-        updateIntegration(editingId, {
-          name,
-          type: selectedType,
-          iconUrl: iconUrl || undefined,
-          config: updated.config // Use returned config (might contain masked secrets)
-        });
+        const updated = await res.json() as Integration;
+        updateIntegration(editingId, updated);
       } else {
-        // Create new
-        const newId = uuidv4();
-        const res = await fetch('/api/integrations', {
+        const res = await apiFetch('/api/integrations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: newId,
             name,
             type: selectedType,
-            iconUrl: iconUrl || undefined, // Fix typing
             config
           }),
         });
 
         if (!res.ok) throw new Error('Failed to create integration');
         
-        const created = await res.json();
-        addIntegration({
-          id: created.id,
-          name: created.name,
-          type: created.type,
-          iconUrl: iconUrl || undefined,
-          config: created.config
-        });
+        const created = await res.json() as Integration;
+        addIntegration(created);
       }
 
       resetForm();
@@ -198,7 +180,7 @@ export const IntegrationsSettings: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this integration?')) {
       try {
-        const res = await fetch(`/api/integrations?id=${id}`, {
+        const res = await apiFetch(`/api/integrations?id=${id}`, {
           method: 'DELETE',
         });
 
@@ -250,6 +232,7 @@ export const IntegrationsSettings: React.FC = () => {
     const hasTwitchAuth = selectedType === 'twitch';
     const hasUserId = selectedType === 'jellyfin';
     const hasEndpointId = selectedType === 'portainer';
+    const hasRssFeed = selectedType === 'rss';
 
     return (
       <>
@@ -262,18 +245,6 @@ export const IntegrationsSettings: React.FC = () => {
               placeholder="http://192.168.1.100:8096"
             />
           </div>
-        )}
-
-        {selectedType === 'netdata' && (
-             <div className={styles.formGroup}>
-                <Input 
-                  label="Refresh Rate (ms)"
-                  type="number"
-                  value={refreshInterval}
-                  onChange={(e) => setRefreshInterval(e.target.value)}
-                  placeholder="2000"
-                />
-              </div>
         )}
 
         {hasApiKey && (
@@ -352,6 +323,18 @@ export const IntegrationsSettings: React.FC = () => {
             </div>
           </>
         )}
+
+        {hasRssFeed && (
+          <div className={styles.formGroup}>
+            <Input
+              label="Private or authenticated feed URL"
+              type="password"
+              value={feedUrl}
+              onChange={(event) => setFeedUrl(event.target.value)}
+              placeholder="http://192.168.1.10:8080/feed"
+            />
+          </div>
+        )}
       </>
     );
   };
@@ -382,14 +365,6 @@ export const IntegrationsSettings: React.FC = () => {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Home Media Server"
-          />
-        </div>
-
-        <div className={styles.formGroup}>
-          <Label>Custom Icon (Optional)</Label>
-          <IconSelector 
-            iconUrl={iconUrl} 
-            onIconSelect={setIconUrl} 
           />
         </div>
 

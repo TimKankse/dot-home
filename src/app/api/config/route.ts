@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { apiSecurityErrorResponse, requireApiUser } from '@/lib/api-security';
 import { prisma } from '@/lib/db';
 import {
   createEmptyDashboardLayout,
@@ -8,7 +7,7 @@ import {
   serializeDashboardLayout,
 } from '@/lib/dashboard-layout';
 import { parseDashboardSaveRequest } from '@/lib/request-parsers';
-import { ValidationError, tryParseJsonString } from '@/lib/validation';
+import { tryParseJsonString } from '@/lib/validation';
 import { decryptSensitiveFields } from '@/utils/crypto';
 import { redactSensitiveFields } from '@/utils/sensitive-config';
 import { resolvePermission, type AccessLevel } from '@/utils/permissions';
@@ -19,11 +18,22 @@ import {
 import {
   getMigrationWidgetType,
   INTEGRATION_MIGRATION_SPECS,
-  stripMigratedConnectionFields,
+  reconcileWidgetIntegrationSelection,
+  redactProtectedRssFeedUrls,
   type MigrationWidget,
 } from '@/lib/integration-config-migration';
 
 export const dynamic = 'force-dynamic';
+
+const redactWidgetConfig = (
+  widgetType: string,
+  config: Record<string, unknown>,
+): Record<string, unknown> => {
+  const redacted = redactSensitiveFields(config, 'omit');
+  return widgetType === 'rss'
+    ? redactProtectedRssFeedUrls(redacted)
+    : redacted;
+};
 
 // Default widget permissions by role
 const DEFAULT_PERMISSIONS: Record<string, string[]> = {
@@ -99,21 +109,11 @@ async function getUserIntegrations(userId: string) {
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    
+    const user = await requireApiUser();
+
     // Get permissions from database
     const permissions = await getPermissions();
-
-    // If no session, return default layout with empty integrations
-    if (!session?.user) {
-      return NextResponse.json({
-        ...createEmptyDashboardLayout(),
-        integrations: [],
-        permissions,
-      });
-    }
-
-    const userId = session.user.id;
+    const userId = user.id;
 
     // This is also invoked during server startup. Keeping the guarded call here
     // makes hot development reloads and non-standard runtimes converge on the
@@ -161,47 +161,34 @@ export async function GET(request: Request) {
        }
     }
     
-    // 1. Check for user preference if no specific dashboard requested
+    // Preferences remember a selection, never an authorization grant.
     if (!dashboard) {
-    const preference = await prisma.userDashboardPreference.findUnique({
-      where: { userId },
-    });
-    
-    if (preference?.defaultDashboardId) {
-      // Try to fetch the preferred dashboard and verify access
-      const preferredDashboard = await prisma.dashboard.findUnique({
-        where: { id: preference.defaultDashboardId },
+      const preference = await prisma.userDashboardPreference.findUnique({
+        where: { userId },
       });
-      
-      if (preferredDashboard) {
-        // Check if user still has access to this dashboard
-        const isOwner = preferredDashboard.userId === userId;
-        const isPublicOrViewable = preferredDashboard.accessLevel === 'PUBLIC' || 
-                                    preferredDashboard.accessLevel === 'VIEWABLE';
-        
-        // Check for explicit permission if not owner or public/viewable
-        let hasExplicitPermission = false;
-        if (!isOwner && !isPublicOrViewable) {
-          const explicitPerm = await prisma.objectPermission.findUnique({
-            where: {
-              userId_objectType_objectId: {
-                userId,
-                objectType: 'dashboard',
-                objectId: preference.defaultDashboardId,
-              },
+
+      if (preference?.defaultDashboardId) {
+        const preferredDashboard = await prisma.dashboard.findUnique({
+          where: { id: preference.defaultDashboardId },
+        });
+
+        if (preferredDashboard) {
+          const permission = await resolvePermission(
+            {
+              objectType: 'dashboard',
+              objectId: preferredDashboard.id,
+              ownerId: preferredDashboard.userId,
+              accessLevel: (preferredDashboard.accessLevel || 'PRIVATE') as AccessLevel,
             },
-          });
-          hasExplicitPermission = explicitPerm?.permission === 'VIEW' || 
-                                   explicitPerm?.permission === 'EDIT';
-        }
-        
-        if (isOwner || isPublicOrViewable || hasExplicitPermission) {
-          dashboard = preferredDashboard;
+            userId,
+          );
+          if (permission === 'view' || permission === 'edit') {
+            dashboard = preferredDashboard;
+          }
         }
       }
     }
-    }
-    
+
     // 2. Fall back to user's owned default dashboard
     if (!dashboard) {
       dashboard = await prisma.dashboard.findFirst({
@@ -241,8 +228,8 @@ export async function GET(request: Request) {
           const parsedConfig = widget.config as Record<string, unknown>;
           return {
             ...widget,
-            config: INTEGRATION_MIGRATION_SPECS[widgetType]
-              ? redactSensitiveFields(parsedConfig, 'omit')
+            config: INTEGRATION_MIGRATION_SPECS[widgetType] || widgetType === 'calendar'
+              ? redactWidgetConfig(widgetType, parsedConfig)
               : decryptSensitiveFields(parsedConfig),
           };
         }
@@ -272,14 +259,16 @@ export async function GET(request: Request) {
           if (widget.syncConfig === false && userConfigMap.has(widget.id)) {
             const storedUserConfig = userConfigMap.get(widget.id) as Record<string, unknown>;
             const widgetType = getMigrationWidgetType(widget as unknown as MigrationWidget);
-            const isMigratedType = Boolean(INTEGRATION_MIGRATION_SPECS[widgetType]);
+            const isMigratedType = Boolean(
+              INTEGRATION_MIGRATION_SPECS[widgetType] || widgetType === 'calendar',
+            );
             const integrationId = typeof storedUserConfig.integrationId === 'string'
               ? storedUserConfig.integrationId
               : widget.integrationId;
             const configWithoutIntegration = { ...storedUserConfig };
             delete configWithoutIntegration.integrationId;
             const userConfig = isMigratedType
-              ? redactSensitiveFields(configWithoutIntegration, 'omit')
+              ? redactWidgetConfig(widgetType, configWithoutIntegration)
               : decryptSensitiveFields(configWithoutIntegration);
             return {
               ...widget,
@@ -313,32 +302,24 @@ export async function GET(request: Request) {
       dashboardId: dashboard.id,
       integrations,
       permissions,
-      userRole: session.user.role,
+      userRole: user.role,
       canEditDashboard,
     });
   } catch (error) {
-    console.error('Error reading config:', error);
-    return NextResponse.json(
-      { error: 'Failed to read configuration' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to read configuration');
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await requireApiUser(request);
 
     // Viewers cannot save
-    if (session.user.role === 'viewer') {
+    if (user.role === 'viewer') {
       return NextResponse.json({ error: 'Viewers cannot edit dashboards' }, { status: 403 });
     }
 
-    const userId = session.user.id;
+    const userId = user.id;
     const parsedRequest = parseDashboardSaveRequest(await request.json());
     let dashboardData = parsedRequest.layout;
 
@@ -390,18 +371,12 @@ export async function POST(request: Request) {
       );
       dashboardData = {
         ...dashboardData,
-        widgets: dashboardData.widgets.map((widget) => {
-          if (widget.integrationId) return widget;
-          const existingWidget = existingWidgets.get(widget.id);
-          if (!existingWidget?.integrationId) return widget;
-          const migrationWidget = widget as unknown as MigrationWidget;
-          const widgetType = getMigrationWidgetType(migrationWidget);
-          if (!INTEGRATION_MIGRATION_SPECS[widgetType]) return widget;
-          return stripMigratedConnectionFields({
-            ...migrationWidget,
-            integrationId: existingWidget.integrationId,
-          }) as unknown as typeof widget;
-        }),
+        widgets: dashboardData.widgets.map((widget) =>
+          reconcileWidgetIntegrationSelection(
+            widget as unknown as MigrationWidget,
+            existingWidgets.get(widget.id) as unknown as MigrationWidget | undefined,
+          ) as unknown as typeof widget,
+        ),
       };
     }
 
@@ -432,14 +407,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof ValidationError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    console.error('Error saving config:', error);
-    return NextResponse.json(
-      { error: 'Failed to save configuration' },
-      { status: 500 }
-    );
+    return apiSecurityErrorResponse(error, 'Failed to save configuration');
   }
 }

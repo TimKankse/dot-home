@@ -13,6 +13,7 @@ vi.mock('@/lib/outbound-http', () => ({ fetchOutbound: fetchOutboundMock }));
 
 import { GET as getJellyseerr } from './jellyseerr/route';
 import { GET as getPortainer, POST as postPortainer } from './portainer/route';
+import { GET as getQBittorrent, POST as postQBittorrent } from './qbittorrent/route';
 import { POST as postSabnzbd } from './sabnzbd/route';
 
 const integration = {
@@ -115,5 +116,55 @@ describe('typed integration proxy routes', () => {
     );
     const target = fetchOutboundMock.mock.calls[0][0] as URL;
     expect(target.searchParams.get('mode')).toBe('pause');
+  });
+
+  it('uses only the stored qBittorrent integration for queue reads', async () => {
+    fetchOutboundMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ torrents: {} }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ dl_info_speed: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
+    const response = await getQBittorrent(new Request(
+      'https://home.example.test/api/qbittorrent?mode=queue',
+      { headers: { 'x-integration-id': 'integration-1' } },
+    ));
+
+    expect(response.status).toBe(200);
+    expect(integrationConnectionMock.resolveRequestIntegration).toHaveBeenCalledWith(
+      expect.any(Request),
+      'qbittorrent',
+      'view',
+    );
+    expect(fetchOutboundMock).toHaveBeenCalledTimes(2);
+    for (const [target] of fetchOutboundMock.mock.calls) {
+      expect((target as URL).origin).toBe('http://trusted.internal:9000');
+    }
+  });
+
+  it('requires edit permission for qBittorrent queue changes', async () => {
+    const response = await postQBittorrent(new Request(
+      'https://home.example.test/api/qbittorrent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-integration-id': 'integration-1',
+        },
+        body: JSON.stringify({ action: 'pause' }),
+      },
+    ));
+
+    expect(response.status).toBe(200);
+    expect(integrationConnectionMock.resolveRequestIntegration).toHaveBeenCalledWith(
+      expect.any(Request),
+      'qbittorrent',
+      'edit',
+    );
+    expect((fetchOutboundMock.mock.calls[0][0] as URL).pathname).toBe('/api/v2/torrents/pause');
   });
 });

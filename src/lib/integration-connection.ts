@@ -36,7 +36,7 @@ export async function resolveRequestIntegration(
   expectedType: string,
   requiredPermission: 'view' | 'edit' = 'view',
 ): Promise<AuthorizedIntegration> {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
   return resolveAuthorizedIntegration({
     integrationId: getRequestIntegrationId(request),
     user,

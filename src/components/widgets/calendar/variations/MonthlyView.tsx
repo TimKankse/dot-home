@@ -30,6 +30,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({ currentDate, events, o
       <div className={styles.monthlyGrid}>
         {getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth(), weekStart).map((dayInfo, idx) => {
           const dayEvents = getEventsForDate(events, dayInfo.date);
+          const eventTypes = [...new Set(dayEvents.map((event) => event.type))];
           const isToday = new Date().toDateString() === dayInfo.date.toDateString();
           
           // Calculate position for tooltip
@@ -59,6 +60,20 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({ currentDate, events, o
                   />
                 ))}
               </div>
+
+              {eventTypes.length > 0 && (
+                <div
+                  className={styles.compactEventIndicator}
+                  aria-hidden="true"
+                >
+                  {eventTypes.map((eventType) => (
+                    <span
+                      key={eventType}
+                      className={`${styles.compactEventSegment} ${getEventTypeClass(eventType)}`}
+                    />
+                  ))}
+                </div>
+              )}
               
               {dayEvents.length > 0 && (
                 <div className={tooltipClass}>

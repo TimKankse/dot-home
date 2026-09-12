@@ -82,7 +82,7 @@ credentials stay on the server; widgets reference an integration ID instead of
 receiving API keys in browser configuration:
 
 ```
-Jellyfin • Radarr • Sonarr • Portainer • Netdata • Generic API
+Jellyfin • Radarr • Sonarr • Portainer • Netdata • qBittorrent • RSS
 ```
 
 <br>
@@ -146,17 +146,32 @@ npm run dev
 All configuration is stored in a SQLite database located at `/app/config/dothome.db` inside the container.
 Using the volume mapping `-v $(pwd)/config:/app/config` ensures your data persists in your local `config` directory.
 
+The container runs as UID/GID `1001:1001`. Bind-mounted config directories must be
+owned by that account on the Docker host; do not use `chmod 777` to grant access.
+Startup restricts the directory to `0700`, secrets/databases/backups to `0600`,
+and creates new runtime files with a private umask. Runtime data is excluded from
+Git and Docker build contexts; keep backups outside your source tree when possible.
+
+**Upgrading an existing installation:** earlier revisions tracked an authentication
+secret. Rotate any `NEXTAUTH_SECRET` or `.nextauth_secret` inherited from those
+revisions and restart the application. See [runtime security and rotation](docs/security-hardening.md#runtime-files-and-authentication-secret-rotation).
+
 ### Environment Variables
 
 | Variable | Default | Description |
 |:---------|:--------|:------------|
 | `NODE_ENV` | `production` | Node environment |
 | `PORT` | `9292` | Server port |
-| `NEXTAUTH_URL` | — | Canonical public origin, such as `https://home.example.com`; required for production password-reset links |
-| `PASSWORD_RESET_WEBHOOK_URL` | — | Optional webhook that receives password-reset links for automated delivery |
-| `PASSWORD_RESET_WEBHOOK_SECRET` | — | Optional bearer token sent to the password-reset webhook |
-| `ADMIN_CONTACT_EMAIL` | — | Optional administrator contact shown when reset delivery is manual |
+| `NEXTAUTH_SECRET` | persisted in Docker config | Session signing/encryption secret; an explicit value takes precedence over `config/.nextauth_secret` |
+| `BOOTSTRAP_SECRET` | persisted beside database | Secret required to claim the first administrator account; if omitted, read `.bootstrap_secret` from the SQLite database directory |
 | `CONFIG_ENCRYPTION_SECRET` | — | Stable secret used to encrypt integration credentials; set this explicitly and keep it with your deployment backups |
+
+<br>
+
+On a fresh deployment, enter `BOOTSTRAP_SECRET` on the setup page. If you did
+not configure it explicitly, the application creates `.bootstrap_secret` next
+to the SQLite database (for Docker, `config/.bootstrap_secret`). This file is
+mode `0600`, is never returned by the API, and should be handled like a password.
 
 <br>
 

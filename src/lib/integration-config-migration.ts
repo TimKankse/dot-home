@@ -1,3 +1,7 @@
+import { isIP } from 'node:net';
+
+import { isNonPublicIpAddress } from './ip-address';
+
 type JsonRecord = Record<string, unknown>;
 
 export type MigrationIntegration = {
@@ -34,6 +38,12 @@ export type WidgetMigrationPlan = {
   integrationId?: string;
   integrationConfig?: JsonRecord;
   reason?: string;
+};
+
+export type PlannedWidgetIntegrationMigration = {
+  plan: WidgetMigrationPlan;
+  calendarIntegrationType?: 'radarr' | 'sonarr';
+  rssFeedUrl?: string;
 };
 
 type MigrationSpec = {
@@ -120,6 +130,24 @@ export const INTEGRATION_MIGRATION_SPECS: Record<string, MigrationSpec> = {
       return url ? { url } : null;
     },
   },
+  radarr: {
+    connectionFields: ['url', 'externalUrl', 'apiKey'],
+    ready: true,
+    buildConfig: urlAndApiKey,
+  },
+  sonarr: {
+    connectionFields: ['url', 'externalUrl', 'apiKey'],
+    ready: true,
+    buildConfig: urlAndApiKey,
+  },
+  rss: {
+    connectionFields: ['secretUrl'],
+    ready: true,
+    buildConfig: (config) => {
+      const secretUrl = readUsableString(config.secretUrl);
+      return secretUrl ? { secretUrl } : null;
+    },
+  },
 };
 
 export const getMigrationWidgetType = (widget: MigrationWidget): string =>
@@ -152,6 +180,34 @@ export function stripMigratedConnectionFields(
     ...widget,
     config,
   };
+}
+
+export function reconcileWidgetIntegrationSelection(
+  incomingWidget: MigrationWidget,
+  storedWidget: MigrationWidget | undefined,
+): MigrationWidget {
+  if (typeof incomingWidget.integrationId === 'string') {
+    if (incomingWidget.integrationId.trim()) return incomingWidget;
+
+    const { integrationId: _cleared, ...withoutIntegration } = incomingWidget;
+    const widgetType = getMigrationWidgetType(withoutIntegration);
+    return INTEGRATION_MIGRATION_SPECS[widgetType]
+      ? stripMigratedConnectionFields(withoutIntegration)
+      : withoutIntegration;
+  }
+
+  const storedIntegrationId = storedWidget
+    ? getMigrationIntegrationId(storedWidget)
+    : undefined;
+  if (!storedIntegrationId) return incomingWidget;
+
+  const widgetType = getMigrationWidgetType(incomingWidget);
+  if (!INTEGRATION_MIGRATION_SPECS[widgetType]) return incomingWidget;
+
+  return stripMigratedConnectionFields({
+    ...incomingWidget,
+    integrationId: storedIntegrationId,
+  });
 }
 
 export function planWidgetIntegrationMigration(
@@ -386,4 +442,179 @@ export function applyWidgetIntegrationMigration(
     ...stripMigratedConnectionFields(widget),
     integrationId,
   };
+}
+
+const CALENDAR_INTEGRATION_TYPES = ['radarr', 'sonarr'] as const;
+
+const RSS_CREDENTIAL_QUERY_KEY = /^(?:api[-_]?key|access[-_]?token|auth|key|p|pass|password|secret|token)$/i;
+
+export const requiresStoredRssIntegration = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    const isPrivateHost = hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      (isIP(hostname) !== 0 && isNonPublicIpAddress(hostname));
+    const hasCredentialQuery = [...url.searchParams.keys()]
+      .some((key) => RSS_CREDENTIAL_QUERY_KEY.test(key));
+    return isPrivateHost || Boolean(url.username || url.password) || hasCredentialQuery;
+  } catch {
+    return false;
+  }
+};
+
+export const redactProtectedRssFeedUrls = (config: JsonRecord): JsonRecord => {
+  const result = { ...config };
+  const singleFeed = readString(result.feedUrl);
+  if (singleFeed && requiresStoredRssIntegration(singleFeed)) delete result.feedUrl;
+
+  if (Array.isArray(result.feedUrls)) {
+    const publicFeeds = result.feedUrls.filter(
+      (value) => typeof value !== 'string' || !requiresStoredRssIntegration(value),
+    );
+    if (publicFeeds.length > 0) result.feedUrls = publicFeeds;
+    else delete result.feedUrls;
+  }
+
+  return result;
+};
+
+const planRssIntegrationMigration = (
+  widget: MigrationWidget,
+  ownerId: string,
+  integrations: MigrationIntegration[],
+): PlannedWidgetIntegrationMigration[] => {
+  const config = widget.config || {};
+  const legacyUrls = [
+    readString(config.feedUrl),
+    ...(Array.isArray(config.feedUrls) ? config.feedUrls.map(readString) : []),
+  ].filter((value): value is string => Boolean(value));
+  const storedFeedUrls = [...new Set(legacyUrls.filter(requiresStoredRssIntegration))];
+  const existingIntegrationId = getMigrationIntegrationId(widget);
+
+  if (existingIntegrationId) {
+    const existingIntegration = integrations.find(
+      (candidate) =>
+        candidate.id === existingIntegrationId &&
+        candidate.userId === ownerId &&
+        candidate.type === 'rss' &&
+        candidate.decryptable !== false,
+    );
+    const legacyStoredUrl = readUsableString(existingIntegration?.config.feedUrl);
+    if (existingIntegration && legacyStoredUrl) {
+      return [{
+        plan: {
+          action: 'repair-and-redact',
+          widgetId: readString(widget.id) || 'unknown-widget',
+          widgetName: readString(widget.name) || 'rss',
+          widgetType: 'rss',
+          integrationId: existingIntegration.id,
+          integrationConfig: {
+            secretUrl: readUsableString(existingIntegration.config.secretUrl) || legacyStoredUrl,
+          },
+          reason: 'Normalize the stored RSS feed URL as an encrypted integration secret',
+        },
+      }];
+    }
+  }
+
+  if (storedFeedUrls.length > 1) {
+    return [{
+      plan: {
+        action: 'blocked',
+        widgetId: readString(widget.id) || 'unknown-widget',
+        widgetName: readString(widget.name) || 'rss',
+        widgetType: 'rss',
+        reason: 'Multiple private or authenticated feeds require separate RSS widgets',
+      },
+    }];
+  }
+  if (storedFeedUrls.length === 0 && !existingIntegrationId) return [];
+
+  const feedUrl = storedFeedUrls[0];
+  const syntheticWidget: MigrationWidget = {
+    id: readString(widget.id) || 'unknown-widget',
+    name: readString(widget.name) || 'rss',
+    widgetType: 'rss',
+    integrationId: readString(widget.integrationId),
+    config: compact({
+      secretUrl: feedUrl,
+      integrationId: readString(config.integrationId),
+    }),
+  };
+  const plan = planWidgetIntegrationMigration(syntheticWidget, ownerId, integrations);
+  return plan ? [{ plan, rssFeedUrl: feedUrl }] : [];
+};
+
+export function planWidgetIntegrationMigrations(
+  widget: MigrationWidget,
+  ownerId: string,
+  integrations: MigrationIntegration[],
+): PlannedWidgetIntegrationMigration[] {
+  if (getMigrationWidgetType(widget) === 'rss') {
+    return planRssIntegrationMigration(widget, ownerId, integrations);
+  }
+  const directPlan = planWidgetIntegrationMigration(widget, ownerId, integrations);
+  if (directPlan) return [{ plan: directPlan }];
+  if (getMigrationWidgetType(widget) !== 'calendar') return [];
+
+  const config = widget.config || {};
+  return CALENDAR_INTEGRATION_TYPES.flatMap((type) => {
+    const integrationId = readString(config[`${type}IntegrationId`]);
+    const url = readString(config[`${type}Url`]);
+    const apiKey = readString(config[`${type}ApiKey`]);
+    if (!integrationId && !url && !apiKey) return [];
+
+    const syntheticWidget: MigrationWidget = {
+      id: `${readString(widget.id) || 'calendar'}:${type}`,
+      name: `${readString(widget.name) || 'Calendar'} ${type}`,
+      widgetType: type,
+      integrationId,
+      config: compact({ url, apiKey }),
+    };
+    const plan = planWidgetIntegrationMigration(
+      syntheticWidget,
+      ownerId,
+      integrations,
+    );
+    return plan ? [{ plan, calendarIntegrationType: type }] : [];
+  });
+}
+
+export function applyPlannedWidgetIntegrationMigration(
+  widget: MigrationWidget,
+  migration: PlannedWidgetIntegrationMigration,
+  integrationId: string,
+): MigrationWidget {
+  if (migration.rssFeedUrl) {
+    if (!['redact', 'link-and-redact', 'create-link-and-redact', 'repair-and-redact'].includes(migration.plan.action)) {
+      return widget;
+    }
+    const config = { ...(widget.config || {}) };
+    if (readString(config.feedUrl) === migration.rssFeedUrl) delete config.feedUrl;
+    if (Array.isArray(config.feedUrls)) {
+      const remaining = config.feedUrls.filter(
+        (value) => readString(value) !== migration.rssFeedUrl,
+      );
+      if (remaining.length > 0) config.feedUrls = remaining;
+      else delete config.feedUrls;
+    }
+    delete config.integrationId;
+    return { ...widget, config, integrationId };
+  }
+  if (!migration.calendarIntegrationType) {
+    return applyWidgetIntegrationMigration(widget, migration.plan, integrationId);
+  }
+  if (!['redact', 'link-and-redact', 'create-link-and-redact', 'repair-and-redact'].includes(migration.plan.action)) {
+    return widget;
+  }
+
+  const type = migration.calendarIntegrationType;
+  const config = { ...(widget.config || {}) };
+  delete config[`${type}Url`];
+  delete config[`${type}ApiKey`];
+  config[`${type}IntegrationId`] = integrationId;
+
+  return { ...widget, config };
 }

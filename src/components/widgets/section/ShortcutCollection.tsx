@@ -78,9 +78,6 @@ export const ShortcutCollection: React.FC<ShortcutCollectionProps> = ({
                     url={shortcut.url || ''}
                     iconUrl={shortcut.iconUrl}
                     className={shortcutWidgetClassName}
-                    isSelfHosted={shortcut.isSelfHosted}
-                    internalUrl={shortcut.internalUrl}
-                    config={shortcut.config}
                     isEditing={isEditing}
                     onEdit={() => {
                       window.dispatchEvent(new CustomEvent('widget-edit', {

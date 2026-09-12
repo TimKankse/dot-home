@@ -132,11 +132,7 @@ function LoginContent() {
               required
               autoComplete="current-password"
             />
-            <div className={styles.inlineLinkRow}>
-              <Link href="/forgot-password" className={styles.link}>
-                Forgot password?
-              </Link>
-            </div>
+            <p className={styles.footerText}>Contact an administrator if you need a password reset.</p>
           </div>
 
           <button type="submit" className={styles.button} disabled={isLoading}>

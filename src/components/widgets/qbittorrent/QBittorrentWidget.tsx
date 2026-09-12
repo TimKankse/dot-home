@@ -12,11 +12,10 @@ import {
 } from '@/services/qbittorrent';
 
 interface QBittorrentWidgetProps {
-  config?: { url?: string; username?: string; password?: string };
   integrationId?: string;
 }
 
-export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetProps) {
+export function QBittorrentWidget({ integrationId }: QBittorrentWidgetProps) {
   const [data, setData] = useState<QueueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +27,7 @@ export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetPr
     }
 
     try {
-      const queue = await fetchQBittorrentQueue({ config, integrationId });
+      const queue = await fetchQBittorrentQueue({ integrationId });
       setData(queue);
       setError(null);
     } catch (err) {
@@ -37,12 +36,12 @@ export function QBittorrentWidget({ config, integrationId }: QBittorrentWidgetPr
     } finally {
       setLoading(false);
     }
-  }, [config, integrationId]);
+  }, [integrationId]);
 
   const handleTogglePause = async () => {
     if (!data) return;
     try {
-      await toggleQBittorrentPause(data.paused, { config, integrationId });
+      await toggleQBittorrentPause(data.paused, { integrationId });
       loadData();
     } catch (err) {
       console.error('Failed to toggle pause', err);

@@ -1,4 +1,5 @@
 import type { JellyseerrWidgetConfig } from '@/types';
+import { apiFetch } from '@/lib/api-client';
 
 export interface JellyseerrRequest {
   id: number;
@@ -62,7 +63,7 @@ export async function fetchJellyseerrRequests(params: JellyseerrFetchParams): Pr
   
   if (movieIds.length > 0 || tvIds.length > 0) {
     try {
-      const batchRes = await fetch('/api/jellyseerr/batch', {
+      const batchRes = await apiFetch('/api/jellyseerr/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +101,7 @@ export async function manageJellyseerrRequest(
   action: 'approve' | 'decline',
   integrationId: string,
 ): Promise<boolean> {
-  const res = await fetch('/api/jellyseerr', {
+  const res = await apiFetch('/api/jellyseerr', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

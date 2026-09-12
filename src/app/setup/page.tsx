@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { apiFetch } from '@/lib/api-client';
 import styles from '../(auth)/auth.module.css';
 
 export default function SetupPage() {
@@ -12,6 +13,7 @@ export default function SetupPage() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -19,7 +21,7 @@ export default function SetupPage() {
     // Check if setup is needed
     const checkSetup = async () => {
       try {
-        const res = await fetch('/api/setup/check');
+        const res = await apiFetch('/api/setup/check');
         const data = await res.json();
         if (!data.needsSetup) {
           // Already has users, redirect to login
@@ -52,13 +54,14 @@ export default function SetupPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/setup', {
+      const res = await apiFetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.toLowerCase(),
           displayName: displayName || undefined,
           password,
+          bootstrapSecret,
         }),
       });
 
@@ -140,6 +143,24 @@ export default function SetupPage() {
           )}
 
           <div className={styles.inputGroup}>
+            <label htmlFor="bootstrapSecret" className={styles.label}>Bootstrap Secret</label>
+            <input
+              id="bootstrapSecret"
+              type="password"
+              value={bootstrapSecret}
+              onChange={(e) => setBootstrapSecret(e.target.value)}
+              placeholder="Deployment bootstrap secret"
+              className={styles.input}
+              required
+              autoComplete="off"
+              autoFocus
+            />
+            <p className={styles.footerText}>
+              Set with BOOTSTRAP_SECRET, or read .bootstrap_secret beside the SQLite database.
+            </p>
+          </div>
+
+          <div className={styles.inputGroup}>
             <label htmlFor="email" className={styles.label}>Email</label>
             <input
               id="email"
@@ -150,7 +171,6 @@ export default function SetupPage() {
               className={styles.input}
               required
               autoComplete="email"
-              autoFocus
             />
           </div>
 

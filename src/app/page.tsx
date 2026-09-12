@@ -616,6 +616,7 @@ export default function Home() {
       <div
         ref={dashboardViewportRef}
         className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}
+        data-dashboard-viewport
         data-scroll={effectiveScrollDirection}
       >
         <div

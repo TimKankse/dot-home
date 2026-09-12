@@ -21,7 +21,7 @@ export const authOptions: NextAuthOptions = {
           where: { email: normalizeEmail(credentials.email) },
         });
 
-        if (!user) {
+        if (!user || user.disabledAt) {
           return null;
         }
 

@@ -3,8 +3,8 @@
  *
  * Resolves effective permissions for objects (dashboards, pages, integrations)
  * based on:
- * 1. User-specific overrides (highest priority)
- * 2. Ownership (owner always has edit access)
+ * 1. Ownership (owner always has edit access)
+ * 2. User-specific overrides
  * 3. Object's access level (PUBLIC/VIEWABLE/PRIVATE)
  */
 
@@ -28,15 +28,16 @@ export interface PermissionContext {
  * Resolve the effective permission for a user on an object.
  *
  * Resolution order:
- * 1. Check user-specific override (BLOCKED/VIEW/EDIT)
- * 2. Check if user is owner → edit
+ * 1. Check if user is owner → edit
+ * 2. Check user-specific override (BLOCKED/VIEW/EDIT)
  * 3. Check object's access level (PUBLIC/VIEWABLE/PRIVATE)
  */
 export async function resolvePermission(
   context: PermissionContext,
   currentUserId: string
 ): Promise<EffectivePermission> {
-  // 1. Check for user-specific override
+  if (context.ownerId === currentUserId) return 'edit';
+
   const override = await prisma.objectPermission.findUnique({
     where: {
       userId_objectType_objectId: {
@@ -47,31 +48,7 @@ export async function resolvePermission(
     },
   });
 
-  if (override) {
-    switch (override.permission as PermissionType) {
-      case 'BLOCKED':
-        return 'none';
-      case 'VIEW':
-        return 'view';
-      case 'EDIT':
-        return 'edit';
-    }
-  }
-
-  // 2. Check if user is owner
-  if (context.ownerId === currentUserId) {
-    return 'edit';
-  }
-
-  // 3. Fall back to object's access level
-  switch (context.accessLevel) {
-    case 'PUBLIC':
-      return 'edit';
-    case 'VIEWABLE':
-      return 'view';
-    case 'PRIVATE':
-      return 'none';
-  }
+  return resolvePermissionSync(context, currentUserId, override);
 }
 
 /**
@@ -83,7 +60,9 @@ export function resolvePermissionSync(
   currentUserId: string,
   override?: { permission: string } | null
 ): EffectivePermission {
-  // 1. Check user-specific override
+  if (context.ownerId === currentUserId) return 'edit';
+
+  // User overrides take precedence over the shared access level.
   if (override) {
     switch (override.permission as PermissionType) {
       case 'BLOCKED':
@@ -93,11 +72,6 @@ export function resolvePermissionSync(
       case 'EDIT':
         return 'edit';
     }
-  }
-
-  // 2. Check if user is owner
-  if (context.ownerId === currentUserId) {
-    return 'edit';
   }
 
   // 3. Fall back to access level

@@ -2,14 +2,12 @@ import path from 'node:path';
 
 import { prisma } from './db';
 import {
-  applyWidgetIntegrationMigration,
+  applyPlannedWidgetIntegrationMigration,
   getMigrationConfigKey,
-  getMigrationIntegrationId,
-  getMigrationWidgetType,
-  INTEGRATION_MIGRATION_SPECS,
-  planWidgetIntegrationMigration,
+  planWidgetIntegrationMigrations,
   type MigrationIntegration,
   type MigrationWidget,
+  type PlannedWidgetIntegrationMigration,
   type WidgetMigrationPlan,
 } from './integration-config-migration';
 import { decryptSensitiveFields, encryptSensitiveFields } from '../utils/crypto';
@@ -22,7 +20,7 @@ type DashboardWork = {
   ownerId: string;
   layout: JsonRecord;
   widgets: MigrationWidget[];
-  plans: Array<{ index: number; plan: WidgetMigrationPlan }>;
+  migrations: Array<{ index: number; migration: PlannedWidgetIntegrationMigration }>;
 };
 
 type PersonalConfigWork = {
@@ -30,7 +28,7 @@ type PersonalConfigWork = {
   userId: string;
   config: JsonRecord;
   widget: MigrationWidget;
-  plan: WidgetMigrationPlan;
+  migrations: PlannedWidgetIntegrationMigration[];
 };
 
 export type AutomaticIntegrationMigrationResult = {
@@ -68,18 +66,6 @@ const containsEncryptedValue = (value: unknown): boolean => {
   if (typeof value === 'string') return value.startsWith('enc:');
   if (Array.isArray(value)) return value.some(containsEncryptedValue);
   return Boolean(value && typeof value === 'object' && Object.values(value).some(containsEncryptedValue));
-};
-
-const hasLegacyConnectionConfig = (widget: MigrationWidget): boolean => {
-  const spec = INTEGRATION_MIGRATION_SPECS[getMigrationWidgetType(widget)];
-  if (!spec) return false;
-  return Boolean(
-    getMigrationIntegrationId(widget) ||
-    spec.connectionFields.some((field) => {
-      const value = widget.config?.[field];
-      return typeof value === 'string' && value.trim().length > 0;
-    }),
-  );
 };
 
 const getSqliteDatabasePath = (): string | undefined => {
@@ -123,17 +109,17 @@ async function buildWork() {
     const widgets = Array.isArray(layout.widgets)
       ? layout.widgets as MigrationWidget[]
       : [];
-    const plans = widgets.flatMap((widget, index) => {
-      const plan = planWidgetIntegrationMigration(widget, dashboard.userId, integrations);
-      return plan ? [{ index, plan }] : [];
-    });
+    const migrations = widgets.flatMap((widget, index) =>
+      planWidgetIntegrationMigrations(widget, dashboard.userId, integrations)
+        .map((migration) => ({ index, migration })),
+    );
     return {
       id: dashboard.id,
       name: dashboard.name,
       ownerId: dashboard.userId,
       layout,
       widgets,
-      plans,
+      migrations,
     };
   });
 
@@ -151,15 +137,18 @@ async function buildWork() {
       integrationId: typeof config.integrationId === 'string' ? config.integrationId : undefined,
       config,
     };
-    if (!hasLegacyConnectionConfig(syntheticWidget)) continue;
-    const plan = planWidgetIntegrationMigration(syntheticWidget, personal.userId, integrations);
-    if (plan) {
+    const migrations = planWidgetIntegrationMigrations(
+      syntheticWidget,
+      personal.userId,
+      integrations,
+    );
+    if (migrations.length > 0) {
       personalWork.push({
         id: personal.id,
         userId: personal.userId,
         config,
         widget: syntheticWidget,
-        plan,
+        migrations,
       });
     }
   }
@@ -172,8 +161,12 @@ export async function runAutomaticIntegrationMigration(
 ): Promise<AutomaticIntegrationMigrationResult> {
   const { dashboardWork, personalWork } = await buildWork();
   const allPlans = [
-    ...dashboardWork.flatMap((dashboard) => dashboard.plans.map(({ plan }) => plan)),
-    ...personalWork.map(({ plan }) => plan),
+    ...dashboardWork.flatMap((dashboard) =>
+      dashboard.migrations.map(({ migration }) => migration.plan),
+    ),
+    ...personalWork.flatMap(({ migrations }) =>
+      migrations.map(({ plan }) => plan),
+    ),
   ];
   const blocked = allPlans
     .filter((plan) => plan.action === 'blocked')
@@ -262,10 +255,14 @@ export async function runAutomaticIntegrationMigration(
     for (const dashboard of dashboardWork) {
       const widgets = [...dashboard.widgets];
       let changed = false;
-      for (const { index, plan } of dashboard.plans) {
-        if (!MUTATING_ACTIONS.has(plan.action)) continue;
-        const integrationId = await resolvePlanIntegration(dashboard.ownerId, plan);
-        widgets[index] = applyWidgetIntegrationMigration(widgets[index], plan, integrationId);
+      for (const { index, migration } of dashboard.migrations) {
+        if (!MUTATING_ACTIONS.has(migration.plan.action)) continue;
+        const integrationId = await resolvePlanIntegration(dashboard.ownerId, migration.plan);
+        widgets[index] = applyPlannedWidgetIntegrationMigration(
+          widgets[index],
+          migration,
+          integrationId,
+        );
         changed = true;
       }
       if (changed) {
@@ -278,17 +275,26 @@ export async function runAutomaticIntegrationMigration(
     }
 
     for (const personal of personalWork) {
-      if (!MUTATING_ACTIONS.has(personal.plan.action)) continue;
-      const integrationId = await resolvePlanIntegration(personal.userId, personal.plan);
-      const migrated = applyWidgetIntegrationMigration(
-        personal.widget,
-        personal.plan,
-        integrationId,
-      );
+      let migrated = personal.widget;
+      let changed = false;
+      for (const migration of personal.migrations) {
+        if (!MUTATING_ACTIONS.has(migration.plan.action)) continue;
+        const integrationId = await resolvePlanIntegration(personal.userId, migration.plan);
+        migrated = applyPlannedWidgetIntegrationMigration(
+          migrated,
+          migration,
+          integrationId,
+        );
+        changed = true;
+      }
+      if (!changed) continue;
       await transaction.widgetUserConfig.update({
         where: { id: personal.id },
         data: {
-          config: JSON.stringify({ ...(migrated.config || {}), integrationId }),
+          config: JSON.stringify({
+            ...(migrated.config || {}),
+            ...(migrated.integrationId ? { integrationId: migrated.integrationId } : {}),
+          }),
         },
       });
       result.changedPersonalConfigs += 1;

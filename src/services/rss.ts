@@ -1,3 +1,5 @@
+import { apiFetch } from '@/lib/api-client';
+
 export interface RssItem {
   title: string;
   link: string;
@@ -14,15 +16,19 @@ export interface RssData {
   items: RssItem[];
 }
 
-export async function fetchRssFeed(feedUrls: string[]): Promise<RssData> {
-  if (feedUrls.length === 0) {
-    throw new Error('No feed URLs provided');
+export async function fetchRssFeed(
+  feedUrls: string[],
+  integrationId?: string,
+): Promise<RssData> {
+  if (feedUrls.length === 0 && !integrationId) {
+    throw new Error('No RSS source provided');
   }
 
-  const params = new URLSearchParams();
-  feedUrls.forEach(url => params.append('url', url));
-  
-  const response = await fetch(`/api/rss?${params.toString()}`);
+  const response = await apiFetch('/api/rss', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls: feedUrls, integrationId }),
+  });
   
   if (!response.ok) {
     throw new Error('Failed to fetch RSS feed');

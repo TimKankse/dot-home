@@ -3,8 +3,11 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  min-height: 0;
   overflow: hidden;
   color: var(--text-main);
+  container-name: calendar-widget;
+  container-type: size;
 }
 
 .header {
@@ -12,6 +15,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  flex-shrink: 0;
 }
 
 .title {
@@ -22,6 +26,7 @@
 
 .eventList {
   /* Handled by List primitive - no padding-right to allow scrollbar overlap */
+  min-height: 0;
 }
 
 .eventItem {
@@ -174,7 +179,10 @@
 .monthlyContainer {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .monthNav {
@@ -212,12 +220,17 @@
   font-size: 0.7rem;
   color: var(--text-muted);
   margin-bottom: 0.25rem;
+  flex-shrink: 0;
 }
 
 .monthlyGrid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  flex: 1;
+  min-height: 0;
   gap: 2px;
+  overflow: hidden;
 }
 
 .dayCell {
@@ -225,7 +238,8 @@
   background: var(--surface-overlay);
   border-radius: 0.25rem;
   padding: 0.25rem;
-  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -258,6 +272,8 @@
   flex-wrap: wrap;
   justify-content: center;
   width: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .eventDot {
@@ -265,6 +281,36 @@
   height: 6px;
   border-radius: 50%;
   background-color: currentColor;
+}
+
+.compactEventIndicator {
+  display: none;
+}
+
+.compactEventSegment {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background-color: currentColor;
+}
+
+/* Use the unclippable event rail for compact and medium-height calendars. */
+@container calendar-widget (max-height: 290px) {
+  .eventDots {
+    display: none;
+  }
+
+  .compactEventIndicator {
+    position: absolute;
+    right: 2px;
+    bottom: 1px;
+    left: 2px;
+    display: flex;
+    height: 2px;
+    gap: 1px;
+    overflow: hidden;
+  }
 }
 
 /* Tooltip */
@@ -335,4 +381,94 @@
   border-radius: 50%;
   flex-shrink: 0;
   background-color: currentColor;
+}
+
+@container calendar-widget (max-height: 190px) {
+  .header {
+    margin-bottom: 0.25rem;
+  }
+
+  .header button {
+    width: 24px;
+    height: 24px;
+    padding: 3px;
+  }
+
+  .title {
+    font-size: 0.9rem;
+  }
+
+  .dailyGroup {
+    gap: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .dailyHeader {
+    padding: 0.2rem 0;
+    margin-bottom: 0;
+    font-size: 0.72rem;
+  }
+
+  .eventItem {
+    gap: 0.35rem;
+    padding: 0.3rem 0.4rem;
+  }
+
+  .eventTitle {
+    margin-bottom: 0;
+    font-size: 0.78rem;
+    line-height: 1.1;
+  }
+
+  .eventMeta {
+    gap: 0.3rem;
+    font-size: 0.62rem;
+    line-height: 1;
+  }
+
+  .eventType {
+    font-size: 0.55rem;
+  }
+
+  .monthNav {
+    min-height: 20px;
+    margin-bottom: 0.1rem;
+    padding: 0;
+  }
+
+  .monthTitle {
+    font-size: 0.72rem;
+  }
+
+  .navButton {
+    width: 24px;
+    padding: 0;
+    font-size: 0.7rem;
+  }
+
+  .weekHeader {
+    margin-bottom: 1px;
+    font-size: 0.55rem;
+    line-height: 1;
+  }
+
+  .monthlyGrid {
+    gap: 1px;
+  }
+
+  .dayCell {
+    justify-content: flex-start;
+    padding: 1px;
+    border-radius: 2px;
+  }
+
+  .dayNumber {
+    margin-bottom: 0;
+    font-size: 0.58rem;
+    line-height: 1;
+  }
+
+  .tooltip {
+    display: none;
+  }
 }

@@ -18,6 +18,7 @@ import {
   useGridStackDragLifecycle,
   useGridStackItemSynchronization,
   useGridStackLayoutChange,
+  useGridStackResizeScrollLock,
   type ExtendedGridStack,
 } from '@/components/core/dashboard-grid/useDashboardGridEffects';
 
@@ -56,6 +57,7 @@ const DashboardGridContent: React.FC<DashboardGridProps> = ({
   });
   useGridStackLayoutChange(extendedGridStack, onLayoutChange);
   useGridStackDragLifecycle(extendedGridStack, { onWidgetDragStop, pageId });
+  useGridStackResizeScrollLock(extendedGridStack);
   useGridStackItemSynchronization(extendedGridStack, { children, items });
   const { externalShortcutTarget, externalShortcutRect } = useExternalShortcutPreview(
     extendedGridStack,

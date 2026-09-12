@@ -6,6 +6,7 @@ import { usePageStore } from "@/store/usePageStore";
 import { NewItem } from "@/components/item-editor/types";
 import { getMinDimensions } from '@/constants/widget-definitions';
 import type { BreakpointKey } from '@/constants/grid';
+import { apiFetch } from '@/lib/api-client';
 
 export function useWidgetManager() {
   const { 
@@ -34,8 +35,6 @@ export function useWidgetManager() {
       name: widget.name,
       url: widget.url,
       iconUrl: widget.iconUrl,
-      internalUrl: widget.internalUrl,
-      isSelfHosted: widget.isSelfHosted,
       widgetType: widget.type === 'shortcut' ? undefined : widget.type,
       w: widget.grid?.w ?? fallbackDimensions.w,
       h: widget.grid?.h ?? fallbackDimensions.h,
@@ -55,13 +54,20 @@ export function useWidgetManager() {
     if (isPerUserConfig && updates.config) {
       // Save to per-user config API instead of dashboard layout
       try {
-        await fetch(`/api/widgets/${id}/config`, {
+        const personalConfig = {
+          ...updates.config,
+          integrationId: updates.integrationId ?? '',
+        };
+        await apiFetch(`/api/widgets/${id}/config`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: updates.config }),
+          body: JSON.stringify({ config: personalConfig }),
         });
         // Update local state for immediate feedback
-        updateWidget(id, { config: updates.config });
+        updateWidget(id, {
+          config: updates.config,
+          integrationId: updates.integrationId,
+        });
       } catch (error) {
         console.error('Failed to save per-user widget config:', error);
       }
@@ -71,8 +77,6 @@ export function useWidgetManager() {
         name: updates.name,
         url: updates.url,
         iconUrl: updates.iconUrl,
-        internalUrl: updates.internalUrl,
-        isSelfHosted: updates.isSelfHosted,
         widgetType: updates.widgetType,
         config: updates.config,
         syncConfig: updates.syncConfig,

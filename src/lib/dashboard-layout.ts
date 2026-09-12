@@ -79,19 +79,22 @@ const parseWidget = (
     typeof value.pageId === 'string'
       ? value.pageId
       : pageIdFromLegacyIndex ?? fallbackPageId;
+  const type = typeof value.type === 'string' ? value.type : 'shortcut';
+  const storedUrl = typeof value.url === 'string' && value.url.trim()
+    ? value.url
+    : undefined;
+  const legacyInternalUrl = type === 'shortcut' && typeof value.internalUrl === 'string' && value.internalUrl.trim()
+    ? value.internalUrl
+    : undefined;
 
   return {
     id: value.id,
-    type: typeof value.type === 'string' ? value.type : 'shortcut',
+    type,
     grid: gridPosition,
     pageId,
     name: typeof value.name === 'string' ? value.name : undefined,
-    url: typeof value.url === 'string' ? value.url : undefined,
+    url: storedUrl ?? legacyInternalUrl,
     iconUrl: typeof value.iconUrl === 'string' ? value.iconUrl : undefined,
-    isSelfHosted:
-      typeof value.isSelfHosted === 'boolean' ? value.isSelfHosted : undefined,
-    internalUrl:
-      typeof value.internalUrl === 'string' ? value.internalUrl : undefined,
     widgetType:
       typeof value.widgetType === 'string' ? value.widgetType : undefined,
     config: parseWidgetConfig(value.config),
@@ -202,8 +205,6 @@ export const createStarterDashboardLayout = (): DashboardLayoutData => {
         name: 'Youtube',
         url: 'https://youtube.com',
         iconUrl: '',
-        internalUrl: '',
-        isSelfHosted: false,
         grid: { x: 2, y: 3, w: 1, h: 1 },
         pageId,
       },
@@ -213,8 +214,6 @@ export const createStarterDashboardLayout = (): DashboardLayoutData => {
         name: 'IMDB',
         url: 'https://imdb.com',
         iconUrl: '',
-        internalUrl: '',
-        isSelfHosted: false,
         grid: { x: 3, y: 3, w: 1, h: 1 },
         pageId,
       },
@@ -224,8 +223,6 @@ export const createStarterDashboardLayout = (): DashboardLayoutData => {
         name: 'Reddit',
         url: 'https://reddit.com',
         iconUrl: '',
-        internalUrl: '',
-        isSelfHosted: false,
         grid: { x: 4, y: 3, w: 1, h: 1 },
         pageId,
       },
@@ -235,8 +232,6 @@ export const createStarterDashboardLayout = (): DashboardLayoutData => {
         name: 'Github',
         url: 'https://github.com',
         iconUrl: '',
-        internalUrl: '',
-        isSelfHosted: false,
         grid: { x: 5, y: 3, w: 1, h: 1 },
         pageId,
       },

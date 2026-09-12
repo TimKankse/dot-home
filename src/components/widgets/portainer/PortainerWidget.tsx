@@ -117,7 +117,7 @@ export const PortainerWidget: React.FC<PortainerWidgetProps & { title?: string }
     <>
       <div className={styles.widgetContainer}>
         <div className={styles.header}>
-          <span className={styles.widgetTitle}>{title || 'CONTAINERS'}</span>
+          <span className={styles.widgetTitle}>{title || 'Containers'}</span>
           <span className="text-xs font-mono text-muted">{containers.length}</span>
         </div>
         <div className={styles.containerList}>

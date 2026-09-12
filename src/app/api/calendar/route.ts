@@ -1,10 +1,26 @@
+import IcalExpander from 'ical-expander';
 import { NextResponse } from 'next/server';
+
+import {
+  ApiSecurityError,
+  apiSecurityErrorResponse,
+  requireApiUser,
+  type ApiUser,
+} from '@/lib/api-security';
+import { resolveAuthorizedIntegration, type AuthorizedIntegration } from '@/lib/integration-access';
+import {
+  buildIntegrationUrl,
+  requireIntegrationConfigString,
+  resolveIntegrationBaseUrl,
+} from '@/lib/integration-connection';
+import { fetchOutbound } from '@/lib/outbound-http';
+import { ValidationError, assertRecord } from '@/lib/validation';
 
 interface CalendarEvent {
   id: string;
   title: string;
-  date: string; // ISO string
-  endDate?: string; // ISO string
+  date: string;
+  endDate?: string;
   source: 'google' | 'radarr' | 'sonarr';
   type: 'event' | 'movie' | 'episode';
   description?: string;
@@ -42,165 +58,198 @@ interface SonarrEpisode {
   title: string;
 }
 
-import IcalExpander from 'ical-expander';
+type ArrConnection = {
+  integration: AuthorizedIntegration;
+  baseUrl: URL;
+  apiKey: string;
+};
 
-async function fetchICalEvents(url: string): Promise<CalendarEvent[]> {
-  if (!url) return [];
+type CalendarFetchResult = {
+  events: CalendarEvent[];
+  ok: boolean;
+};
+
+const parseOptionalIntegrationId = (value: unknown, label: string): string | undefined => {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string' || value.length > 128) {
+    throw new ValidationError(`${label} must be a valid integration ID`);
+  }
+  return value;
+};
+
+const resolveArrConnection = async (
+  integrationId: string | undefined,
+  type: 'radarr' | 'sonarr',
+  user: ApiUser,
+): Promise<ArrConnection | undefined> => {
+  if (!integrationId) return undefined;
+  const integration = await resolveAuthorizedIntegration({
+    integrationId,
+    user,
+    expectedTypes: [type],
+    requiredPermission: 'view',
+  });
+  return {
+    integration,
+    baseUrl: await resolveIntegrationBaseUrl(integration),
+    apiKey: requireIntegrationConfigString(integration, 'apiKey'),
+  };
+};
+
+async function fetchICalEvents(url: string): Promise<CalendarFetchResult> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to fetch iCal: ${response.statusText}`);
-    const text = await response.text();
-    
-    const icalExpander = new IcalExpander({ ics: text, maxIterations: 100 });
+    const response = await fetchOutbound(
+      url,
+      { cache: 'no-store' },
+      {
+        policy: 'public-internet',
+        timeoutMs: 10_000,
+        allowCrossOriginRedirects: true,
+      },
+    );
+    if (!response.ok) return { events: [], ok: false };
+    const icalExpander = new IcalExpander({
+      ics: await response.text(),
+      maxIterations: 100,
+    });
     const now = new Date();
-    const end = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days out
-    
+    const end = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const { events, occurrences } = icalExpander.between(now, end);
-    
-    const mappedEvents: CalendarEvent[] = [
-      ...events.map((e: IcalEvent) => ({
-        id: `ical-${e.uid}`,
-        title: e.summary,
-        date: e.startDate.toJSDate().toISOString(),
-        endDate: e.endDate ? e.endDate.toJSDate().toISOString() : undefined,
+
+    return { ok: true, events: [
+      ...events.map((event: IcalEvent) => ({
+        id: `ical-${event.uid}`,
+        title: event.summary,
+        date: event.startDate.toJSDate().toISOString(),
+        endDate: event.endDate?.toJSDate().toISOString(),
         source: 'google' as const,
         type: 'event' as const,
-        allDay: e.startDate.isDate, // isDate is true for all-day events in ical.js
+        allDay: event.startDate.isDate,
       })),
-      ...occurrences.map((o: IcalOccurrence) => ({
-        id: `ical-${o.item.uid}-${o.startDate.toJSDate().toISOString()}`,
-        title: o.item.summary,
-        date: o.startDate.toJSDate().toISOString(),
-        endDate: o.endDate ? o.endDate.toJSDate().toISOString() : undefined,
+      ...occurrences.map((occurrence: IcalOccurrence) => ({
+        id: `ical-${occurrence.item.uid}-${occurrence.startDate.toJSDate().toISOString()}`,
+        title: occurrence.item.summary,
+        date: occurrence.startDate.toJSDate().toISOString(),
+        endDate: occurrence.endDate?.toJSDate().toISOString(),
         source: 'google' as const,
         type: 'event' as const,
-        allDay: o.startDate.isDate,
-      }))
-    ];
-    
-    return mappedEvents;
-    
-  } catch (error) {
-    console.error('Error fetching iCal:', error);
-    return [];
+        allDay: occurrence.startDate.isDate,
+      })),
+    ] };
+  } catch {
+    return { events: [], ok: false };
   }
 }
 
-async function fetchRadarrEvents(url: string, apiKey: string): Promise<CalendarEvent[]> {
-  if (!url || !apiKey) return [];
+async function fetchRadarrEvents(connection: ArrConnection): Promise<CalendarFetchResult> {
   try {
-    // Get calendar for next 30 days
     const start = new Date().toISOString();
     const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    
-    // Ensure URL doesn't end with slash
-    const baseUrl = url.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/api/v3/calendar?start=${start}&end=${end}&apiKey=${apiKey}`;
-    
-    const response = await fetch(apiUrl);
-    if (!response.ok) throw new Error(`Radarr API error: ${response.status}`);
-    const data = await response.json();
-    
-    return data.map((movie: RadarrMovie) => ({
+    const apiUrl = buildIntegrationUrl(connection.baseUrl, '/api/v3/calendar');
+    apiUrl.searchParams.set('start', start);
+    apiUrl.searchParams.set('end', end);
+    const response = await fetchOutbound(
+      apiUrl,
+      {
+        headers: { 'X-Api-Key': connection.apiKey },
+        cache: 'no-store',
+      },
+      { policy: 'trusted-integration', timeoutMs: 10_000 },
+    );
+    if (!response.ok) return { events: [], ok: false };
+    const data = await response.json() as RadarrMovie[];
+
+    return { ok: true, events: data.map((movie) => ({
       id: `radarr-${movie.id}`,
       title: movie.title,
-      date: movie.inCinemas || movie.physicalRelease || movie.digitalRelease || start, // Fallback
+      date: movie.inCinemas || movie.physicalRelease || movie.digitalRelease || start,
       source: 'radarr',
       type: 'movie',
       description: movie.overview,
-      allDay: true
-    }));
-  } catch (error) {
-    console.error('Error fetching Radarr:', error);
-    return [];
+      allDay: true,
+    })) };
+  } catch {
+    return { events: [], ok: false };
   }
 }
 
-async function fetchSonarrEvents(url: string, apiKey: string): Promise<CalendarEvent[]> {
-  if (!url || !apiKey) return [];
+async function fetchSonarrEvents(connection: ArrConnection): Promise<CalendarFetchResult> {
   try {
     const start = new Date().toISOString();
     const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    
-    const baseUrl = url.replace(/\/$/, '');
-    const apiUrl = `${baseUrl}/api/v3/calendar?start=${start}&end=${end}&apiKey=${apiKey}&includeSeries=true`;
-    
-    const response = await fetch(apiUrl);
-    if (!response.ok) throw new Error(`Sonarr API error: ${response.status}`);
-    const data = await response.json();
-    
-    return data.map((episode: SonarrEpisode) => ({
+    const apiUrl = buildIntegrationUrl(connection.baseUrl, '/api/v3/calendar');
+    apiUrl.searchParams.set('start', start);
+    apiUrl.searchParams.set('end', end);
+    apiUrl.searchParams.set('includeSeries', 'true');
+    const response = await fetchOutbound(
+      apiUrl,
+      {
+        headers: { 'X-Api-Key': connection.apiKey },
+        cache: 'no-store',
+      },
+      { policy: 'trusted-integration', timeoutMs: 10_000 },
+    );
+    if (!response.ok) return { events: [], ok: false };
+    const data = await response.json() as SonarrEpisode[];
+
+    return { ok: true, events: data.map((episode) => ({
       id: `sonarr-${episode.id}`,
       title: `${episode.series?.title || 'Unknown Series'} - S${episode.seasonNumber}E${episode.episodeNumber}`,
       date: episode.airDateUtc,
       source: 'sonarr',
       type: 'episode',
-      description: episode.title, // Episode title
-      allDay: false
-    }));
-  } catch (error) {
-    console.error('Error fetching Sonarr:', error);
-    return [];
+      description: episode.title,
+      allDay: false,
+    })) };
+  } catch {
+    return { events: [], ok: false };
   }
 }
 
-import { prisma } from '@/lib/db';
-import { decryptSensitiveFields } from '@/utils/crypto';
-
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const icalUrls = searchParams.getAll('icalUrl');
-  
-  // Headers for security
-  let radarrUrl = request.headers.get('x-radarr-url');
-  let radarrApiKey = request.headers.get('x-radarr-apikey');
-  let sonarrUrl = request.headers.get('x-sonarr-url');
-  let sonarrApiKey = request.headers.get('x-sonarr-apikey');
-
-  // Query params as fallback (legacy) - but we prefer headers
-  if (!radarrUrl) radarrUrl = searchParams.get('radarrUrl');
-  if (!radarrApiKey) radarrApiKey = searchParams.get('radarrApiKey');
-  if (!sonarrUrl) sonarrUrl = searchParams.get('sonarrUrl');
-  if (!sonarrApiKey) sonarrApiKey = searchParams.get('sonarrApiKey');
-
-  // Integration ID support
-  const integrationId = request.headers.get('x-integration-id');
-  if (integrationId) {
-      const integration = await prisma.integration.findUnique({
-          where: { id: integrationId }
-      });
-      if (integration) {
-          const config = decryptSensitiveFields(JSON.parse(integration.config));
-          if (integration.type === 'radarr') {
-              radarrUrl = (config.externalUrl || config.url) as string;
-              radarrApiKey = config.apiKey as string;
-          } else if (integration.type === 'sonarr') {
-              sonarrUrl = (config.externalUrl || config.url) as string;
-              sonarrApiKey = config.apiKey as string;
-          }
+export async function POST(request: Request) {
+  try {
+    const user = await requireApiUser(request);
+    const body = assertRecord(await request.json(), 'Calendar request');
+    const rawIcalUrls = body.icalUrls ?? [];
+    if (!Array.isArray(rawIcalUrls) || rawIcalUrls.length > 10) {
+      throw new ValidationError('icalUrls must contain at most 10 URLs');
+    }
+    const icalUrls = rawIcalUrls.map((value) => {
+      if (typeof value !== 'string' || !value.trim() || value.length > 2048) {
+        throw new ValidationError('Each iCal URL must be a valid string');
       }
+      return value.trim();
+    });
+    const [radarr, sonarr] = await Promise.all([
+      resolveArrConnection(
+        parseOptionalIntegrationId(body.radarrIntegrationId, 'radarrIntegrationId'),
+        'radarr',
+        user,
+      ),
+      resolveArrConnection(
+        parseOptionalIntegrationId(body.sonarrIntegrationId, 'sonarrIntegrationId'),
+        'sonarr',
+        user,
+      ),
+    ]);
+    const requests: Promise<CalendarFetchResult>[] = icalUrls.map(fetchICalEvents);
+    if (radarr) requests.push(fetchRadarrEvents(radarr));
+    if (sonarr) requests.push(fetchSonarrEvents(sonarr));
+    const results = await Promise.all(requests);
+    if (results.length > 0 && results.every((result) => !result.ok)) {
+      throw new ApiSecurityError(
+        'Unable to fetch the configured calendar sources',
+        502,
+        'upstream_request_failed',
+      );
+    }
+    const allEvents = results.flatMap((result) => result.events);
+    allEvents.sort((left, right) =>
+      new Date(left.date).getTime() - new Date(right.date).getTime(),
+    );
+
+    return NextResponse.json(allEvents);
+  } catch (error) {
+    return apiSecurityErrorResponse(error, 'Failed to fetch calendar data');
   }
-
-  const promises: Promise<CalendarEvent[]>[] = [];
-
-  // Fetch from all iCal URLs
-  if (icalUrls.length > 0) {
-    icalUrls.forEach(url => promises.push(fetchICalEvents(url)));
-  }
-
-  // Fetch from Radarr/Sonarr
-  if (radarrUrl && radarrApiKey) {
-    promises.push(fetchRadarrEvents(radarrUrl, radarrApiKey));
-  }
-  if (sonarrUrl && sonarrApiKey) {
-    promises.push(fetchSonarrEvents(sonarrUrl, sonarrApiKey));
-  }
-
-  const results = await Promise.all(promises);
-  const allEvents = results.flat();
-  
-  // Sort by date
-  allEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  return NextResponse.json(allEvents);
 }
