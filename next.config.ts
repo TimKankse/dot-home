@@ -11,16 +11,7 @@ const nextConfig: NextConfig = {
     root: projectRoot,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-      {
-        protocol: 'http',
-        hostname: '**',
-      },
-    ],
+    remotePatterns: [],
   },
 };
 

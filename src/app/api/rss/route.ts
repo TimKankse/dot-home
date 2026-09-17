@@ -1,3 +1,5 @@
+import { readBoundedJson } from '@/lib/bounded-json';
+import { feedRateLimit, feedConcurrency } from '@/lib/request-limits';
 import { NextResponse } from 'next/server';
 import Parser from 'rss-parser';
 import {
@@ -40,9 +42,13 @@ const prepareStoredFeedRequest = (value: string) => {
 };
 
 export async function POST(request: Request) {
+  let release: (() => void) | undefined;
   try {
     const user = await requireApiUser(request);
-    const body = assertRecord(await request.json(), 'RSS request');
+    if (!feedRateLimit.allow(user.id) || !(release = feedConcurrency.acquire(user.id))) {
+      throw new ApiSecurityError('Too many feed requests', 429, 'rate_limit_exceeded');
+    }
+    const body = assertRecord(await readBoundedJson(request), 'RSS request');
     const rawUrls = body.urls ?? [];
     if (!Array.isArray(rawUrls) || rawUrls.length > 10) {
       throw new ValidationError('At most 10 public feed URLs are allowed');
@@ -96,6 +102,7 @@ export async function POST(request: Request) {
           {
             policy: options.stored ? 'trusted-integration' : 'public-internet',
             timeoutMs: 10_000,
+            maxResponseBytes: 2 * 1024 * 1024,
             allowCrossOriginRedirects: !options.stored,
           },
         );
@@ -217,5 +224,5 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return apiSecurityErrorResponse(error, 'Failed to fetch RSS feed');
-  }
+  } finally { release?.(); }
 }

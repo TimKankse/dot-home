@@ -3,6 +3,8 @@ export interface BehaviorSettings {
   autoDetectLocation: boolean;
   confirmEdit: boolean;
   autoSave: boolean;
+  pageBufferEnabled: boolean;
+  pageBufferSize: number; // pages before and after the current rendered page
 }
 
 export interface CityData {

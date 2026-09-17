@@ -582,6 +582,25 @@ export function planWidgetIntegrationMigrations(
   });
 }
 
+// Modern saves carry only integration IDs and presentation settings. Avoid
+// database-wide credential discovery for those saves, including layout moves.
+export function hasLegacyIntegrationConfig(widget: MigrationWidget): boolean {
+  const type = getMigrationWidgetType(widget);
+  const config = widget.config || {};
+  if (type === 'calendar') {
+    return CALENDAR_INTEGRATION_TYPES.some((service) =>
+      Boolean(readString(config[`${service}Url`]) || readString(config[`${service}ApiKey`])),
+    );
+  }
+  if (!INTEGRATION_MIGRATION_SPECS[type]) return false;
+  if (readString(config.integrationId)) return true;
+  if (type === 'rss') {
+    return [config.feedUrl, ...(Array.isArray(config.feedUrls) ? config.feedUrls : [])]
+      .some((url) => typeof url === 'string' && requiresStoredRssIntegration(url));
+  }
+  return INTEGRATION_MIGRATION_SPECS[type].connectionFields.some((field) => Boolean(readString(config[field])));
+}
+
 export function applyPlannedWidgetIntegrationMigration(
   widget: MigrationWidget,
   migration: PlannedWidgetIntegrationMigration,

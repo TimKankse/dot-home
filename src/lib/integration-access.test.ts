@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
+  widgetPermission: { findUnique: vi.fn().mockResolvedValue(null) },
   integration: {
     findUnique: vi.fn(),
   },
@@ -102,4 +103,22 @@ describe('authorized integration resolution', () => {
       code: 'integration_not_found',
     });
   });
+  it.each(['netdata', 'portainer'])('denies member access to admin-only %s even when owned', async (type) => {
+    prismaMock.integration.findUnique.mockResolvedValue({ ...integration, type });
+    await expect(resolveAuthorizedIntegration({
+      integrationId: integration.id, user: { id: integration.userId, role: 'member' }, expectedTypes: [type],
+    })).rejects.toMatchObject({ status: 404 });
+    expect(resolvePermissionMock).not.toHaveBeenCalled();
+  });
+
+  it('honors an explicit stored role policy without bypassing object permissions', async () => {
+    prismaMock.integration.findUnique.mockResolvedValue({ ...integration, type: 'netdata' });
+    prismaMock.widgetPermission.findUnique.mockResolvedValueOnce({ roles: '["admin","member"]' });
+    resolvePermissionMock.mockResolvedValue('none');
+    await expect(resolveAuthorizedIntegration({
+      integrationId: integration.id, user: { id: 'other', role: 'member' }, expectedTypes: ['netdata'],
+    })).rejects.toMatchObject({ status: 404 });
+    expect(resolvePermissionMock).toHaveBeenCalledOnce();
+  });
+
 });

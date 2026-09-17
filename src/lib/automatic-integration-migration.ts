@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { prisma } from './db';
+import { ApiSecurityError } from './api-security';
 import {
   applyPlannedWidgetIntegrationMigration,
   getMigrationConfigKey,
@@ -16,6 +17,7 @@ type JsonRecord = Record<string, unknown>;
 
 type DashboardWork = {
   id: string;
+  storedLayout: string;
   name: string;
   ownerId: string;
   layout: JsonRecord;
@@ -87,11 +89,14 @@ const createDatabaseBackup = async (): Promise<string | undefined> => {
   return backupPath;
 };
 
-async function buildWork() {
+async function buildWork(dashboardId?: string) {
   const [dashboards, storedIntegrations, personalConfigs] = await Promise.all([
-    prisma.dashboard.findMany({ orderBy: { createdAt: 'asc' } }),
-    prisma.integration.findMany({ orderBy: { createdAt: 'asc' } }),
-    prisma.widgetUserConfig.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.dashboard.findMany({ ...(dashboardId ? { where: { id: dashboardId } } : {}), orderBy: { createdAt: 'asc' } }),
+    prisma.integration.findMany({
+      ...(dashboardId ? { where: { user: { dashboards: { some: { id: dashboardId } } } } } : {}),
+      orderBy: { createdAt: 'asc' },
+    }),
+    dashboardId ? Promise.resolve([]) : prisma.widgetUserConfig.findMany({ orderBy: { createdAt: 'asc' } }),
   ]);
   const integrations: MigrationIntegration[] = storedIntegrations.map((integration) => {
     const config = decryptSensitiveFields(parseRecord(integration.config));
@@ -115,6 +120,7 @@ async function buildWork() {
     );
     return {
       id: dashboard.id,
+      storedLayout: dashboard.layout,
       name: dashboard.name,
       ownerId: dashboard.userId,
       layout,
@@ -157,9 +163,9 @@ async function buildWork() {
 }
 
 export async function runAutomaticIntegrationMigration(
-  options: { backup?: boolean; dryRun?: boolean } = {},
+  options: { backup?: boolean; dryRun?: boolean; dashboardId?: string } = {},
 ): Promise<AutomaticIntegrationMigrationResult> {
-  const { dashboardWork, personalWork } = await buildWork();
+  const { dashboardWork, personalWork } = await buildWork(options.dashboardId);
   const allPlans = [
     ...dashboardWork.flatMap((dashboard) =>
       dashboard.migrations.map(({ migration }) => migration.plan),
@@ -266,10 +272,13 @@ export async function runAutomaticIntegrationMigration(
         changed = true;
       }
       if (changed) {
-        await transaction.dashboard.update({
-          where: { id: dashboard.id },
+        const updated = await transaction.dashboard.updateMany({
+          where: { id: dashboard.id, layout: dashboard.storedLayout },
           data: { layout: JSON.stringify({ ...dashboard.layout, widgets }) },
         });
+        if (updated.count !== 1) {
+          throw new ApiSecurityError('Dashboard changed during migration; retry the save', 409, 'dashboard_changed');
+        }
         result.changedDashboards += 1;
       }
     }
@@ -303,14 +312,16 @@ export async function runAutomaticIntegrationMigration(
   return result;
 }
 
-let startupMigration: Promise<AutomaticIntegrationMigrationResult> | undefined;
+const migrationState = globalThis as typeof globalThis & {
+  dotHomeStartupMigration?: Promise<AutomaticIntegrationMigrationResult>;
+};
 
 export function ensureAutomaticIntegrationMigration() {
-  if (!startupMigration) {
-    startupMigration = runAutomaticIntegrationMigration().catch((error) => {
-      startupMigration = undefined;
+  if (!migrationState.dotHomeStartupMigration) {
+    migrationState.dotHomeStartupMigration = runAutomaticIntegrationMigration().catch((error) => {
+      migrationState.dotHomeStartupMigration = undefined;
       throw error;
     });
   }
-  return startupMigration;
+  return migrationState.dotHomeStartupMigration;
 }

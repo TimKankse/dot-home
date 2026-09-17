@@ -119,15 +119,9 @@ describe('typed integration proxy routes', () => {
   });
 
   it('uses only the stored qBittorrent integration for queue reads', async () => {
-    fetchOutboundMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ torrents: {} }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ dl_info_speed: 0 }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }));
+    fetchOutboundMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      rid: 1, full_update: true, torrents: {}, server_state: { dl_info_speed: 0 },
+    })));
 
     const response = await getQBittorrent(new Request(
       'https://home.example.test/api/qbittorrent?mode=queue',
@@ -138,9 +132,8 @@ describe('typed integration proxy routes', () => {
     expect(integrationConnectionMock.resolveRequestIntegration).toHaveBeenCalledWith(
       expect.any(Request),
       'qbittorrent',
-      'view',
     );
-    expect(fetchOutboundMock).toHaveBeenCalledTimes(2);
+    expect(fetchOutboundMock).toHaveBeenCalledTimes(1);
     for (const [target] of fetchOutboundMock.mock.calls) {
       expect((target as URL).origin).toBe('http://trusted.internal:9000');
     }

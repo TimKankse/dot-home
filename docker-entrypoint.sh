@@ -43,6 +43,7 @@ if [ -z "${BOOTSTRAP_SECRET:-}" ]; then
 fi
 
 echo "Running database migrations..."
+node scripts/prepare-database.mjs
 prisma db push --skip-generate
 
 echo "Starting dotHome..."

@@ -1,3 +1,4 @@
+import { DEFAULT_WIDGET_ROLES as DEFAULT_PERMISSIONS } from '@/lib/widget-roles';
 import { NextResponse } from 'next/server';
 import { apiSecurityErrorResponse, requireApiUser } from '@/lib/api-security';
 import { prisma } from '@/lib/db';
@@ -17,6 +18,7 @@ import {
 } from '@/lib/automatic-integration-migration';
 import {
   getMigrationWidgetType,
+  hasLegacyIntegrationConfig,
   INTEGRATION_MIGRATION_SPECS,
   reconcileWidgetIntegrationSelection,
   redactProtectedRssFeedUrls,
@@ -33,26 +35,6 @@ const redactWidgetConfig = (
   return widgetType === 'rss'
     ? redactProtectedRssFeedUrls(redacted)
     : redacted;
-};
-
-// Default widget permissions by role
-const DEFAULT_PERMISSIONS: Record<string, string[]> = {
-  netdata: ['admin'],
-  glances: ['admin'],
-  portainer: ['admin'],
-  jellyfin: ['admin', 'member'],
-  jellyseerr: ['admin', 'member'],
-  qbittorrent: ['admin', 'member'],
-  sabnzbd: ['admin', 'member'],
-  clock: ['admin', 'member', 'viewer'],
-  weather: ['admin', 'member', 'viewer'],
-  calendar: ['admin', 'member', 'viewer'],
-  rss: ['admin', 'member', 'viewer'],
-  search: ['admin', 'member', 'viewer'],
-  shortcut: ['admin', 'member', 'viewer'],
-  image: ['admin', 'member', 'viewer'],
-  spacer: ['admin', 'member', 'viewer'],
-  twitch: ['admin', 'member', 'viewer'],
 };
 
 // Get permissions from database, seeding defaults if empty
@@ -321,6 +303,7 @@ export async function POST(request: Request) {
 
     const userId = user.id;
     const parsedRequest = parseDashboardSaveRequest(await request.json());
+    await ensureAutomaticIntegrationMigration();
     let dashboardData = parsedRequest.layout;
 
     // Find or create dashboard
@@ -380,6 +363,7 @@ export async function POST(request: Request) {
       };
     }
 
+    let savedDashboardId = existingDashboard?.id;
     if (existingDashboard) {
       // Update existing dashboard
           await prisma.dashboard.update({
@@ -391,7 +375,7 @@ export async function POST(request: Request) {
       });
     } else {
       // Create new dashboard
-      await prisma.dashboard.create({
+      const created = await prisma.dashboard.create({
         data: {
           userId,
           name: 'Main',
@@ -399,11 +383,14 @@ export async function POST(request: Request) {
           isDefault: true,
         },
       });
+      savedDashboardId = created.id;
     }
 
     // Old clients and imported layouts may still submit inline connection
     // settings. Normalize the just-saved layout before acknowledging the save.
-    await runAutomaticIntegrationMigration();
+    if (dashboardData.widgets.some((widget) => hasLegacyIntegrationConfig(widget as unknown as MigrationWidget))) {
+      await runAutomaticIntegrationMigration({ dashboardId: savedDashboardId });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

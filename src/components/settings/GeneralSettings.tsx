@@ -5,7 +5,8 @@ import { Globe, RefreshCw } from 'lucide-react';
 
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { SearchableSelect } from '../primitives/searchable-select';
-import { Select, Switch, ToggleGroup, CitySearch } from '../primitives';
+import { Select, Switch, ToggleGroup, CitySearch, Input } from '../primitives';
+import { normalizePageBufferSize } from '@/utils/pageBuffer';
 import { TIMEZONES, CITIES, extractCityFromTimezone } from '@/constants/cities';
 import type { CityData } from '@/types';
 import styles from './SettingsDialog.module.css';
@@ -112,6 +113,44 @@ export const GeneralSettings: React.FC = () => {
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Behavior</div>
+
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
+            <label htmlFor="page-buffer-enabled" className={styles.settingLabel}>Page Buffer</label>
+            <span id="page-buffer-description" className={styles.settingDesc}>
+              Keep nearby pages active for smoother navigation. Turn off to keep all pages active.
+            </span>
+          </div>
+          <Switch
+            id="page-buffer-enabled"
+            aria-describedby="page-buffer-description"
+            checked={settings.behavior.pageBufferEnabled}
+            onCheckedChange={(checked) => updateSettings({ pageBufferEnabled: checked }, 'behavior')}
+          />
+        </div>
+
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
+            <label htmlFor="page-buffer-size" className={styles.settingLabel}>Pages on Each Side</label>
+            <span id="page-buffer-size-description" className={styles.settingDesc}>
+              1 keeps the previous and next page active. 0 keeps only the current page active.
+            </span>
+          </div>
+          <div className={styles.controlSm}>
+            <Input
+              id="page-buffer-size"
+              aria-describedby="page-buffer-size-description"
+              type="number"
+              min={0}
+              step={1}
+              value={settings.behavior.pageBufferSize}
+              disabled={!settings.behavior.pageBufferEnabled}
+              onChange={(event) => updateSettings({
+                pageBufferSize: normalizePageBufferSize(Number(event.target.value)),
+              }, 'behavior')}
+            />
+          </div>
+        </div>
         
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>

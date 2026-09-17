@@ -1,11 +1,11 @@
-import { RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 interface UseScrollNavigationProps {
   currentPageIndex: number;
   pagesLength: number;
   setPageIndex: (index: number) => void;
   isModalOpen: boolean;
-  effectiveScrollDirection: 'vertical' | 'horizontal';
+  effectiveScrollDirection: "vertical" | "horizontal";
   viewportRef: RefObject<HTMLElement | null>;
   wrapperRef: RefObject<HTMLElement | null>;
 }
@@ -13,6 +13,7 @@ interface UseScrollNavigationProps {
 type TimeoutHandle = ReturnType<typeof setTimeout>;
 
 export const SCROLL_SNAP_SETTLE_MS = 120;
+export const PAGE_TRANSITION_MS = 120;
 const AUTO_SCROLL_SYNC_RETRY_MS = 32;
 const MAX_AUTO_SCROLL_SYNC_RETRIES = 8;
 const SCROLL_POSITION_TOLERANCE_PX = 1;
@@ -37,6 +38,13 @@ export const useScrollNavigation = ({
   const scrollSyncRetryTimeoutRef = useRef<TimeoutHandle | null>(null);
   const suppressScrollSyncRef = useRef(false);
   const skipNextScrollToIndexRef = useRef<number | null>(null);
+  const cancelPageTransitionRef = useRef<(() => void) | null>(null);
+
+  const cancelPageTransition = () => {
+    cancelPageTransitionRef.current?.();
+    cancelPageTransitionRef.current = null;
+    suppressScrollSyncRef.current = false;
+  };
 
   const clearScrollSettleTimeout = () => {
     if (!scrollSettleTimeoutRef.current) {
@@ -63,29 +71,42 @@ export const useScrollNavigation = ({
       return null;
     }
 
-    return scrollDirectionRef.current === 'vertical' ? viewport.scrollTop : viewport.scrollLeft;
+    return scrollDirectionRef.current === "vertical"
+      ? viewport.scrollTop
+      : viewport.scrollLeft;
   };
 
   const getPageSizePx = () => {
     const viewport = viewportRef.current;
 
     if (!viewport) {
-      return scrollDirectionRef.current === 'vertical' ? window.innerHeight : window.innerWidth;
+      return scrollDirectionRef.current === "vertical"
+        ? window.innerHeight
+        : window.innerWidth;
     }
 
     const rect = viewport.getBoundingClientRect();
-    return scrollDirectionRef.current === 'vertical' ? rect.height : rect.width;
+    return scrollDirectionRef.current === "vertical" ? rect.height : rect.width;
   };
 
   const getPageTargetPositionPx = (pageIndex: number) => {
-    const clampedIndex = Math.max(0, Math.min(pageIndex, pagesLengthRef.current - 1));
-    const pageElement = wrapperRef.current?.children.item(clampedIndex) as HTMLElement | null;
+    const clampedIndex = Math.max(
+      0,
+      Math.min(pageIndex, pagesLengthRef.current - 1),
+    );
+    const pageElement = wrapperRef.current?.children.item(
+      clampedIndex,
+    ) as HTMLElement | null;
 
     if (pageElement) {
       const pageSizePx =
-        scrollDirectionRef.current === 'vertical' ? pageElement.offsetHeight : pageElement.offsetWidth;
+        scrollDirectionRef.current === "vertical"
+          ? pageElement.offsetHeight
+          : pageElement.offsetWidth;
       const pageOffsetPx =
-        scrollDirectionRef.current === 'vertical' ? pageElement.offsetTop : pageElement.offsetLeft;
+        scrollDirectionRef.current === "vertical"
+          ? pageElement.offsetTop
+          : pageElement.offsetLeft;
 
       if (pageSizePx > 0) {
         if (clampedIndex === 0 || pageOffsetPx > 0) {
@@ -104,7 +125,10 @@ export const useScrollNavigation = ({
     return clampedIndex * pageSizePx;
   };
 
-  const scrollViewportToPage = (pageIndex: number, behavior: ScrollBehavior) => {
+  const scrollViewportToPage = (
+    pageIndex: number,
+    behavior: ScrollBehavior,
+  ) => {
     const viewport = viewportRef.current;
     const targetPositionPx = getPageTargetPositionPx(pageIndex);
 
@@ -113,16 +137,58 @@ export const useScrollNavigation = ({
     }
 
     viewport.scrollTo({
-      top: scrollDirectionRef.current === 'vertical' ? targetPositionPx : 0,
-      left: scrollDirectionRef.current === 'horizontal' ? targetPositionPx : 0,
+      top: scrollDirectionRef.current === "vertical" ? targetPositionPx : 0,
+      left: scrollDirectionRef.current === "horizontal" ? targetPositionPx : 0,
       behavior,
     });
 
     return targetPositionPx;
   };
 
+  const animateViewportToPage = (pageIndex: number) => {
+    const viewport = viewportRef.current;
+    const target = getPageTargetPositionPx(pageIndex);
+    const start = getScrollPositionPx();
+    if (!viewport || target === null || start === null) return;
+    if (
+      Math.abs(target - start) <= SCROLL_POSITION_TOLERANCE_PX ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      scrollViewportToPage(pageIndex, "instant");
+      return;
+    }
+
+    const vertical = scrollDirectionRef.current === "vertical";
+    const previousSnapType = viewport.style.scrollSnapType;
+    // Snap only at the destination, rather than fighting each animation frame.
+    viewport.style.scrollSnapType = "none";
+    suppressScrollSyncRef.current = true;
+    const startedAt = performance.now();
+    let frame: number;
+    const finish = () => {
+      cancelAnimationFrame(frame);
+      viewport.style.scrollSnapType = previousSnapType;
+      suppressScrollSyncRef.current = false;
+      cancelPageTransitionRef.current = null;
+    };
+    cancelPageTransitionRef.current = finish;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / PAGE_TRANSITION_MS);
+      const eased = 1 - (1 - progress) ** 3;
+      const position = start + (target - start) * eased;
+      viewport.scrollTo({
+        top: vertical ? position : 0,
+        left: vertical ? 0 : position,
+        behavior: "instant",
+      });
+      if (progress < 1) frame = requestAnimationFrame(tick);
+      else finish();
+    };
+    frame = requestAnimationFrame(tick);
+  };
+
   const syncViewportToPage = (pageIndex: number, attempt = 0) => {
-    const targetPositionPx = scrollViewportToPage(pageIndex, 'auto');
+    const targetPositionPx = scrollViewportToPage(pageIndex, "auto");
 
     if (targetPositionPx === null) {
       if (attempt >= MAX_AUTO_SCROLL_SYNC_RETRIES) {
@@ -139,7 +205,8 @@ export const useScrollNavigation = ({
     const currentPositionPx = getScrollPositionPx();
     if (
       currentPositionPx !== null &&
-      Math.abs(currentPositionPx - targetPositionPx) <= SCROLL_POSITION_TOLERANCE_PX
+      Math.abs(currentPositionPx - targetPositionPx) <=
+        SCROLL_POSITION_TOLERANCE_PX
     ) {
       return;
     }
@@ -160,9 +227,16 @@ export const useScrollNavigation = ({
     setPageIndexRef.current = setPageIndex;
     isModalOpenRef.current = isModalOpen;
     scrollDirectionRef.current = effectiveScrollDirection;
-  }, [currentPageIndex, pagesLength, setPageIndex, isModalOpen, effectiveScrollDirection]);
+  }, [
+    currentPageIndex,
+    pagesLength,
+    setPageIndex,
+    isModalOpen,
+    effectiveScrollDirection,
+  ]);
 
   useLayoutEffect(() => {
+    cancelPageTransition();
     if (pagesLength <= 0) {
       return;
     }
@@ -175,16 +249,13 @@ export const useScrollNavigation = ({
       return;
     }
 
-    const behavior: ScrollBehavior =
-      hasSyncedInitialPageRef.current && lastLayoutKeyRef.current === layoutKey
-        ? 'smooth'
-        : 'auto';
-
-    suppressScrollSyncRef.current = behavior === 'smooth';
+    const shouldAnimate =
+      hasSyncedInitialPageRef.current && lastLayoutKeyRef.current === layoutKey;
     clearScrollSyncRetryTimeout();
+    clearScrollSettleTimeout();
 
-    if (behavior === 'smooth') {
-      scrollViewportToPage(currentPageIndex, behavior);
+    if (shouldAnimate) {
+      animateViewportToPage(currentPageIndex);
     } else {
       syncViewportToPage(currentPageIndex);
     }
@@ -192,9 +263,10 @@ export const useScrollNavigation = ({
     hasSyncedInitialPageRef.current = true;
     lastLayoutKeyRef.current = layoutKey;
     return () => {
+      cancelPageTransition();
       clearScrollSyncRetryTimeout();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPageIndex, effectiveScrollDirection, pagesLength]);
 
   useEffect(() => {
@@ -207,14 +279,23 @@ export const useScrollNavigation = ({
     const handleScroll = () => {
       clearScrollSettleTimeout();
 
-      if (!suppressScrollSyncRef.current && !isModalOpenRef.current && pagesLengthRef.current > 0) {
+      if (
+        !suppressScrollSyncRef.current &&
+        !isModalOpenRef.current &&
+        pagesLengthRef.current > 0
+      ) {
         const pageSizePx = getPageSizePx();
 
         if (pageSizePx > 0) {
           const scrollPositionPx =
-            scrollDirectionRef.current === 'vertical' ? viewport.scrollTop : viewport.scrollLeft;
+            scrollDirectionRef.current === "vertical"
+              ? viewport.scrollTop
+              : viewport.scrollLeft;
           const nextPageIndex = Math.round(scrollPositionPx / pageSizePx);
-          const clampedIndex = Math.max(0, Math.min(nextPageIndex, pagesLengthRef.current - 1));
+          const clampedIndex = Math.max(
+            0,
+            Math.min(nextPageIndex, pagesLengthRef.current - 1),
+          );
 
           if (clampedIndex !== currentPageIndexRef.current) {
             skipNextScrollToIndexRef.current = clampedIndex;
@@ -227,7 +308,6 @@ export const useScrollNavigation = ({
         scrollSettleTimeoutRef.current = null;
 
         if (suppressScrollSyncRef.current) {
-          suppressScrollSyncRef.current = false;
           return;
         }
 
@@ -241,9 +321,14 @@ export const useScrollNavigation = ({
         }
 
         const scrollPositionPx =
-          scrollDirectionRef.current === 'vertical' ? viewport.scrollTop : viewport.scrollLeft;
+          scrollDirectionRef.current === "vertical"
+            ? viewport.scrollTop
+            : viewport.scrollLeft;
         const nextPageIndex = Math.round(scrollPositionPx / pageSizePx);
-        const clampedIndex = Math.max(0, Math.min(nextPageIndex, pagesLengthRef.current - 1));
+        const clampedIndex = Math.max(
+          0,
+          Math.min(nextPageIndex, pagesLengthRef.current - 1),
+        );
 
         if (clampedIndex !== currentPageIndexRef.current) {
           skipNextScrollToIndexRef.current = clampedIndex;
@@ -252,13 +337,26 @@ export const useScrollNavigation = ({
       }, SCROLL_SNAP_SETTLE_MS);
     };
 
-    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    viewport.addEventListener("scroll", handleScroll, { passive: true });
+    // Direct input takes over immediately; never drag the user back to an old
+    // keyboard/button destination after they start scrolling or touching.
+    viewport.addEventListener("wheel", cancelPageTransition, { passive: true });
+    viewport.addEventListener("pointerdown", cancelPageTransition, {
+      passive: true,
+    });
+    viewport.addEventListener("touchstart", cancelPageTransition, {
+      passive: true,
+    });
 
     return () => {
+      cancelPageTransition();
       clearScrollSettleTimeout();
       clearScrollSyncRetryTimeout();
-      viewport.removeEventListener('scroll', handleScroll);
+      viewport.removeEventListener("scroll", handleScroll);
+      viewport.removeEventListener("wheel", cancelPageTransition);
+      viewport.removeEventListener("pointerdown", cancelPageTransition);
+      viewport.removeEventListener("touchstart", cancelPageTransition);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveScrollDirection, pagesLength, viewportRef]);
 };

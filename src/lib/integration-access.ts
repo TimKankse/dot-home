@@ -1,3 +1,4 @@
+import { requireIntegrationRole } from '@/lib/widget-roles';
 import { prisma } from '@/lib/db';
 import { ApiSecurityError, type ApiUser } from '@/lib/api-security';
 import { decryptSensitiveFields } from '@/utils/crypto';
@@ -62,6 +63,8 @@ export async function resolveAuthorizedIntegration({
       'integration_not_found',
     );
   }
+
+  await requireIntegrationRole(user, integration.type);
 
   const permission = await resolvePermission(
     {

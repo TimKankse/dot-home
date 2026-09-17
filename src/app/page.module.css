@@ -37,7 +37,8 @@
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  scroll-behavior: smooth;
+  /* Programmatic page navigation has a short, controlled animation in the hook. */
+  scroll-behavior: auto;
   scrollbar-width: none;
   transition:
     width 0.2s ease,

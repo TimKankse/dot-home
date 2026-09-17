@@ -1,4 +1,4 @@
-import { fetchOutbound } from '@/lib/outbound-http';
+import { fetchNetdataJson, type NetdataConnection } from './cached-request';
 
 export interface ProcessInfo {
     pid: number;
@@ -20,140 +20,40 @@ export interface FunctionsData {
     mountPointsList: MountPointInfo[];
 }
 
-// ========================================
-// Caching for functions list only (rarely changes)
-// Processes and mount points use short-TTL cache + request deduplication
-// ========================================
-interface FunctionsCacheEntry {
-    availableFunctions: string[];
-    timestamp: number;
-}
-
-interface DataCacheEntry<T> {
-    data: T;
-    timestamp: number;
-}
-
-// Only cache the functions list (rarely changes)
-const FUNCTIONS_LIST_CACHE_TTL = 300000; // 5 minutes
-const functionsListCache = new Map<string, FunctionsCacheEntry>();
-
-// Short-TTL cache for processes and mount points
-const DATA_CACHE_TTL = 1500;
-const processesCache = new Map<string, DataCacheEntry<ProcessInfo[]>>();
-const mountPointsCache = new Map<string, DataCacheEntry<MountPointInfo[]>>();
-
-// Active request deduplication
-const activeProcessesRequests = new Map<string, Promise<ProcessInfo[]>>();
-const activeMountPointsRequests = new Map<string, Promise<MountPointInfo[]>>();
-
 export const fetchFunctionsData = async (
-    cleanUrl: string, 
+    connection: NetdataConnection,
     isScopeActive: (s: string) => boolean,
-    processLimit: number
+    processLimit: number,
 ): Promise<FunctionsData> => {
     const needsProcesses = isScopeActive('processes');
     const needsStorage = isScopeActive('storage');
-
-    if (!needsProcesses && !needsStorage) {
-        return { processList: [], mountPointsList: [] };
-    }
-
-    const now = Date.now();
-
-    // ========================================
-    // Get available functions (cached - rarely changes)
-    // ========================================
-    let availableFunctions: string[] = [];
-    const cachedFunctionsList = functionsListCache.get(cleanUrl);
-    
-    if (cachedFunctionsList && (now - cachedFunctionsList.timestamp < FUNCTIONS_LIST_CACHE_TTL)) {
-        availableFunctions = cachedFunctionsList.availableFunctions;
-    } else {
-        try {
-            const functionsRes = await fetchOutbound(
-                `${cleanUrl}/api/v1/functions`,
-                { cache: 'no-store' },
-                { policy: 'trusted-integration', timeoutMs: 2000 },
-            );
-
-            if (functionsRes.ok) {
-                const functions = await functionsRes.json();
-                availableFunctions = functions.functions ? Object.keys(functions.functions) : [];
-                functionsListCache.set(cleanUrl, { availableFunctions, timestamp: now });
-            }
-        } catch (e) {
-            console.warn('[Netdata] Failed to fetch functions list:', e);
-        }
-    }
-
-    // ========================================
-    // Fetch processes (short-TTL cache + deduplicate)
-    // ========================================
-    let processList: ProcessInfo[] = [];
-    if (needsProcesses && availableFunctions.includes('processes')) {
-        // Check cache first
-        const cachedProcesses = processesCache.get(cleanUrl);
-        if (cachedProcesses && (now - cachedProcesses.timestamp < DATA_CACHE_TTL)) {
-            processList = cachedProcesses.data.slice(0, processLimit);
-        } else if (activeProcessesRequests.has(cleanUrl)) {
-            const data = await activeProcessesRequests.get(cleanUrl)!;
-            processList = data.slice(0, processLimit);
-        } else {
-            const fetchPromise = fetchProcessesList(cleanUrl);
-            activeProcessesRequests.set(cleanUrl, fetchPromise);
-            
-            try {
-                const data = await fetchPromise;
-                processesCache.set(cleanUrl, { data, timestamp: now });
-                processList = data.slice(0, processLimit);
-            } finally {
-                activeProcessesRequests.delete(cleanUrl);
-            }
-        }
-    }
-
-    // ========================================
-    // Fetch mount points (short-TTL cache + deduplicate)
-    // ========================================
-    let mountPointsList: MountPointInfo[] = [];
-    if (needsStorage && availableFunctions.includes('mount-points')) {
-        // Check cache first
-        const cachedMountPoints = mountPointsCache.get(cleanUrl);
-        if (cachedMountPoints && (now - cachedMountPoints.timestamp < DATA_CACHE_TTL)) {
-            mountPointsList = cachedMountPoints.data;
-        } else if (activeMountPointsRequests.has(cleanUrl)) {
-            mountPointsList = await activeMountPointsRequests.get(cleanUrl)!;
-        } else {
-            const fetchPromise = fetchMountPointsList(cleanUrl);
-            activeMountPointsRequests.set(cleanUrl, fetchPromise);
-            
-            try {
-                mountPointsList = await fetchPromise;
-                mountPointsCache.set(cleanUrl, { data: mountPointsList, timestamp: now });
-            } finally {
-                activeMountPointsRequests.delete(cleanUrl);
-            }
-        }
-    }
-
-    return { processList, mountPointsList };
+    if (!needsProcesses && !needsStorage) return { processList: [], mountPointsList: [] };
+    const functions = await fetchNetdataJson<{ functions?: Record<string, unknown> }>(
+        connection, '/api/v1/functions', 5 * 60_000,
+    ).catch(() => ({ functions: {} }));
+    const available = functions.functions || {};
+    const [processList, mountPointsList] = await Promise.all([
+        needsProcesses && 'processes' in available ? fetchProcessesList(connection) : [],
+        needsStorage && 'mount-points' in available ? fetchMountPointsList(connection) : [],
+    ]);
+    // Select the busiest processes after sorting, never before. Do not mutate
+    // shared cached data when widgets request different process limits.
+    return {
+        processList: processList.sort((a, b) => b.cpu_percent - a.cpu_percent).slice(0, processLimit),
+        mountPointsList,
+    };
 };
+
+type FunctionResponse = { columns?: string[]; data?: unknown[][] };
 
 // ========================================
 // Helper: Fetch processes (raw)
 // ========================================
-async function fetchProcessesList(cleanUrl: string): Promise<ProcessInfo[]> {
+async function fetchProcessesList(connection: NetdataConnection): Promise<ProcessInfo[]> {
     try {
-        const procRes = await fetchOutbound(
-            `${cleanUrl}/api/v1/function?function=processes`,
-            { cache: 'no-store' },
-            { policy: 'trusted-integration', timeoutMs: 5000 },
+        const procData = await fetchNetdataJson<FunctionResponse>(
+            connection, '/api/v1/function?function=processes', 1500,
         );
-        
-        if (!procRes.ok) return [];
-        
-        const procData = await procRes.json();
         if (!procData.data || !procData.columns) return [];
         
         const cols = Array.isArray(procData.columns) ? procData.columns : [];
@@ -173,8 +73,7 @@ async function fetchProcessesList(cleanUrl: string): Promise<ProcessInfo[]> {
             memory_percent: memIdx !== -1 ? Number(row[memIdx]) : 0,
             username: userIdx !== -1 ? String(row[userIdx]) : 'unknown'
         }));
-    } catch (e) {
-        console.warn('[Netdata] Failed to fetch processes:', e);
+    } catch {
         return [];
     }
 }
@@ -182,17 +81,11 @@ async function fetchProcessesList(cleanUrl: string): Promise<ProcessInfo[]> {
 // ========================================
 // Helper: Fetch mount points (raw)
 // ========================================
-async function fetchMountPointsList(cleanUrl: string): Promise<MountPointInfo[]> {
+async function fetchMountPointsList(connection: NetdataConnection): Promise<MountPointInfo[]> {
     try {
-        const mountRes = await fetchOutbound(
-            `${cleanUrl}/api/v1/function?function=mount-points`,
-            { cache: 'no-store' },
-            { policy: 'trusted-integration', timeoutMs: 5000 },
+        const mountData = await fetchNetdataJson<FunctionResponse>(
+            connection, '/api/v1/function?function=mount-points', 1500,
         );
-        
-        if (!mountRes.ok) return [];
-        
-        const mountData = await mountRes.json();
         if (!mountData.data || !mountData.columns) return [];
         
         const cols = Array.isArray(mountData.columns) ? mountData.columns : [];
@@ -218,8 +111,7 @@ async function fetchMountPointsList(cleanUrl: string): Promise<MountPointInfo[]>
                 size: total
             };
         });
-    } catch (e) {
-        console.warn('[Netdata] Failed to fetch mount-points:', e);
+    } catch {
         return [];
     }
 }

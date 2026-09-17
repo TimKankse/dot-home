@@ -37,6 +37,18 @@ function start(secret = '') {
 }
 
 describe('container secret initialization', () => {
+  it('prepares a private SQLite file without truncating an existing database', () => {
+    const database = path.join(directory, 'new-install', 'dothome.db');
+    const prepare = () => execFileSync(process.execPath, ['scripts/prepare-database.mjs'], {
+      env: { ...process.env, DATABASE_URL: `file:${database}` }, stdio: 'pipe',
+    });
+    prepare();
+    expect(mode(database)).toBe(0o600);
+    writeFileSync(database, 'existing-database-content');
+    prepare();
+    expect(readFileSync(database, 'utf8')).toBe('existing-database-content');
+  });
+
   it('creates private persistent secrets and reuses them across starts', () => {
     start();
     const first = readFileSync(capture, 'utf8');

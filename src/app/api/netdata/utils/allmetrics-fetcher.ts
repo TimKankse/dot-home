@@ -1,5 +1,5 @@
 import { NetdataChartResponse } from '../types';
-import { fetchOutbound } from '@/lib/outbound-http';
+import { fetchNetdataJson, type NetdataConnection } from './cached-request';
 
 /**
  * Allmetrics response structure from Netdata /api/v1/allmetrics?format=json
@@ -21,54 +21,10 @@ export interface AllMetricsData {
     };
 }
 
-// Request deduplication only - no time-based caching
-// This respects user's refresh interval
-const activeRequests = new Map<string, Promise<AllMetricsData | null>>();
-
-/**
- * Fetches all metrics from Netdata in a single API call
- * Only deduplicates simultaneous requests, no time-based caching
- * @param baseUrl The Netdata server base URL
- * @returns All metrics data or null on error
- */
-export const fetchAllMetrics = async (baseUrl: string, filter?: string): Promise<AllMetricsData | null> => {
-    // Only deduplicate simultaneous requests
-    const cacheKey = filter ? `${baseUrl}:${filter}` : baseUrl;
-    if (activeRequests.has(cacheKey)) {
-        return activeRequests.get(cacheKey)!;
-    }
-
-    const fetchPromise = (async (): Promise<AllMetricsData | null> => {
-        try {
-            const params = new URLSearchParams({ format: 'json' });
-            if (filter) {
-                params.set('filter', filter);
-            }
-            
-            const res = await fetchOutbound(
-                `${baseUrl}/api/v1/allmetrics?${params.toString()}`,
-                { cache: 'no-store' },
-                { policy: 'trusted-integration', timeoutMs: 10000 },
-            );
-
-            if (!res.ok) {
-                console.warn(`[Netdata] allmetrics returned ${res.status}`);
-                activeRequests.delete(cacheKey);
-                return null;
-            }
-
-            const data: AllMetricsData = await res.json();
-            activeRequests.delete(cacheKey);
-            return data;
-        } catch (e) {
-            console.warn('[Netdata] Failed to fetch allmetrics:', e);
-            activeRequests.delete(cacheKey);
-            return null;
-        }
-    })();
-
-    activeRequests.set(cacheKey, fetchPromise);
-    return fetchPromise;
+export const fetchAllMetrics = (connection: NetdataConnection, filter?: string): Promise<AllMetricsData> => {
+    const params = new URLSearchParams({ format: 'json' });
+    if (filter) params.set('filter', filter);
+    return fetchNetdataJson(connection, `/api/v1/allmetrics?${params}`, 1500);
 };
 
 /**

@@ -1,238 +1,91 @@
 import { create } from 'zustand';
 import { NetdataData, NetdataScopeState } from '../types';
 
+type Subscription = { integrationId?: string; scope?: string; refreshInterval?: number };
 interface InstanceState {
   data: NetdataData | null;
   loading: boolean;
   error: string | null;
   subscribers: number;
-  scopes: NetdataScopeState; // scope -> reference count
+  scopes: NetdataScopeState;
   eventSource: EventSource | null;
   intervals: number[];
+  connectionKey?: string;
 }
-
 interface NetdataStore {
   instances: Record<string, InstanceState>;
-  subscribe: (params: { integrationId?: string, scope?: string, refreshInterval?: number }) => void;
-  unsubscribe: (params: { integrationId?: string, scope?: string, refreshInterval?: number }) => void;
+  subscribe: (params: Subscription) => void;
+  unsubscribe: (params: Subscription) => void;
+}
+const pending = new Map<string, ReturnType<typeof setTimeout>>();
+const boundedInterval = (value = 2000) => Number.isFinite(value) ? Math.max(2000, Math.min(60_000, value)) : 2000;
+
+function scheduleConnection(key: string) {
+  clearTimeout(pending.get(key));
+  pending.set(key, setTimeout(() => {
+    pending.delete(key);
+    const store = useNetdataStore;
+    const instance = store.getState().instances[key];
+    if (!instance) return;
+    const scope = instance.scopes.all ? 'all' : Object.keys(instance.scopes).sort().join(',');
+    const params = new URLSearchParams({ integrationId: key, scope, interval: String(Math.min(...instance.intervals)) });
+    const connectionKey = params.toString();
+    if (instance.connectionKey === connectionKey && instance.eventSource) return;
+    instance.eventSource?.close();
+    const eventSource = new EventSource(`/api/netdata?${connectionKey}`);
+    const update = (patch: Partial<InstanceState>) => store.setState((state) => {
+      const current = state.instances[key];
+      if (!current || current.eventSource !== eventSource) return state;
+      return { instances: { ...state.instances, [key]: { ...current, ...patch } } };
+    });
+    store.setState((state) => ({ instances: { ...state.instances, [key]: { ...instance, eventSource, connectionKey } } }));
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        update({ data: data.error ? null : data, loading: false, error: data.error || null });
+      } catch { /* Ignore malformed upstream frames. */ }
+    };
+    eventSource.addEventListener('reset', () => update({ data: null, loading: true, error: null }));
+    eventSource.onerror = () => update({ data: null, loading: false, error: 'Reconnecting...' });
+  }, 50));
 }
 
 export const useNetdataStore = create<NetdataStore>((set, get) => ({
   instances: {},
-
-  subscribe: ({ integrationId, scope = 'all', refreshInterval = 2000 }) => {
-    const { instances } = get();
-    const key = integrationId;
-
+  subscribe: ({ integrationId: key, scope = 'all', refreshInterval }) => {
     if (!key) return;
-    
-    // Helper to get active scopes
-    const getActiveScopes = (scopes: { [key: string]: number }) => {
-       const active = Object.keys(scopes).filter(k => k !== 'all');
-       return active.length > 0 ? active : undefined;
+    const instance = get().instances[key] || {
+      data: null, loading: true, error: null, subscribers: 0, scopes: {}, eventSource: null, intervals: [],
     };
-
-    // Helper to start SSE connection
-    const startSSE = (instanceKey: string, intervalMs: number) => {
-        const currentInstance = get().instances[instanceKey];
-        if (currentInstance?.eventSource) {
-            currentInstance.eventSource.close();
-        }
-
-        const activeScopes = getActiveScopes(currentInstance?.scopes || { [scope]: 1 });
-        const scopeParam = activeScopes ? activeScopes.join(',') : 'all';
-        
-        // Build SSE URL
-        const params = new URLSearchParams({
-            interval: intervalMs.toString(),
-            scope: scopeParam,
-        });
-        
-        if (integrationId) params.set('integrationId', integrationId);
-        
-        const eventSource = new EventSource(`/api/netdata?${params.toString()}`);
-        
-        // Save it to state immediately so that `currentInstance.eventSource` tracks it
-        set((state) => ({
-            instances: {
-                ...state.instances,
-                [instanceKey]: {
-                    ...state.instances[instanceKey],
-                    eventSource
-                }
-            }
-        }));
-
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                set((state) => {
-                    const inst = state.instances[instanceKey];
-                    if (!inst) return state; // If deleted by unsubscribe, ignore
-
-                    return {
-                        instances: {
-                            ...state.instances,
-                            [instanceKey]: {
-                                ...inst,
-                                data,
-                                loading: false,
-                                error: data.error || null,
-                            }
-                        }
-                    };
-                });
-            } catch (e) {
-                console.error('Failed to parse SSE data:', e);
-            }
-        };
-        
-        eventSource.onerror = (event) => {
-            const target = event.target as EventSource;
-            // Only flag as disconnected if actually closed or reconnecting
-            set((state) => {
-                const inst = state.instances[instanceKey];
-                if (!inst) return state;
-
-                // If EventSource.CLOSED (2), we could theoretically manual reconnect,
-                // but standard EventSource auto-reconnects indefinitely.
-                // If it's EventSource.CONNECTING (0), it is currently trying to reconnect
-                const isReconnecting = target.readyState === EventSource.CONNECTING;
-                
-                return {
-                    instances: {
-                        ...state.instances,
-                        [instanceKey]: {
-                            ...inst,
-                            error: isReconnecting ? 'Reconnecting...' : 'Connection error',
-                            loading: true
-                        }
-                    }
-                };
-            });
-            
-            // Note: We deliberately remove the old setTimeout manual reconnect here.
-            // Spawning a new EventSource on error causes exponential duplication 
-            // when the browser tab goes to sleep or the server goes down,
-            // as standard EventSource already auto-reconnects.
-        };
-
-        return eventSource;
-    };
-
-
-    if (!instances[key]) {
-      // First subscriber
-      const initialScopes = { [scope]: 1 };
-      const initialIntervals = [refreshInterval];
-
-      set((state) => ({
-        instances: {
-          ...state.instances,
-          [key]: {
-            data: null,
-            loading: true,
-            error: null,
-            subscribers: 1,
-            scopes: initialScopes,
-            eventSource: null,
-            intervals: initialIntervals
-          }
-        }
-      }));
-
-      // Start SSE after state is set
-      startSSE(key, refreshInterval);
-    } else {
-      // Already exists
-      set((state) => {
-        const instance = state.instances[key];
-        const newScopes = { ...instance.scopes };
-        newScopes[scope] = (newScopes[scope] || 0) + 1;
-        
-        const newIntervals = [...instance.intervals, refreshInterval];
-        return {
-          instances: {
-            ...state.instances,
-            [key]: {
-              ...instance,
-              subscribers: instance.subscribers + 1,
-              scopes: newScopes,
-              intervals: newIntervals,
-            }
-          }
-        };
-      });
-      
-      // Check if we need to restart SSE (new scope or faster interval)
-      const instance = get().instances[key];
-      const newMinInterval = Math.min(...instance.intervals);
-      const currentMinInterval = instance.intervals.length > 1 
-          ? Math.min(...instance.intervals.slice(0, -1)) 
-          : instance.intervals[0];
-      
-      // Check if this is a new scope that wasn't previously subscribed
-      const previousScopes = Object.keys(instances[key].scopes);
-      const isNewScope = !previousScopes.includes(scope);
-          
-      if (newMinInterval < currentMinInterval || isNewScope) {
-          if (instance.eventSource) {
-              instance.eventSource.close();
-          }
-          startSSE(key, newMinInterval);
-      }
-    }
+    set({ instances: { ...get().instances, [key]: {
+      ...instance, subscribers: instance.subscribers + 1,
+      scopes: { ...instance.scopes, [scope]: (instance.scopes[scope] || 0) + 1 },
+      intervals: [...instance.intervals, boundedInterval(refreshInterval)],
+    } } });
+    scheduleConnection(key);
   },
-
-  unsubscribe: ({ integrationId, scope = 'all', refreshInterval = 2000 }) => {
-    const { instances } = get();
-    const key = integrationId;
+  unsubscribe: ({ integrationId: key, scope = 'all', refreshInterval }) => {
     if (!key) return;
-
-    const instance = instances[key];
+    const instance = get().instances[key];
     if (!instance) return;
-
-    if (instance.subscribers <= 1) {
-      // Last subscriber, cleanup
-      if (instance.eventSource) {
-        instance.eventSource.close();
-      }
-      
-      const newInstances = { ...instances };
-      delete newInstances[key];
-      
-      set({ instances: newInstances });
-    } else {
-      set((state) => {
-        const currentInstance = state.instances[key];
-        const newScopes = { ...currentInstance.scopes };
-        
-        if (newScopes[scope]) {
-            newScopes[scope] -= 1;
-            if (newScopes[scope] <= 0) {
-                delete newScopes[scope];
-            }
-        }
-
-        // Remove one instance of this interval
-        const intervalIndex = currentInstance.intervals.indexOf(refreshInterval);
-        const newIntervals = [...currentInstance.intervals];
-        if (intervalIndex > -1) {
-            newIntervals.splice(intervalIndex, 1);
-        }
-
-        return {
-            instances: {
-                ...state.instances,
-                [key]: {
-                    ...currentInstance,
-                    subscribers: currentInstance.subscribers - 1,
-                    scopes: newScopes,
-                    intervals: newIntervals,
-                }
-            }
-        };
-      });
+    if (instance.subscribers === 1) {
+      clearTimeout(pending.get(key));
+      pending.delete(key);
+      instance.eventSource?.close();
+      const instances = { ...get().instances };
+      delete instances[key];
+      set({ instances });
+      return;
     }
-  }
+    const scopes = { ...instance.scopes };
+    if (--scopes[scope] <= 0) delete scopes[scope];
+    const intervals = [...instance.intervals];
+    const index = intervals.indexOf(boundedInterval(refreshInterval));
+    if (index !== -1) intervals.splice(index, 1);
+    set({ instances: { ...get().instances, [key]: {
+      ...instance, subscribers: instance.subscribers - 1, scopes, intervals,
+    } } });
+    // Removing a fast or expensive widget must also reduce the upstream work.
+    scheduleConnection(key);
+  },
 }));

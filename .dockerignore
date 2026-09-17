@@ -34,7 +34,8 @@ docs/
 info/
 
 # Test files
-scripts/
+scripts/*
+!scripts/prepare-database.mjs
 
 # Misc
 *.swp

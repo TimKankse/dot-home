@@ -1,56 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useLiveWidget } from '@/hooks/useLiveWidget';
 import styles from './JellyfinWidget.module.css';
 import { JellyfinSession, LibraryStats, JellyfinWidgetConfig } from './types';
 import { NowPlayingVariation } from './variations/NowPlayingVariation';
 import { LibrariesVariation } from './variations/LibrariesVariation';
-import { mergeSessionsPreservingOrder } from './utils';
-import { fetchJellyfinData } from '@/services/jellyfin';
 
 interface JellyfinWidgetProps {
   config?: JellyfinWidgetConfig;
 }
 
 export const JellyfinWidget: React.FC<JellyfinWidgetProps & { integrationId?: string }> = ({ config, integrationId }) => {
-  const [sessions, setSessions] = useState<JellyfinSession[]>([]);
-  const [libraries, setLibraries] = useState<LibraryStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const sessionFeed = useLiveWidget<JellyfinSession[]>(integrationId, 'sessions', config?.viewMode !== 'libraries');
+  const sessions = sessionFeed.data ?? [];
+  const needsLibraries = config?.viewMode === 'libraries' || (!config?.viewMode && sessionFeed.data?.length === 0);
+  const libraryFeed = useLiveWidget<LibraryStats[]>(integrationId, 'libraries', needsLibraries);
+  const libraries = libraryFeed.data ?? [];
+  const loading = needsLibraries ? libraryFeed.loading : sessionFeed.loading;
+  const error = needsLibraries ? libraryFeed.error : sessionFeed.error;
 
-  useEffect(() => {
-    let isSubscribed = true;
-
-    const loadData = async () => {
-      if (!integrationId) {
-        if (isSubscribed) setLoading(false);
-        return;
-      }
-
-      try {
-        const data = await fetchJellyfinData({ config, integrationId });
-        if (!isSubscribed) return;
-
-        setSessions((previousSessions) => mergeSessionsPreservingOrder(previousSessions, data.sessions));
-        setLibraries(data.libraries);
-        setLoading(false);
-      } catch (error) {
-        console.error('Failed to refresh Jellyfin:', error);
-        if (isSubscribed) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadData();
-    const refreshInterval = config?.viewMode === 'libraries' ? 60_000 : 10_000;
-    const intervalId = window.setInterval(loadData, refreshInterval);
-
-    return () => {
-      isSubscribed = false;
-      window.clearInterval(intervalId);
-    };
-  }, [config, integrationId]);
-
-  if (loading && sessions.length === 0 && libraries.length === 0) {
+  if (loading && !sessions.length && !libraries.length) {
     return <div className={styles.loadingContainer}>Loading...</div>;
+  }
+  if (error && !sessions.length && !libraries.length) {
+    return <div className={styles.loadingContainer}>{error}</div>;
   }
 
   if (config?.viewMode === 'libraries') {

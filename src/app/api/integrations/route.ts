@@ -1,3 +1,4 @@
+import { requireIntegrationRole } from '@/lib/widget-roles';
 import { NextResponse } from 'next/server';
 
 import {
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     const user = await requireApiUser(request);
     requireIntegrationManager(user);
     const body = parseCreateIntegrationRequest(await request.json());
+    await requireIntegrationRole(user, body.type);
     const integration = await prisma.integration.create({
       data: {
         userId: user.id,

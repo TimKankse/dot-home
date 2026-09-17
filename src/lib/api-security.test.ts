@@ -10,6 +10,7 @@ vi.mock('next-auth', () => ({ getServerSession: getServerSessionMock }));
 vi.mock('@/lib/db', () => ({ prisma: prismaMock }));
 
 import { requireApiUser } from './api-security';
+import { authOptions } from './auth';
 
 describe('API security', () => {
   beforeEach(() => {
@@ -62,5 +63,20 @@ describe('API security', () => {
     });
 
     await expect(requireApiUser()).resolves.toEqual({ id: 'user-1', role: 'viewer' });
+  });
+
+  it('uses one database validation per API session and revalidates the next request', async () => {
+    const jwt = authOptions.callbacks!.jwt!;
+    const sessionCallback = authOptions.callbacks!.session!;
+    getServerSessionMock.mockImplementation(async () => {
+      const token = await jwt({ token: { id: 'user-1', role: 'admin', sessionVersion: 0 } } as Parameters<typeof jwt>[0]);
+      return sessionCallback({ session: { user: { id: 'user-1', role: 'admin' }, expires: '' }, token } as Parameters<typeof sessionCallback>[0]);
+    });
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1', role: 'admin', disabledAt: null, sessionVersion: 0 });
+    await expect(requireApiUser()).resolves.toEqual({ id: 'user-1', role: 'admin' });
+    expect(prismaMock.user.findUnique).toHaveBeenCalledOnce();
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1', role: 'viewer', disabledAt: null, sessionVersion: 1 });
+    await expect(requireApiUser()).rejects.toMatchObject({ status: 401 });
+    expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,3 +1,5 @@
+import { readBoundedJson } from '@/lib/bounded-json';
+import { feedRateLimit, feedConcurrency } from '@/lib/request-limits';
 import IcalExpander from 'ical-expander';
 import { NextResponse } from 'next/server';
 
@@ -104,6 +106,7 @@ async function fetchICalEvents(url: string): Promise<CalendarFetchResult> {
       {
         policy: 'public-internet',
         timeoutMs: 10_000,
+            maxResponseBytes: 2 * 1024 * 1024,
         allowCrossOriginRedirects: true,
       },
     );
@@ -207,9 +210,13 @@ async function fetchSonarrEvents(connection: ArrConnection): Promise<CalendarFet
 }
 
 export async function POST(request: Request) {
+  let release: (() => void) | undefined;
   try {
     const user = await requireApiUser(request);
-    const body = assertRecord(await request.json(), 'Calendar request');
+    if (!feedRateLimit.allow(user.id) || !(release = feedConcurrency.acquire(user.id))) {
+      throw new ApiSecurityError('Too many feed requests', 429, 'rate_limit_exceeded');
+    }
+    const body = assertRecord(await readBoundedJson(request), 'Calendar request');
     const rawIcalUrls = body.icalUrls ?? [];
     if (!Array.isArray(rawIcalUrls) || rawIcalUrls.length > 10) {
       throw new ValidationError('icalUrls must contain at most 10 URLs');
@@ -251,5 +258,5 @@ export async function POST(request: Request) {
     return NextResponse.json(allEvents);
   } catch (error) {
     return apiSecurityErrorResponse(error, 'Failed to fetch calendar data');
-  }
+  } finally { release?.(); }
 }

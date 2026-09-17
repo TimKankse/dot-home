@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
+  widgetPermission: { findUnique: vi.fn().mockResolvedValue(null) },
   integration: {
     findMany: vi.fn(),
     create: vi.fn(),
@@ -216,4 +217,13 @@ describe('integration management routes', () => {
       where: { id: 'integration-1' },
     });
   });
+  it.each(['netdata', 'portainer'])('prevents a member creating an admin-only %s integration', async (type) => {
+    securityMock.requireApiUser.mockResolvedValue({ id: 'user-1', role: 'member' });
+    const response = await POST(new Request('https://home.test/api/integrations', {
+      method: 'POST', body: JSON.stringify({ name: 'Admin service', type, config: { url: 'http://private.test', ...(type === 'portainer' ? { apiKey: 'test' } : {}) } }),
+    }));
+    expect(response.status).toBe(404);
+    expect(prismaMock.integration.create).not.toHaveBeenCalled();
+  });
+
 });

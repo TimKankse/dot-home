@@ -2,7 +2,7 @@ import type React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SCROLL_SNAP_SETTLE_MS, useScrollNavigation } from './useScrollNavigation';
+import { PAGE_TRANSITION_MS, SCROLL_SNAP_SETTLE_MS, useScrollNavigation } from './useScrollNavigation';
 
 interface HarnessProps {
   currentPageIndex: number;
@@ -61,8 +61,9 @@ describe('useScrollNavigation', () => {
 
   beforeEach(() => {
     vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout'],
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'],
     });
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
 
     scrollToMock = vi.fn(function scrollTo(
       this: HTMLElement,
@@ -107,6 +108,7 @@ describe('useScrollNavigation', () => {
     vi.restoreAllMocks();
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     document.body.innerHTML = '';
   });
 
@@ -212,7 +214,7 @@ describe('useScrollNavigation', () => {
     });
   });
 
-  it('uses smooth scrolling for later programmatic page changes', () => {
+  it('finishes a page transition at the configured duration with a quick start', () => {
     const { rerender } = render(
       <ScrollNavigationHarness
         currentPageIndex={0}
@@ -235,11 +237,62 @@ describe('useScrollNavigation', () => {
       />
     );
 
-    expect(scrollToMock).toHaveBeenCalledWith({
+    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS / 2));
+    const viewport = screen.getByTestId('viewport');
+    expect(viewport.scrollLeft).toBeGreaterThan(750);
+    expect(viewport.scrollLeft).toBeLessThan(1000);
+    expect(viewport.style.scrollSnapType).toBe('none');
+    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS / 2));
+    // The configured duration may fall between the simulated 16ms frames.
+    act(() => vi.advanceTimersToNextFrame());
+    expect(scrollToMock).toHaveBeenLastCalledWith({
       top: 0,
       left: 1000,
-      behavior: 'smooth',
+      behavior: 'instant',
     });
+    expect(viewport.style.scrollSnapType).toBe('');
+  });
+
+  it('retargets rapid page changes instead of queueing animations', () => {
+    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'horizontal' as const };
+    const { rerender } = render(<ScrollNavigationHarness {...props} />);
+    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
+    act(() => vi.advanceTimersByTime(48));
+    rerender(<ScrollNavigationHarness {...props} currentPageIndex={3} />);
+    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS));
+    act(() => vi.advanceTimersToNextFrame());
+    expect(screen.getByTestId('viewport').scrollLeft).toBe(3000);
+    expect(screen.getByTestId('viewport').style.scrollSnapType).toBe('');
+    const calls = scrollToMock.mock.calls.length;
+    act(() => vi.advanceTimersByTime(500));
+    expect(scrollToMock).toHaveBeenCalledTimes(calls);
+  });
+
+  it('lets direct input interrupt the animation and restores scroll tracking', () => {
+    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'horizontal' as const };
+    const { rerender } = render(<ScrollNavigationHarness {...props} />);
+    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
+    act(() => vi.advanceTimersByTime(48));
+    const viewport = screen.getByTestId('viewport');
+    act(() => viewport.dispatchEvent(new Event('wheel')));
+    expect(viewport.style.scrollSnapType).toBe('');
+    const calls = scrollToMock.mock.calls.length;
+    viewport.scrollLeft = 2000;
+    act(() => {
+      viewport.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersByTime(PAGE_TRANSITION_MS);
+    });
+    expect(scrollToMock).toHaveBeenCalledTimes(calls);
+    expect(props.setPageIndex).toHaveBeenCalledWith(2);
+  });
+
+  it('switches pages immediately when reduced motion is requested', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
+    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'vertical' as const };
+    const { rerender } = render(<ScrollNavigationHarness {...props} />);
+    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
+    expect(scrollToMock).toHaveBeenLastCalledWith({ top: 800, left: 0, behavior: 'instant' });
+    expect(screen.getByTestId('viewport').style.scrollSnapType).toBe('');
   });
 
   it('tracks the snapped page after horizontal scrolling settles', () => {

@@ -7,6 +7,8 @@ import {
   resolveIntegrationBaseUrl,
   resolveRequestIntegration,
 } from '@/lib/integration-connection';
+import { refreshLiveIntegration } from '@/lib/live/registry';
+import { sanitizeSabnzbdQueue } from '@/lib/live/sabnzbd';
 import { fetchOutbound } from '@/lib/outbound-http';
 
 async function callSabnzbd(request: Request, mode: 'queue' | 'pause' | 'resume') {
@@ -32,7 +34,12 @@ async function callSabnzbd(request: Request, mode: 'queue' | 'pause' | 'resume')
       { status: response.status },
     );
   }
-  return NextResponse.json(await response.json());
+  if (mode === 'queue') {
+    const data = await response.json();
+    return NextResponse.json({ queue: sanitizeSabnzbdQueue(data.queue) });
+  }
+  refreshLiveIntegration(integration.id);
+  return NextResponse.json(response.body ? await response.json() : { status: true });
 }
 
 export async function GET(request: Request) {

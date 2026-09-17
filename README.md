@@ -125,6 +125,8 @@ Run with `docker compose up -d`.
 
 ### Manual Installation (Development)
 
+Use Node.js 24 LTS (also specified in `.nvmrc`).
+
 ```bash
 # Clone the repository
 git clone https://github.com/TimKankse/dot-home.git
@@ -240,7 +242,8 @@ npm run build
 
 | Layer | Technology |
 |:------|:-----------|
-| **Framework** | Next.js 15+ (App Router) |
+| **Framework** | Next.js 16 (App Router) + React 19 |
+| **Runtime** | Node.js 24 LTS |
 | **Language** | TypeScript |
 | **Styling** | CSS Modules + CSS Variables |
 | **State** | Zustand |

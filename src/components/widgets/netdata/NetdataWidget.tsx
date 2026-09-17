@@ -36,11 +36,12 @@ const appendHistoryPoint = (history: SparklinePoint[], point: SparklinePoint) =>
 );
 
 export const NetdataWidget: React.FC<NetdataWidgetProps & { integrationId?: string; title?: string }> = ({ isEditing = false, config, integrationId, title }) => {
-  const { instances, subscribe, unsubscribe } = useNetdataStore();
+  const instance = useNetdataStore(state => integrationId ? state.instances[integrationId] : undefined);
+  const subscribe = useNetdataStore(state => state.subscribe);
+  const unsubscribe = useNetdataStore(state => state.unsubscribe);
   const { integrations } = useIntegrationStore();
   
   const key = integrationId;
-  const instance = key ? instances[key] : null;
   const data = instance?.data || null;
   const loading = instance?.loading || false;
   const error = instance?.error || null;

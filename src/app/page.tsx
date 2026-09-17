@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from "./page.module.css";
 import { WidgetRenderer } from "@/components/core/WidgetRenderer";
+import { WidgetActivity } from '@/components/core/WidgetActivity';
+import { isPageWithinBuffer } from '@/utils/pageBuffer';
 import { DashboardGrid } from "@/components/core/DashboardGrid";
 import { CustomDragGhost } from "@/components/core/CustomDragGhost";
 import { TouchHoldGridItemContent } from "@/components/core/TouchHoldGridItemContent";
@@ -37,6 +39,7 @@ import {
 
 interface DashboardPageContentProps {
   pageId: string;
+  active: boolean;
   widgets: Widget[];
   rowOffset: number;
   contentHeight: number;
@@ -61,6 +64,7 @@ const PREVIEW_VIEWPORT_OFFSETS: Record<ResponsiveBreakpointKey, number> = {
 
 const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
   pageId,
+  active,
   widgets,
   rowOffset,
   contentHeight,
@@ -145,13 +149,15 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({
               data-widget-id={widget.id}
             >
               <TouchHoldGridItemContent isEditing={allowGridEditing}>
-                <WidgetRenderer
-                  widget={widget}
-                  isEditing={allowGridEditing}
-                  canEditDashboard={canEditDashboard}
-                  onEdit={handleEditWidget}
-                  showWidgetNames={showWidgetNames}
-                />
+                <WidgetActivity active={active}>
+                  <WidgetRenderer
+                    widget={widget}
+                    isEditing={allowGridEditing}
+                    canEditDashboard={canEditDashboard}
+                    onEdit={handleEditWidget}
+                    showWidgetNames={showWidgetNames}
+                  />
+                </WidgetActivity>
               </TouchHoldGridItemContent>
             </div>
           );
@@ -202,6 +208,8 @@ export default function Home() {
     mainRef,
   } = useResponsiveState();
   const updateDisplaySettings = useSettingsStore((state) => state.updateDisplay);
+  const pageBufferEnabled = useSettingsStore((state) => state.settings.behavior.pageBufferEnabled);
+  const pageBufferSize = useSettingsStore((state) => state.settings.behavior.pageBufferSize);
 
   const [rowHeight, setRowHeight] = useState(100);
   const [columnWidth, setColumnWidth] = useState(150);
@@ -627,7 +635,7 @@ export default function Home() {
             ['--total-pages' as string]: renderedPages.length,
           } as React.CSSProperties}
         >
-          {renderedPages.map((page) => {
+          {renderedPages.map((page, pageIndex) => {
             const { maxRows } = getGridDimensions(renderedBreakpoint);
             const usedRows = page.widgets.reduce<number>(
               (maxRow, widget) => Math.max(maxRow, widget.grid.y + widget.grid.h),
@@ -645,6 +653,7 @@ export default function Home() {
               >
                 <DashboardPageContent
                   pageId={page.basePageId}
+                  active={isPageWithinBuffer(pageIndex, renderedPageIndex, pageBufferEnabled, pageBufferSize)}
                   widgets={page.widgets}
                   rowOffset={page.rowOffset}
                   contentHeight={pageContentHeight}

@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { validateAppMutationRequest } from '@/lib/request-security';
 import { ValidationError } from '@/lib/validation';
+import { takeValidatedSessionUser } from '@/lib/validated-session';
 
 export type ApiUser = {
   id: string;
@@ -41,6 +42,10 @@ export async function requireApiUser(request?: Request): Promise<ApiUser> {
     throw new ApiSecurityError('Unauthorized', 401, 'unauthorized');
   }
 
+  const validatedUser = takeValidatedSessionUser(session);
+  if (validatedUser) return validatedUser;
+
+  // Fail safely if a session provider doesn't preserve the callback object.
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, role: true, disabledAt: true },

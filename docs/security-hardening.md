@@ -21,7 +21,7 @@ The intended request flow is:
 - Use `requireApiUser` for route-level authentication instead of relying only on the global proxy.
 - Use `resolveAuthorizedIntegration` for ownership, sharing, type, and operation checks.
 - Use `fetchOutbound` for protocol, timeout, redirect, and network-policy enforcement.
-- Poll Jellyfin through the same-origin sessions route. Do not establish a browser WebSocket or put an API key in an image URL.
+- Jellyfin live sessions use a server-side WebSocket with HTTP fallback. The browser receives a same-origin event stream; API keys never enter browser WebSockets or image URLs.
 - Remove the endpoint that returns environment-level Jellyfin credentials.
 - Inline Jellyfin credentials are no longer accepted by server routes.
 
@@ -36,8 +36,7 @@ Private or authenticated RSS feeds use the same stored-integration path.
 - Verify the integration type before decrypting its configuration.
 - Replace Jellyseerr's arbitrary `path` proxy with explicit handlers for each supported operation.
 - Replace Portainer's arbitrary `action` with a server-side allowlist.
-- Key qBittorrent session caching by integration ID, invalidate it when the
-  configured origin changes, and keep the cache bounded.
+- Key qBittorrent session caching by integration ID and complete configuration, and keep the cache bounded.
 - Remove all raw credential headers and request bodies after legacy configs are migrated.
 
 ### Phase 3: migrate and redact configuration (implemented)
@@ -54,8 +53,9 @@ The idempotent migration:
 5. Encrypts any sensitive personal configuration that cannot yet be normalized.
 6. Reports every migrated and skipped widget and can be safely rerun.
 
-It runs automatically during server startup and after a legacy dashboard is
-saved. It only creates a backup when changes are needed. Use
+It runs automatically during server startup. Saves with legacy connection settings
+run migration only for the saved dashboard and its owner's integrations; ordinary
+layout saves skip the scan. It only creates a backup when changes are needed. Use
 `npm run security:migrate-integrations` for a manual report-only run.
 After reviewing its output, use
 `npm run security:migrate-integrations -- --apply`. Apply mode creates a
@@ -71,8 +71,10 @@ After migration:
 ### Phase 4: dedicated URL endpoints (partially implemented)
 
 - Public RSS and iCal URLs use the DNS-pinned `public-internet` outbound policy,
-  ten-URL request limits, and request timeouts. Response-size limits and
-  content-type validation remain to be added.
+  ten-URL request limits, timeouts, 64 KiB request-body limits, and 2 MiB
+  decoded response limits. Feed requests are limited to 30 per user per minute,
+  two concurrent requests per user, and 16 concurrent requests per process.
+  Content-type validation remains a possible additional restriction.
 - Private or authenticated RSS feeds must be stored as RSS integrations. Their
   encrypted URLs remain server-side and use the `trusted-integration` policy
   with cross-origin redirects disabled.
@@ -87,10 +89,10 @@ HTTP Host and TLS server name.
 
 ### Phase 5: authorization and operational controls
 
-- Enforce widget roles on API routes; client-side visibility is not an authorization boundary.
+- Enforce stored widget-role policies (or centralized defaults) on integration creation and every integration resolver, in addition to object permissions; ownership does not bypass role restrictions. Client-side visibility is not an authorization boundary. (implemented)
 - Ownership always outranks permission overrides so an owner cannot be blocked from their own object. (implemented)
 - Permission reads and changes require object ownership or administrator authority. Shared editors cannot administer access. (implemented)
-- Add rate limits and concurrency limits to expensive proxy and streaming routes.
+- Feed and live-stream routes enforce rate/concurrency or connection limits. Login attempts are limited per normalized account (10 per 15 minutes), globally (100 per minute), and to four concurrent password checks. Limits are process-local. (implemented)
 - Record structured security events without URLs containing credentials.
 - Require a stable `CONFIG_ENCRYPTION_SECRET` in production instead of generating one at runtime.
 
@@ -147,3 +149,76 @@ manager, replace that value instead, then recreate/restart the application. Do n
 print the replacement secret into logs or commit it. Rotation invalidates existing
 sessions after restart. Keep `CONFIG_ENCRYPTION_SECRET` unchanged so stored
 integration credentials remain decryptable.
+
+
+## Live updates and patched runtime (September 2026)
+
+Downloads and Jellyfin use one combined SSE connection per browser tab. A shared
+worker is keyed by integration ID, channel, and a digest of the full stored
+configuration. Each subscriber must independently pass session, widget-role, and
+object-permission checks before it can receive even a cached snapshot. Open
+streams recheck access every 15 seconds, stop delivering if revalidation stalls
+for 20 seconds, and reconnect after at most five minutes. Configuration changes
+reset the stream so old credentials and snapshots are not reused.
+
+The server permits eight live connections per user, 64 total live connections,
+and 128 active workers per process. Queues are bounded for slow readers; upstream
+WebSocket messages and outgoing snapshots are limited to 2 MiB. Workers cancel
+when the last subscriber leaves. Hidden browser tabs close their live connection.
+Netdata uses a separate SSE connection per integration, with matching views sharing
+one server worker. Its streams use the same session/access revalidation and global
+connection bounds. Netdata caches coalesce concurrent requests, expire entries,
+and limit cached JSON to 128 entries / 32 MiB with 2 MiB per upstream response.
+
+Jellyfin WebSockets use the vetted DNS addresses, preserve the original hostname
+for TLS, disable redirects, and send credentials in a header. HTTP fallback keeps
+sessions working when the upstream WebSocket is unavailable. Next's generic remote
+image optimizer allowlist has been removed; the application only uses next/image
+for its local logo. Dedicated authorized image routes remain available.
+
+Use Node 24 (`.nvmrc`, CI, and both Docker stages). React remains on patched 19.2;
+Next and NextAuth are updated. Prisma's CLI is a production dependency because the
+container uses it at startup, and is installed from the same audited lockfile as
+the application. Fresh SQLite files are created exclusively with private permissions
+before schema synchronization, without truncating existing data. Both Alpine
+stages install OpenSSL for Prisma's native engine. The scoped `@prisma/config` override selects deepmerge-ts 8.0.0
+for its recursion fix; remove it once Prisma ships that dependency itself. This
+avoids an unrelated Prisma major-version and database-adapter migration.
+
+These are process-local controls for the single-process container. Multiple
+application replicas need a shared broker/limiter for equivalent global bounds.
+Serve SSE through an HTTP/2-capable reverse proxy with buffering disabled when
+using many browser tabs; direct HTTP/1.1 browser connections have a low per-origin
+connection limit. Reverse-proxy idle timeouts should exceed the 15-second heartbeat.
+
+## Performance behavior
+
+- Dashboard pages outside the configured page buffer and hidden browser tabs
+  suspend widget effects while preserving widget state and grid geometry. In
+  Settings → General → Behavior, Page Buffer defaults to enabled with one page
+  on each side of the current page. A size of zero activates only the current
+  page; disabling the buffer keeps all pages active. The range follows rendered
+  pages, including mobile/tablet splits, and stops at the first and last page.
+  Timers and subscriptions resume when a page enters the buffer. Hidden browser
+  tabs pause regardless of buffer settings. This uses React's Activity boundary.
+- Netdata batches widget subscriptions, requests only active scopes, and reduces
+  the refresh rate when the fastest widget leaves. Matching integration/config,
+  scope, process-limit and interval combinations share polling and processing.
+  Different combinations still share cached upstream JSON where applicable.
+- Netdata metrics/process/mount data have a 1.5-second cache lifetime, system info
+  one minute, and function discovery five minutes. Lifetimes start after a request
+  completes. Independent upstream endpoints load concurrently. Polling backs off
+  on failures and never overlaps within a worker.
+- Leaving the last subscriber cancels pending upstream requests. A subscriber
+  leaving a shared request does not cancel other readers' work.
+- Startup still performs the full legacy migration. Ordinary saves do no migration
+  queries, and legacy saves avoid other dashboards and personal configurations.
+  Migration uses a conditional update to avoid overwriting a concurrent save.
+- API authorization reuses the database validation performed by NextAuth for that
+  exact session object, removing one duplicate lookup. This is consumed once and
+  never caches authentication or revocation decisions across requests. Proxy and
+  stream revalidation remain in place.
+
+Sharing and caches are per Node process. Actual CPU and memory use depend on the
+number of distinct active integrations, response sizes, and upstream latency; the
+request-sharing tests do not establish a production user-capacity limit.

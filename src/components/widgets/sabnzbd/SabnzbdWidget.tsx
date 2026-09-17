@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useLiveWidget } from '@/hooks/useLiveWidget';
 import styles from './SabnzbdWidget.module.css';
 import { Download, Clock, CheckCircle, Pause, Play, AlertCircle } from 'lucide-react';
 import { List } from '@/components/primitives/list/List';
 import { 
-  fetchSabnzbdQueue, 
   toggleSabnzbdPause, 
   formatSize,
   formatSpeed,
@@ -18,43 +17,16 @@ interface SabnzbdWidgetProps {
 }
 
 export function SabnzbdWidget({ config, integrationId }: SabnzbdWidgetProps) {
-  const [data, setData] = useState<QueueData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadData = useCallback(async () => {
-    if (!integrationId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const queue = await fetchSabnzbdQueue({ config, integrationId });
-      setData(queue);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to connect to SABnzbd');
-    } finally {
-      setLoading(false);
-    }
-  }, [config, integrationId]);
+  const { data, loading, error } = useLiveWidget<QueueData>(integrationId, 'queue');
 
   const handleTogglePause = async () => {
     if (!data) return;
     try {
       await toggleSabnzbdPause(data.paused, { config, integrationId });
-      loadData();
     } catch (err) {
       console.error('Failed to toggle pause', err);
     }
   };
-
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 2000);
-    return () => clearInterval(interval);
-  }, [loadData]);
 
   if (!integrationId) {
     return (

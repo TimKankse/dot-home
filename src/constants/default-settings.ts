@@ -1,4 +1,5 @@
 import { DEFAULT_BREAKPOINT_THRESHOLDS } from '@/constants/grid';
+import { DEFAULT_PAGE_BUFFER_SIZE, normalizePageBufferSize } from '@/utils/pageBuffer';
 import type {
   BehaviorSettings,
   DisplaySettings,
@@ -17,6 +18,8 @@ const DEFAULT_BEHAVIOR_SETTINGS: BehaviorSettings = {
   autoDetectLocation: true,
   confirmEdit: false,
   autoSave: true,
+  pageBufferEnabled: true,
+  pageBufferSize: DEFAULT_PAGE_BUFFER_SIZE,
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
@@ -69,6 +72,10 @@ export const mergeGeneralSettings = (
     behavior: {
       ...defaults.behavior,
       ...(overrides?.behavior ?? {}),
+      pageBufferEnabled: typeof overrides?.behavior?.pageBufferEnabled === 'boolean'
+        ? overrides.behavior.pageBufferEnabled
+        : defaults.behavior.pageBufferEnabled,
+      pageBufferSize: normalizePageBufferSize(overrides?.behavior?.pageBufferSize),
     },
     display: {
       ...defaults.display,
