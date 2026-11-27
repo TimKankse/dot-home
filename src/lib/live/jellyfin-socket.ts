@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { resolveOutboundTarget } from '@/lib/outbound-http';
-import type { JellyfinConnection } from '@/lib/jellyfin-connection';
+import { jellyfinAuthHeaders, type JellyfinConnection } from '@/lib/jellyfin-connection';
 import { buildIntegrationUrl } from '@/lib/integration-connection';
 
 // WebSocket upgrades use the same vetted DNS result as HTTP, never follow
@@ -26,7 +26,7 @@ export function watchJellyfinSessions(
       const url = new URL(target.url);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       const ws = new WebSocket(url, {
-        headers: { 'X-Emby-Token': connection.apiKey },
+        headers: jellyfinAuthHeaders(connection.apiKey),
         followRedirects: false,
         handshakeTimeout: 5000,
         maxPayload: 2 * 1024 * 1024,

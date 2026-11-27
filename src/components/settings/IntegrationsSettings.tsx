@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Link2, ArrowLeft, Check } from 'lucide-react';
 import { useIntegrationStore } from '@/store/useIntegrationStore';
 import { 
   Integration, 
+  IntegrationCredentialField,
   IntegrationType, 
   INTEGRATION_TYPE_META,
   getIntegrationTypeMeta 
@@ -27,18 +28,15 @@ export const IntegrationsSettings: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<IntegrationType | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   
   // Form state
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [userId, setUserId] = useState('');
   const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
   const [endpointId, setEndpointId] = useState('');
-  const [feedUrl, setFeedUrl] = useState('');
 
   const resetForm = () => {
     setViewMode('list');
@@ -46,21 +44,19 @@ export const IntegrationsSettings: React.FC = () => {
     setSelectedType(null);
     setName('');
     setUrl('');
-    setApiKey('');
     setUsername('');
-    setPassword('');
     setUserId('');
     setClientId('');
-    setClientSecret('');
     setEndpointId('');
-    setFeedUrl('');
     setIsSaving(false);
+    setSaveError(null);
   };
 
   const handleSelectType = (type: IntegrationType) => {
     setSelectedType(type);
     const meta = getIntegrationTypeMeta(type);
     setName(meta?.label || type);
+    setSaveError(null);
     setViewMode('add-form');
   };
 
@@ -71,22 +67,33 @@ export const IntegrationsSettings: React.FC = () => {
     
     const config = integration.config as Record<string, string | undefined>;
     setUrl(config.url || '');
-    setApiKey(config.apiKey || '');
     setUsername(config.username || '');
-    setPassword(config.password || '');
     setUserId(config.userId || '');
     setClientId(config.clientId || '');
-    setClientSecret(config.clientSecret || '');
     setEndpointId(config.endpointId || '');
-    setFeedUrl(config.secretUrl || '');
     
     setViewMode('edit');
   };
 
-  const buildConfig = (): Record<string, string> => {
+  const credentialStatus = integrations.find(({ id }) => id === editingId)?.credentialStatus;
+
+  const credentialInputProps = (field: IntegrationCredentialField, placeholder?: string) => {
+    const status = credentialStatus?.[field];
+    return {
+      name: field,
+      placeholder: status === 'saved' ? 'Saved. Enter a replacement to change it.' : placeholder,
+      error: status === 'unreadable'
+        ? 'Saved credential can’t be decrypted. Enter a replacement.'
+        : undefined,
+    };
+  };
+
+  const buildConfig = (fields: FormData): Record<string, string> => {
     const config: Record<string, string> = {};
-    
-    if (!selectedType) return config;
+    const apiKey = String(fields.get('apiKey') ?? '');
+    const password = String(fields.get('password') ?? '');
+    const clientSecret = String(fields.get('clientSecret') ?? '');
+    const feedUrl = String(fields.get('secretUrl') ?? '');
     
     // Add fields based on type
     switch (selectedType) {
@@ -127,51 +134,43 @@ export const IntegrationsSettings: React.FC = () => {
     return config;
   };
 
-  const handleSave = async () => {
-    if (!name || !selectedType) return;
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!name || !selectedType || isSaving) return;
 
+    const config = buildConfig(new FormData(event.currentTarget));
     setIsSaving(true);
-    const config = buildConfig();
+    setSaveError(null);
 
     try {
-      if (editingId) {
-        // Update existing
-        const res = await apiFetch('/api/integrations', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingId,
-            name,
-            type: selectedType,
-            config
-          }),
-        });
+      const response = await apiFetch('/api/integrations', {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId ?? undefined, name, type: selectedType, config }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setSaveError(typeof body?.error === 'string' ? body.error : 'Failed to save integration');
+        return;
+      }
 
-        if (!res.ok) throw new Error('Failed to update integration');
-        
-        const updated = await res.json() as Integration;
-        updateIntegration(editingId, updated);
-      } else {
-        const res = await apiFetch('/api/integrations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name,
-            type: selectedType,
-            config
-          }),
-        });
+      const saved = await response.json() as Integration;
+      if (editingId) updateIntegration(editingId, saved);
+      else addIntegration(saved);
 
-        if (!res.ok) throw new Error('Failed to create integration');
-        
-        const created = await res.json() as Integration;
-        addIntegration(created);
+      if (Object.values(saved.credentialStatus ?? {}).includes('unreadable')) {
+        if (!editingId) {
+          setEditingId(saved.id);
+          setViewMode('edit');
+        }
+        setSaveError('Settings saved. An unreadable credential still needs to be replaced.');
+        return;
       }
 
       resetForm();
     } catch (error) {
       console.error(error);
-      alert('Failed to save integration');
+      setSaveError('Failed to save integration');
     } finally {
       setIsSaving(false);
     }
@@ -252,9 +251,7 @@ export const IntegrationsSettings: React.FC = () => {
             <Input 
               label="API Key"
               type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="API Key / Token"
+              {...credentialInputProps('apiKey', 'API Key / Token')}
             />
           </div>
         )}
@@ -295,8 +292,7 @@ export const IntegrationsSettings: React.FC = () => {
               <Input 
                 label="Password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...credentialInputProps('password')}
               />
             </div>
           </>
@@ -316,9 +312,7 @@ export const IntegrationsSettings: React.FC = () => {
               <Input 
                 label="Client Secret"
                 type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                placeholder="Twitch Client Secret"
+                {...credentialInputProps('clientSecret', 'Twitch Client Secret')}
               />
             </div>
           </>
@@ -329,9 +323,7 @@ export const IntegrationsSettings: React.FC = () => {
             <Input
               label="Private or authenticated feed URL"
               type="password"
-              value={feedUrl}
-              onChange={(event) => setFeedUrl(event.target.value)}
-              placeholder="http://192.168.1.10:8080/feed"
+              {...credentialInputProps('secretUrl', 'http://192.168.1.10:8080/feed')}
             />
           </div>
         )}
@@ -344,9 +336,10 @@ export const IntegrationsSettings: React.FC = () => {
     const typeMeta = selectedType ? getIntegrationTypeMeta(selectedType) : null;
     
     return (
-      <div className={styles.form}>
+      <form key={editingId ?? selectedType} className={styles.form} onSubmit={handleSave}>
         <div className={styles.formHeader}>
           <Button 
+            type="button"
             onClick={() => editingId ? resetForm() : setViewMode('add-select-type')} 
             variant="ghost" 
             size="icon" 
@@ -369,9 +362,11 @@ export const IntegrationsSettings: React.FC = () => {
         </div>
 
         {renderFormFields()}
+        {saveError && <div className={styles.errorBanner} role="alert">{saveError}</div>}
 
         <div className={styles.formActions}>
           <Button 
+            type="button"
             onClick={resetForm} 
             variant="secondary"
             disabled={isSaving}
@@ -379,7 +374,7 @@ export const IntegrationsSettings: React.FC = () => {
             Cancel
           </Button>
           <Button 
-            onClick={handleSave} 
+            type="submit"
             variant="primary"
             leftIcon={isSaving ? undefined : <Check size={16} />}
             disabled={isSaving}
@@ -387,7 +382,7 @@ export const IntegrationsSettings: React.FC = () => {
             {isSaving ? 'Saving...' : (editingId ? 'Update' : 'Save')}
           </Button>
         </div>
-      </div>
+      </form>
     );
   };
 
@@ -430,6 +425,7 @@ export const IntegrationsSettings: React.FC = () => {
                   onClick={() => handleEdit(integration)} 
                   variant="ghost"
                   size="icon"
+                  aria-label={`Edit ${integration.name}`}
                 >
                   <Pencil size={18} />
                 </Button>

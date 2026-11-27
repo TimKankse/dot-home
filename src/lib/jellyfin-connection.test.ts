@@ -73,6 +73,20 @@ describe('Jellyfin connection resolution', () => {
     expect(validateOutboundUrlMock).not.toHaveBeenCalled();
   });
 
+  it('rejects a stored API key that could not be decrypted', async () => {
+    resolveAuthorizedIntegrationMock.mockResolvedValue({
+      config: { url: 'http://jellyfin.test', apiKey: 'enc:unreadable' },
+    });
+    const request = new Request('https://home.example.test/api/jellyfin/sessions', {
+      headers: { 'x-integration-id': 'integration-1' },
+    });
+
+    await expect(resolveJellyfinConnection(request)).rejects.toMatchObject({
+      code: 'invalid_integration_config',
+    });
+    expect(validateOutboundUrlMock).not.toHaveBeenCalled();
+  });
+
   it('also rejects inline credentials from admins after automatic migration', async () => {
     requireApiUserMock.mockResolvedValue({ id: 'admin-1', role: 'admin' });
     resolveAuthorizedIntegrationMock.mockRejectedValue({

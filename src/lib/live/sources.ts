@@ -1,5 +1,6 @@
 import type { AuthorizedIntegration } from '@/lib/integration-access';
 import { buildIntegrationUrl, requireIntegrationConfigString, resolveIntegrationBaseUrl } from '@/lib/integration-connection';
+import { jellyfinAuthHeaders } from '@/lib/jellyfin-connection';
 import { fetchOutbound } from '@/lib/outbound-http';
 import { createQbittorrentReader } from './qbittorrent';
 import { readJellyfinLibraries } from './jellyfin-libraries';
@@ -74,7 +75,7 @@ export function createLiveSource(integration: AuthorizedIntegration, channel: Li
       if (watcher?.isReceiving() && latest) return { data: latest, intervalMs: 10_000 };
       const resolved = await connection();
       const response = await fetchOutbound(buildIntegrationUrl(resolved.url, '/Sessions'), {
-        signal, headers: { 'X-Emby-Token': resolved.apiKey },
+        signal, headers: jellyfinAuthHeaders(resolved.apiKey),
       }, { policy: 'trusted-integration', maxResponseBytes: 2 * 1024 * 1024 });
       if (!response.ok) throw new Error('Sessions unavailable');
       return { data: prepareSessions(await response.json()), intervalMs: 10_000 };

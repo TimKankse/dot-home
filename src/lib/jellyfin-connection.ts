@@ -9,6 +9,10 @@ export type JellyfinConnection = {
   source: 'integration';
 };
 
+export function jellyfinAuthHeaders(apiKey: string): { Authorization: string } {
+  return { Authorization: `MediaBrowser Token="${apiKey}"` };
+}
+
 const readString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
@@ -29,7 +33,7 @@ export async function resolveJellyfinConnection(
   });
   const rawUrl = readString(integration.config.externalUrl) || readString(integration.config.url);
   const apiKey = readString(integration.config.apiKey);
-  if (!rawUrl || !apiKey) {
+  if (!rawUrl || !apiKey || apiKey.startsWith('enc:')) {
     throw new ApiSecurityError(
       'Jellyfin integration is incomplete',
       500,

@@ -1,8 +1,8 @@
 import type React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PAGE_TRANSITION_MS, SCROLL_SNAP_SETTLE_MS, useScrollNavigation } from './useScrollNavigation';
+import { useScrollNavigation } from './useScrollNavigation';
 
 interface HarnessProps {
   currentPageIndex: number;
@@ -17,7 +17,7 @@ const ScrollNavigationHarness = (props: HarnessProps) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  useScrollNavigation({
+  const onScroll = useScrollNavigation({
     ...props,
     viewportRef,
     wrapperRef,
@@ -28,7 +28,7 @@ const ScrollNavigationHarness = (props: HarnessProps) => {
   }
 
   return (
-    <div data-testid="viewport" ref={viewportRef}>
+    <div data-testid="viewport" ref={viewportRef} onScroll={onScroll}>
       <div
         data-testid="wrapper"
         ref={wrapperRef}
@@ -60,24 +60,11 @@ describe('useScrollNavigation', () => {
   let scrollToMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'],
-    });
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+    vi.useFakeTimers();
 
-    scrollToMock = vi.fn(function scrollTo(
-      this: HTMLElement,
-      options?: ScrollToOptions | number,
-      maybeTop?: number,
-    ) {
-      if (typeof options === 'number') {
-        this.scrollLeft = options;
-        this.scrollTop = maybeTop ?? 0;
-        return;
-      }
-
-      this.scrollLeft = options?.left ?? this.scrollLeft;
-      this.scrollTop = options?.top ?? this.scrollTop;
+    scrollToMock = vi.fn(function scrollTo(this: HTMLElement, options: ScrollToOptions) {
+      this.scrollLeft = options.left ?? this.scrollLeft;
+      this.scrollTop = options.top ?? this.scrollTop;
     });
 
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
@@ -108,7 +95,6 @@ describe('useScrollNavigation', () => {
     vi.restoreAllMocks();
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
-    vi.unstubAllGlobals();
     document.body.innerHTML = '';
   });
 
@@ -126,7 +112,7 @@ describe('useScrollNavigation', () => {
     expect(scrollToMock).toHaveBeenCalledWith({
       top: 0,
       left: 2000,
-      behavior: 'auto',
+      behavior: 'instant',
     });
   });
 
@@ -157,9 +143,7 @@ describe('useScrollNavigation', () => {
     const viewport = screen.getByTestId('viewport');
     viewport.scrollLeft = 1200;
 
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-    });
+    fireEvent.scroll(viewport);
 
     expect(setPageIndex).toHaveBeenCalledWith(1);
   });
@@ -210,139 +194,69 @@ describe('useScrollNavigation', () => {
     expect(scrollToMock).toHaveBeenCalledWith({
       top: 0,
       left: 2000,
-      behavior: 'auto',
-    });
-  });
-
-  it('finishes a page transition at the configured duration with a quick start', () => {
-    const { rerender } = render(
-      <ScrollNavigationHarness
-        currentPageIndex={0}
-        pagesLength={4}
-        setPageIndex={vi.fn()}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
-    scrollToMock.mockClear();
-
-    rerender(
-      <ScrollNavigationHarness
-        currentPageIndex={1}
-        pagesLength={4}
-        setPageIndex={vi.fn()}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
-    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS / 2));
-    const viewport = screen.getByTestId('viewport');
-    expect(viewport.scrollLeft).toBeGreaterThan(750);
-    expect(viewport.scrollLeft).toBeLessThan(1000);
-    expect(viewport.style.scrollSnapType).toBe('none');
-    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS / 2));
-    // The configured duration may fall between the simulated 16ms frames.
-    act(() => vi.advanceTimersToNextFrame());
-    expect(scrollToMock).toHaveBeenLastCalledWith({
-      top: 0,
-      left: 1000,
       behavior: 'instant',
     });
-    expect(viewport.style.scrollSnapType).toBe('');
   });
 
-  it('retargets rapid page changes instead of queueing animations', () => {
-    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'horizontal' as const };
+  it('jumps directly to the latest requested page and leaves CSS snapping enabled', () => {
+    const setPageIndex = vi.fn();
+    const props = {
+      currentPageIndex: 0,
+      pagesLength: 4,
+      setPageIndex,
+      isModalOpen: false,
+      effectiveScrollDirection: 'horizontal' as const,
+    };
     const { rerender } = render(<ScrollNavigationHarness {...props} />);
+    const viewport = screen.getByTestId('viewport');
+    viewport.style.scrollSnapType = 'x mandatory';
+    scrollToMock.mockClear();
+
     rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
-    act(() => vi.advanceTimersByTime(48));
     rerender(<ScrollNavigationHarness {...props} currentPageIndex={3} />);
-    act(() => vi.advanceTimersByTime(PAGE_TRANSITION_MS));
-    act(() => vi.advanceTimersToNextFrame());
-    expect(screen.getByTestId('viewport').scrollLeft).toBe(3000);
-    expect(screen.getByTestId('viewport').style.scrollSnapType).toBe('');
-    const calls = scrollToMock.mock.calls.length;
-    act(() => vi.advanceTimersByTime(500));
-    expect(scrollToMock).toHaveBeenCalledTimes(calls);
+    fireEvent.pointerDown(viewport);
+    fireEvent.scroll(viewport);
+    act(() => vi.runOnlyPendingTimers());
+
+    expect(scrollToMock.mock.calls).toEqual([
+      [{ top: 0, left: 1000, behavior: 'instant' }],
+      [{ top: 0, left: 3000, behavior: 'instant' }],
+    ]);
+    expect(viewport.scrollLeft).toBe(3000);
+    expect(viewport.style.scrollSnapType).toBe('x mandatory');
+    expect(setPageIndex).not.toHaveBeenCalled();
   });
 
-  it('lets direct input interrupt the animation and restores scroll tracking', () => {
-    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'horizontal' as const };
-    const { rerender } = render(<ScrollNavigationHarness {...props} />);
-    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
-    act(() => vi.advanceTimersByTime(48));
-    const viewport = screen.getByTestId('viewport');
-    act(() => viewport.dispatchEvent(new Event('wheel')));
-    expect(viewport.style.scrollSnapType).toBe('');
-    const calls = scrollToMock.mock.calls.length;
-    viewport.scrollLeft = 2000;
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-      vi.advanceTimersByTime(PAGE_TRANSITION_MS);
-    });
-    expect(scrollToMock).toHaveBeenCalledTimes(calls);
-    expect(props.setPageIndex).toHaveBeenCalledWith(2);
-  });
-
-  it('switches pages immediately when reduced motion is requested', () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
-    const props = { currentPageIndex: 0, pagesLength: 4, setPageIndex: vi.fn(), isModalOpen: false, effectiveScrollDirection: 'vertical' as const };
-    const { rerender } = render(<ScrollNavigationHarness {...props} />);
-    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
-    expect(scrollToMock).toHaveBeenLastCalledWith({ top: 800, left: 0, behavior: 'instant' });
-    expect(screen.getByTestId('viewport').style.scrollSnapType).toBe('');
-  });
-
-  it('tracks the snapped page after horizontal scrolling settles', () => {
+  it('updates the indicator during a gesture without scrolling back to the reported page', () => {
     const setPageIndex = vi.fn();
-
-    render(
-      <ScrollNavigationHarness
-        currentPageIndex={0}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
+    const props = {
+      currentPageIndex: 0,
+      pagesLength: 4,
+      setPageIndex,
+      isModalOpen: false,
+      effectiveScrollDirection: 'horizontal' as const,
+    };
+    const { rerender } = render(<ScrollNavigationHarness {...props} />);
     const viewport = screen.getByTestId('viewport');
-    viewport.scrollLeft = 1900;
+    scrollToMock.mockClear();
 
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
-    });
+    viewport.scrollLeft = 600;
+    fireEvent.scroll(viewport);
+    fireEvent.scroll(viewport);
+    expect(setPageIndex.mock.calls).toEqual([[1]]);
+    rerender(<ScrollNavigationHarness {...props} currentPageIndex={1} />);
+    expect(viewport.scrollLeft).toBe(600);
 
-    expect(setPageIndex).toHaveBeenCalledWith(2);
+    // The browser may snap back after the gesture briefly crossed the midpoint.
+    viewport.scrollLeft = 0;
+    fireEvent.scroll(viewport);
+    rerender(<ScrollNavigationHarness {...props} />);
+    expect(setPageIndex.mock.calls).toEqual([[1], [0]]);
+    act(() => vi.runOnlyPendingTimers());
+    expect(scrollToMock).not.toHaveBeenCalled();
   });
 
-  it('updates the active page immediately while manually scrolling', () => {
-    const setPageIndex = vi.fn();
-
-    render(
-      <ScrollNavigationHarness
-        currentPageIndex={0}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
-    const viewport = screen.getByTestId('viewport');
-    viewport.scrollLeft = 1200;
-
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-    });
-
-    expect(setPageIndex).toHaveBeenCalledWith(1);
-  });
-
-  it('tracks the snapped page after vertical scrolling settles', () => {
+  it('tracks manual scrolling along the vertical axis', () => {
     const setPageIndex = vi.fn();
 
     render(
@@ -352,78 +266,46 @@ describe('useScrollNavigation', () => {
         setPageIndex={setPageIndex}
         isModalOpen={false}
         effectiveScrollDirection="vertical"
-      />
+      />,
     );
 
     const viewport = screen.getByTestId('viewport');
     viewport.scrollTop = 1700;
-
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
-    });
+    fireEvent.scroll(viewport);
 
     expect(setPageIndex).toHaveBeenCalledWith(2);
   });
 
-  it('ignores scroll-settle navigation while a modal is open', () => {
+  it('realigns the current page on a change of scroll direction', () => {
+    const props = {
+      currentPageIndex: 2,
+      pagesLength: 4,
+      setPageIndex: vi.fn(),
+      isModalOpen: false,
+    };
+    const { rerender } = render(<ScrollNavigationHarness {...props} effectiveScrollDirection="horizontal" />);
+
+    rerender(<ScrollNavigationHarness {...props} effectiveScrollDirection="vertical" />);
+
+    expect(scrollToMock).toHaveBeenLastCalledWith({ top: 1600, left: 0, behavior: 'instant' });
+  });
+
+  it('ignores scrolling inside a nested page or while a modal is open', () => {
     const setPageIndex = vi.fn();
-
-    render(
-      <ScrollNavigationHarness
-        currentPageIndex={0}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={true}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
+    const props = {
+      currentPageIndex: 0,
+      pagesLength: 4,
+      setPageIndex,
+      isModalOpen: false,
+      effectiveScrollDirection: 'horizontal' as const,
+    };
+    const { rerender } = render(<ScrollNavigationHarness {...props} />);
     const viewport = screen.getByTestId('viewport');
     viewport.scrollLeft = 1000;
 
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
-    });
-
-    expect(setPageIndex).not.toHaveBeenCalled();
-  });
-
-  it('does not feed scroll updates back through programmatic smooth scrolling', () => {
-    const setPageIndex = vi.fn();
-    const { rerender } = render(
-      <ScrollNavigationHarness
-        currentPageIndex={0}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
-    rerender(
-      <ScrollNavigationHarness
-        currentPageIndex={2}
-        pagesLength={4}
-        setPageIndex={setPageIndex}
-        isModalOpen={false}
-        effectiveScrollDirection="horizontal"
-      />
-    );
-
-    const viewport = screen.getByTestId('viewport');
-    viewport.scrollLeft = 1500;
-
-    act(() => {
-      viewport.dispatchEvent(new Event('scroll'));
-    });
-
-    expect(setPageIndex).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(SCROLL_SNAP_SETTLE_MS + 1);
-    });
+    fireEvent.scroll(screen.getByTestId('page-0'));
+    rerender(<ScrollNavigationHarness {...props} isModalOpen />);
+    fireEvent.scroll(viewport);
 
     expect(setPageIndex).not.toHaveBeenCalled();
   });

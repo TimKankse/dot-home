@@ -18,6 +18,7 @@ Welcome to the dotHome technical documentation.
 
 | Document | Description |
 |----------|-------------|
+| [v0.1.22](./releases/v0.1.22.md) | Dashboard navigation, Jellyfin compatibility, live widgets, and security updates |
 | [v0.1.21](./releases/v0.1.21.md) | Release notes for changes from `v0.1.2` to `v0.1.21` |
 
 ---

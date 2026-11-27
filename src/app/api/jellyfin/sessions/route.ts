@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { apiSecurityErrorResponse } from '@/lib/api-security';
-import { resolveJellyfinConnection } from '@/lib/jellyfin-connection';
+import { jellyfinAuthHeaders, resolveJellyfinConnection } from '@/lib/jellyfin-connection';
 import { fetchOutbound } from '@/lib/outbound-http';
 
 export async function GET(request: Request) {
@@ -11,9 +11,7 @@ export async function GET(request: Request) {
     const response = await fetchOutbound(
       `${baseUrl}/Sessions?ActiveWithinSeconds=300`,
       {
-        headers: {
-          'X-Emby-Token': connection.apiKey,
-        },
+        headers: jellyfinAuthHeaders(connection.apiKey),
         cache: 'no-store',
       },
       { policy: 'trusted-integration', timeoutMs: 10_000 },

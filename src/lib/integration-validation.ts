@@ -1,4 +1,6 @@
-import type { IntegrationType } from '@/types/integration';
+import { getIntegrationTypeMeta, type IntegrationType } from '@/types/integration';
+import { isEncrypted } from '@/utils/crypto';
+import { MASKED_SECRET } from '@/utils/sensitive-config';
 import {
   ValidationError,
   assertRecord,
@@ -67,7 +69,6 @@ const CONFIG_SPECS: Record<IntegrationType, Record<string, FieldSpec>> = {
   },
 };
 
-const MASKED_SECRET = '********';
 const MAX_NAME_LENGTH = 100;
 const MAX_URL_LENGTH = 2048;
 const MAX_IDENTIFIER_LENGTH = 512;
@@ -157,10 +158,17 @@ export const parseIntegrationConfig = (
   const result: JsonRecord = {};
   for (const [field, fieldSpec] of Object.entries(spec)) {
     let inputValue = normalizedInput[field];
-    const preserveStoredSecret = (fieldSpec.kind === 'secret' || fieldSpec.kind === 'secret-url')
-      && (inputValue === undefined || inputValue === MASKED_SECRET);
+    const isCredential = fieldSpec.kind === 'secret' || fieldSpec.kind === 'secret-url';
+    const preserveStoredSecret = isCredential && (inputValue === undefined || inputValue === MASKED_SECRET);
 
-    if (preserveStoredSecret) inputValue = existingConfig[field];
+    if (preserveStoredSecret) {
+      inputValue = existingConfig[field];
+    } else if (isCredential && typeof inputValue === 'string' && isEncrypted(inputValue.trim())) {
+      const service = getIntegrationTypeMeta(type)?.label ?? type;
+      throw new ValidationError(
+        `This credential is an encrypted Dot Home value. Enter the original credential from ${service}.`,
+      );
+    }
 
     const parsed = parseStringField(inputValue, field, fieldSpec);
     if (parsed !== undefined) result[field] = parsed;

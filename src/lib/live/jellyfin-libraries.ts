@@ -1,6 +1,5 @@
-import type { JellyfinConnection } from '@/lib/jellyfin-connection';
-
 import { ApiSecurityError } from '@/lib/api-security';
+import { jellyfinAuthHeaders, type JellyfinConnection } from '@/lib/jellyfin-connection';
 import { fetchOutbound } from '@/lib/outbound-http';
 
 interface JellyfinLibrary {
@@ -30,7 +29,7 @@ export async function readJellyfinLibraries(connection: JellyfinConnection, sign
   const viewsResponse = await fetchOutbound(
     `${baseUrl}/Users/${encodeURIComponent(userId)}/Views`,
     {
-      headers: { 'X-Emby-Token': connection.apiKey },
+      headers: jellyfinAuthHeaders(connection.apiKey),
       signal,
       cache: 'no-store',
     },
@@ -68,7 +67,7 @@ export async function readJellyfinLibraries(connection: JellyfinConnection, sign
       const countsResponse = await fetchOutbound(
         countsUrl,
         {
-          headers: { 'X-Emby-Token': connection.apiKey },
+          headers: jellyfinAuthHeaders(connection.apiKey),
           signal,
           cache: 'no-store',
         },

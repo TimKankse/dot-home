@@ -9,6 +9,7 @@ import {
 } from '@/lib/api-security';
 import { prisma } from '@/lib/db';
 import { resolveOwnedIntegration } from '@/lib/integration-access';
+import { getIntegrationCredentialStatus } from '@/lib/integration-credentials';
 import {
   INTEGRATION_TYPES,
   parseCreateIntegrationRequest,
@@ -62,6 +63,7 @@ const integrationResponse = (integration: {
     name: integration.name,
     type: integration.type,
     config: redactSensitiveFields(config, 'mask'),
+    credentialStatus: getIntegrationCredentialStatus(config),
   };
 };
 

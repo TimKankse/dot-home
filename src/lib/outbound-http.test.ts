@@ -74,7 +74,7 @@ describe('outbound HTTP policy', () => {
 
     await expect(fetchOutbound(
       'http://127.0.0.1:8096/Sessions',
-      { headers: { 'X-Emby-Token': 'secret' } },
+      { headers: { Authorization: 'MediaBrowser Token="secret"' } },
       { policy: 'trusted-integration', transport },
     )).rejects.toMatchObject({ code: 'outbound_redirect_error' });
 

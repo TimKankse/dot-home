@@ -8,6 +8,8 @@ const SENSITIVE_FIELDS = [
   'refreshToken',
 ];
 
+export const MASKED_SECRET = '********';
+
 export function isSensitiveField(key: string): boolean {
   const lowerKey = key.toLowerCase();
   return SENSITIVE_FIELDS.some((field) =>
@@ -23,7 +25,7 @@ export function redactSensitiveFields(
 
   for (const [key, entry] of Object.entries(value)) {
     if (isSensitiveField(key)) {
-      if (mode === 'mask' && entry) result[key] = '********';
+      if (mode === 'mask' && entry) result[key] = MASKED_SECRET;
       continue;
     }
 

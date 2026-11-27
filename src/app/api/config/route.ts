@@ -8,6 +8,7 @@ import {
   serializeDashboardLayout,
 } from '@/lib/dashboard-layout';
 import { parseDashboardSaveRequest } from '@/lib/request-parsers';
+import { getIntegrationCredentialStatus } from '@/lib/integration-credentials';
 import { tryParseJsonString } from '@/lib/validation';
 import { decryptSensitiveFields } from '@/utils/crypto';
 import { redactSensitiveFields } from '@/utils/sensitive-config';
@@ -77,12 +78,16 @@ async function getUserIntegrations(userId: string) {
       orderBy: { createdAt: 'asc' },
     });
 
-    return integrations.map((i: typeof integrations[number]) => ({
-      id: i.id,
-      name: i.name,
-      type: i.type,
-      config: redactSensitiveFields(JSON.parse(i.config), 'omit'),
-    }));
+    return integrations.map(({ id, name, type, config: stored }) => {
+      const config = JSON.parse(stored) as Record<string, unknown>;
+      return {
+        id,
+        name,
+        type,
+        config: redactSensitiveFields(config),
+        credentialStatus: getIntegrationCredentialStatus(config),
+      };
+    });
   } catch (error) {
     console.error('Error fetching user integrations:', error);
     return [];

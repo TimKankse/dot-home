@@ -35,8 +35,32 @@ describe('live integration sources', () => {
     await source.poll(abort.signal);
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
     expect(mocks.fetch.mock.calls.every(([url]) => url.pathname === '/Sessions')).toBe(true);
+    for (const [, init] of mocks.fetch.mock.calls) {
+      expect(init.headers).toEqual({ Authorization: 'MediaBrowser Token="test-key"' });
+    }
     abort.abort();
   });
+
+  it('authenticates both requests used to load Jellyfin library stats', async () => {
+    mocks.fetch.mockImplementation(async (url, init) => {
+      if (new Headers(init.headers).get('Authorization') !== 'MediaBrowser Token="test-key"') {
+        return new Response(null, { status: 401 });
+      }
+      return String(url).endsWith('/Views')
+        ? Response.json({ Items: [{ Id: 'movies', Name: 'Movies', CollectionType: 'movies' }] })
+        : Response.json({ MovieCount: 2 });
+    });
+    const source = createLiveSource({
+      ...integration,
+      config: { ...integration.config, userId: 'jellyfin-user' },
+    }, 'libraries');
+
+    expect((await source.poll(new AbortController().signal)).data).toEqual([
+      { Id: 'movies', Name: 'Movies', CollectionType: 'movies', Counts: { Movies: 2 } },
+    ]);
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('removes archive passwords and unrelated queue fields from both API and live responses', () => {
     const queue = {
       status: 'Downloading', speed: '1', timeleft: '1', paused: false, apiKey: 'secret',

@@ -471,9 +471,9 @@ export default function Home() {
     fetchConfig();
   }, [fetchConfig]);
 
-  useScrollNavigation({
+  const handleDashboardScroll = useScrollNavigation({
     currentPageIndex: renderedPageIndex,
-    pagesLength: renderedPages.length,
+    pagesLength: isLoaded ? renderedPages.length : 0,
     setPageIndex: setActiveRenderedPage,
     isModalOpen: isAddModalOpen || isSettingsOpen,
     effectiveScrollDirection,
@@ -623,6 +623,7 @@ export default function Home() {
 
       <div
         ref={dashboardViewportRef}
+        onScroll={handleDashboardScroll}
         className={`${styles.dashboardViewport} ${isPreviewingResponsiveLayout ? styles.previewViewport : ''}`}
         data-dashboard-viewport
         data-scroll={effectiveScrollDirection}

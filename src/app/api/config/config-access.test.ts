@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const session = vi.hoisted(() => vi.fn());
 const db = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ vi.mock('@/lib/automatic-integration-migration', () => ({
 }));
 import { GET, POST } from './route';
 import { runAutomaticIntegrationMigration } from '@/lib/automatic-integration-migration';
+import { encryptValue } from '@/utils/crypto';
 
 const own = { id: 'own', userId: 'member', accessLevel: 'PRIVATE', layout: JSON.stringify({ widgets: [], pages: [] }) };
 const shared = { id: 'shared', userId: 'owner', accessLevel: 'VIEWABLE', layout: JSON.stringify({ widgets: [], pages: [{ id: 'private-page', name: 'Restricted contents' }] }) };
@@ -29,6 +30,28 @@ beforeEach(() => {
   db.integration.findMany.mockResolvedValue([]);
   db.userDashboardPreference.findUnique.mockResolvedValue({ defaultDashboardId: 'shared' });
   db.dashboard.findFirst.mockResolvedValue(own);
+});
+afterEach(() => vi.unstubAllEnvs());
+
+it('includes saved and unreadable credential status without returning credentials on reload', async () => {
+  vi.stubEnv('DATABASE_URL', '');
+  vi.stubEnv('CONFIG_ENCRYPTION_SECRET', 'previous-encryption-key');
+  const unreadable = encryptValue('unreadable-test-key');
+  vi.stubEnv('CONFIG_ENCRYPTION_SECRET', 'current-encryption-key');
+  const saved = encryptValue('saved-test-key');
+  db.integration.findMany.mockResolvedValue([
+    { id: 'working', type: 'jellyfin', name: 'Working', config: JSON.stringify({ apiKey: saved }) },
+    { id: 'unreadable', type: 'jellyfin', name: 'Unreadable', config: JSON.stringify({ apiKey: unreadable }) },
+  ]);
+  db.dashboard.findUnique.mockResolvedValue(own);
+
+  const response = await GET(new Request('https://home.test/api/config'));
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.integrations).toEqual([
+    { id: 'working', type: 'jellyfin', name: 'Working', config: {}, credentialStatus: { apiKey: 'saved' } },
+    { id: 'unreadable', type: 'jellyfin', name: 'Unreadable', config: {}, credentialStatus: { apiKey: 'unreadable' } },
+  ]);
 });
 
 describe('dashboard save performance', () => {

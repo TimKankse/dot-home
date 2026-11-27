@@ -222,19 +222,17 @@ export async function runAutomaticIntegrationMigration(
         if (!plan.integrationId || !plan.integrationConfig) {
           throw new Error(`Incomplete repair plan for ${plan.widgetId}`);
         }
-        const serialized = JSON.stringify(
-          encryptSensitiveFields(plan.integrationConfig),
-        );
+        const configKey = getMigrationConfigKey(plan.widgetType, plan.integrationConfig);
         const previous = repairedConfigs.get(plan.integrationId);
-        if (previous && previous !== serialized) {
+        if (previous && previous !== configKey) {
           throw new Error(`Conflicting legacy credentials reference integration ${plan.integrationId}`);
         }
         if (!previous) {
           await transaction.integration.update({
             where: { id: plan.integrationId },
-            data: { config: serialized },
+            data: { config: JSON.stringify(encryptSensitiveFields(plan.integrationConfig)) },
           });
-          repairedConfigs.set(plan.integrationId, serialized);
+          repairedConfigs.set(plan.integrationId, configKey);
           result.repairedIntegrations += 1;
         }
         return plan.integrationId;

@@ -82,12 +82,16 @@ export interface RssIntegrationConfig {
   secretUrl?: string;
 }
 
+export type IntegrationCredentialField = 'apiKey' | 'password' | 'clientSecret' | 'secretUrl';
+export type IntegrationCredentialStatus = Partial<Record<IntegrationCredentialField, 'saved' | 'unreadable'>>;
+
 // Main Integration interface
 export interface Integration<T extends IntegrationType = IntegrationType> {
   id: string;
   name: string;              // User-friendly name, e.g., "Home Media Server"
   type: T;                   // Widget type this integration is for
   config: IntegrationConfigMap[T];  // Type-safe config based on type
+  credentialStatus?: IntegrationCredentialStatus;
 }
 
 // Integration metadata for UI display

@@ -23,11 +23,11 @@ describe('Jellyfin upstream subscription', () => {
     const port = (server.address() as AddressInfo).port;
     abort = new AbortController();
     let requestUrl = '';
-    let token: string | string[] | undefined;
+    let authorization: string | undefined;
     let subscription: unknown;
     sockets.on('connection', (socket, request) => {
       requestUrl = request.url!;
-      token = request.headers['x-emby-token'];
+      authorization = request.headers.authorization;
       socket.once('message', (message) => {
         subscription = JSON.parse(message.toString());
         socket.send(JSON.stringify({ MessageType: 'Sessions', Data: [{ Id: 'playing' }] }));
@@ -41,7 +41,7 @@ describe('Jellyfin upstream subscription', () => {
     });
     expect(data).toEqual([{ Id: 'playing' }]);
     expect(requestUrl).toBe('/jellyfin/socket');
-    expect(token).toBe('test-api-key');
+    expect(authorization).toBe('MediaBrowser Token="test-api-key"');
     expect(subscription).toEqual({ MessageType: 'SessionsStart', Data: '0,2000' });
     expect(watcher.isReceiving()).toBe(true);
     const closed = new Promise<void>((resolve) => [...sockets.clients][0].once('close', () => resolve()));

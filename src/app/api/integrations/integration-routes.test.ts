@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
   widgetPermission: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -26,12 +26,9 @@ vi.mock('@/lib/api-security', async () => {
   return { ...actual, requireApiUser: securityMock.requireApiUser };
 });
 vi.mock('@/lib/integration-access', () => accessMock);
-vi.mock('@/utils/crypto', () => ({
-  encryptSensitiveFields: (config: Record<string, unknown>) => config,
-}));
-
 import { ApiSecurityError } from '@/lib/api-security';
-import { DELETE, POST, PUT } from './route';
+import { decryptSensitiveFields, isEncrypted } from '@/utils/crypto';
+import { DELETE, GET, POST, PUT } from './route';
 
 const storedJellyfin = {
   id: 'integration-1',
@@ -48,12 +45,15 @@ const storedJellyfin = {
 describe('integration management routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('CONFIG_ENCRYPTION_SECRET', 'integration-route-test-secret');
+    vi.stubEnv('DATABASE_URL', '');
     securityMock.requireApiUser.mockResolvedValue({ id: 'user-1', role: 'admin' });
     accessMock.resolveOwnedIntegration.mockResolvedValue(storedJellyfin);
     prismaMock.$transaction.mockImplementation(async (callback) => callback(prismaMock));
     prismaMock.integration.delete.mockResolvedValue({ id: 'integration-1' });
     prismaMock.objectPermission.deleteMany.mockResolvedValue({ count: 0 });
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('uses a server-generated ID when creating an integration', async () => {
     prismaMock.integration.create.mockResolvedValue({
@@ -130,39 +130,69 @@ describe('integration management routes', () => {
     expect(prismaMock.integration.create).not.toHaveBeenCalled();
   });
 
-  it('preserves an omitted stored secret when updating non-secret fields', async () => {
-    prismaMock.integration.update.mockResolvedValue({
-      id: 'integration-1',
-      name: 'Living room Jellyfin',
-      type: 'jellyfin',
-      config: JSON.stringify({
-        url: 'http://192.168.1.20:8096',
-        apiKey: 'stored-secret',
+  it.each([['POST', POST], ['PUT', PUT]] as const)('rejects pasted encrypted credentials on %s before writing', async (method, handler) => {
+    const value = 'enc:copied-from-storage';
+    const response = await handler(new Request('https://home.example.test/api/integrations', {
+      method,
+      body: JSON.stringify({
+        id: 'integration-1',
+        name: 'Jellyfin',
+        type: 'jellyfin',
+        config: { url: 'http://jellyfin.test', apiKey: value },
       }),
-    });
+    }));
 
-    const response = await PUT(new Request('https://home.example.test/api/integrations', {
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toContain('Enter the original credential from Jellyfin.');
+    expect(JSON.stringify(body)).not.toContain(value);
+    expect(prismaMock.integration.create).not.toHaveBeenCalled();
+    expect(prismaMock.integration.update).not.toHaveBeenCalled();
+  });
+
+  it('stores a replacement encrypted, reports it on reopen, and preserves it on an unrelated edit', async () => {
+    let stored = {
+      id: 'integration-1',
+      name: 'Jellyfin',
+      type: 'jellyfin',
+      config: JSON.stringify(storedJellyfin.config),
+    };
+    prismaMock.integration.update.mockImplementation(async ({ data }) => {
+      stored = { ...stored, ...data };
+      return stored;
+    });
+    prismaMock.integration.findMany.mockImplementation(async () => [stored]);
+    accessMock.resolveOwnedIntegration.mockImplementation(async () => ({
+      ...storedJellyfin,
+      config: decryptSensitiveFields(JSON.parse(stored.config)),
+    }));
+
+    const save = (config: Record<string, string>) => PUT(new Request('https://home.example.test/api/integrations', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: 'integration-1',
         name: 'Living room Jellyfin',
         type: 'jellyfin',
-        config: { url: 'http://192.168.1.20:8096' },
+        config: { url: 'http://192.168.1.20:8096', ...config },
       }),
     }));
 
+    const replacement = 'replacement-test-key';
+    const response = await save({ apiKey: replacement });
     expect(response.status).toBe(200);
-    expect(prismaMock.integration.update).toHaveBeenCalledWith({
-      where: { id: 'integration-1' },
-      data: {
-        name: 'Living room Jellyfin',
-        config: JSON.stringify({
-          url: 'http://192.168.1.20:8096',
-          apiKey: 'stored-secret',
-        }),
-      },
+    expect(isEncrypted(JSON.parse(stored.config).apiKey)).toBe(true);
+    expect(await response.json()).toMatchObject({ credentialStatus: { apiKey: 'saved' } });
+
+    const reopened = await (await GET()).json();
+    expect(reopened[0]).toMatchObject({
+      config: { apiKey: '********' },
+      credentialStatus: { apiKey: 'saved' },
     });
+    expect(JSON.stringify(reopened)).not.toContain(replacement);
+
+    expect((await save({})).status).toBe(200);
+    expect(decryptSensitiveFields(JSON.parse(stored.config)).apiKey).toBe(replacement);
   });
 
   it('rejects integration type changes', async () => {
